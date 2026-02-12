@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import threading
 import time
 from typing import Callable
@@ -13,6 +14,11 @@ except ImportError:
 
 _cpu_percent_primed = False
 _cpu_prime_lock = threading.Lock()
+
+
+def _require_positive_finite_interval(interval_seconds: float) -> None:
+    if not math.isfinite(interval_seconds) or interval_seconds <= 0:
+        raise ValueError("interval_seconds must be a finite number greater than 0.")
 
 
 def collect_snapshot(now: Callable[[], float] | None = None) -> SystemSnapshot:
@@ -51,8 +57,7 @@ def run_polling_loop(
     monotonic: Callable[[], float] | None = None,
 ) -> int:
     """Collect snapshots at a fixed interval until the stop event is set."""
-    if interval_seconds <= 0:
-        raise ValueError("interval_seconds must be greater than 0")
+    _require_positive_finite_interval(interval_seconds)
 
     def _wait(timeout_seconds: float) -> None:
         stop_event.wait(timeout_seconds)
@@ -77,8 +82,7 @@ def poll_snapshots(
     collect: Callable[[], SystemSnapshot] | None = None,
 ) -> int:
     """Collect snapshots at a fixed interval until `should_stop` returns True."""
-    if interval_seconds <= 0:
-        raise ValueError("interval_seconds must be greater than 0.")
+    _require_positive_finite_interval(interval_seconds)
 
     stop = (lambda: False) if should_stop is None else should_stop
     sleeper = time.sleep if sleep is None else sleep

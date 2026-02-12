@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import pathlib
 import sys
 import threading
@@ -134,6 +135,16 @@ class RunPollingLoopTests(unittest.TestCase):
                 stop_event=threading.Event(),
             )
 
+    def test_run_polling_loop_requires_finite_interval(self) -> None:
+        for invalid_interval in (math.nan, math.inf, -math.inf):
+            with self.subTest(invalid_interval=invalid_interval):
+                with self.assertRaises(ValueError):
+                    poller.run_polling_loop(
+                        invalid_interval,
+                        lambda _snapshot: None,
+                        stop_event=threading.Event(),
+                    )
+
     def test_run_polling_loop_stops_when_stop_event_is_set(self) -> None:
         produced = [
             SystemSnapshot(timestamp=1.0, cpu_percent=10.0, memory_percent=20.0),
@@ -170,6 +181,15 @@ class PollSnapshotsTests(unittest.TestCase):
     def test_poll_snapshots_requires_positive_interval(self) -> None:
         with self.assertRaises(ValueError):
             poller.poll_snapshots(lambda _snapshot: None, interval_seconds=0)
+
+    def test_poll_snapshots_requires_finite_interval(self) -> None:
+        for invalid_interval in (math.nan, math.inf, -math.inf):
+            with self.subTest(invalid_interval=invalid_interval):
+                with self.assertRaises(ValueError):
+                    poller.poll_snapshots(
+                        lambda _snapshot: None,
+                        interval_seconds=invalid_interval,
+                    )
 
     def test_poll_snapshots_stops_without_sampling_when_requested(self) -> None:
         original_collect_snapshot = poller.collect_snapshot

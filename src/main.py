@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 import threading
 
@@ -11,8 +12,10 @@ from core.types import SystemSnapshot
 
 def _positive_interval_seconds(value: str) -> float:
     interval = float(value)
-    if interval <= 0:
-        raise argparse.ArgumentTypeError("interval must be greater than 0")
+    if not math.isfinite(interval) or interval <= 0:
+        raise argparse.ArgumentTypeError(
+            "interval must be a finite number greater than 0"
+        )
     return interval
 
 

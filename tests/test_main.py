@@ -18,6 +18,30 @@ from core.types import SystemSnapshot  # noqa: E402
 
 
 class MainCliTests(unittest.TestCase):
+    def test_main_watch_mode_rejects_non_finite_interval(self) -> None:
+        original_run_polling_loop = app_main.run_polling_loop
+        app_main.run_polling_loop = lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("run_polling_loop should not be called for invalid interval.")
+        )
+
+        try:
+            for invalid_value in ("nan", "inf", "-inf"):
+                stdout = io.StringIO()
+                stderr = io.StringIO()
+                argv = ["--watch", "--interval", invalid_value]
+                if invalid_value.startswith("-"):
+                    argv = ["--watch", f"--interval={invalid_value}"]
+                with self.subTest(invalid_value=invalid_value):
+                    with redirect_stdout(stdout), redirect_stderr(stderr):
+                        with self.assertRaises(SystemExit) as ctx:
+                            app_main.main(argv)
+
+                    self.assertEqual(ctx.exception.code, 2)
+                    self.assertEqual(stdout.getvalue(), "")
+                    self.assertIn("finite number greater than 0", stderr.getvalue())
+        finally:
+            app_main.run_polling_loop = original_run_polling_loop
+
     def test_main_watch_mode_rejects_non_positive_interval(self) -> None:
         original_run_polling_loop = app_main.run_polling_loop
         app_main.run_polling_loop = lambda *args, **kwargs: (_ for _ in ()).throw(
@@ -34,7 +58,7 @@ class MainCliTests(unittest.TestCase):
 
         self.assertEqual(ctx.exception.code, 2)
         self.assertEqual(stdout.getvalue(), "")
-        self.assertIn("interval must be greater than 0", stderr.getvalue())
+        self.assertIn("finite number greater than 0", stderr.getvalue())
 
     def test_main_watch_mode_streams_json_snapshots(self) -> None:
         produced = [

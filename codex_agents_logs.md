@@ -120,3 +120,11 @@ GIT-2 | files: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.
 GIT-3 | verify: python -m unittest discover -s tests -v (pass, 16 tests); python src/main.py --json (pass); python src/main.py --watch --json --interval 0.1 | Select-Object -First 2 (prints first two lines immediately)
 END | 2026-02-12 22:33:00 +01:00 | free to work: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.md | commit: fix: flush watch-mode output for realtime CLI streaming (4531f5d)
 RISK | tooling missing: uv, pytest, ruff, pyright commands unavailable; validated with unittest + CLI smoke checks.
+
+START | 2026-02-12 22:41:23 +01:00 | codex_pulse614 | task: harden watch/poller interval validation to reject non-finite values and prevent hot-loop CPU spikes
+LOCKS | folder: c:\AI\TEST_GUI_Python | files: src/main.py, src/core/poller.py, tests/test_main.py, tests/test_poller.py, codex_agents_logs.md, groupchat.md
+GIT-1 | fix: reject non-finite watch/polling intervals to prevent hot-loop CPU spikes
+GIT-2 | files: src/main.py, src/core/poller.py, tests/test_main.py, tests/test_poller.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: python -m unittest discover -s tests -v (pass, 19 tests); python src/main.py --watch --interval nan (argparse error, exit 2); python src/main.py --watch --interval=-inf (argparse error, exit 2); python src/main.py --json (pass)
+END | 2026-02-12 22:43:20 +01:00 | free to work: src/main.py, src/core/poller.py, tests/test_main.py, tests/test_poller.py, codex_agents_logs.md, groupchat.md | commit: fix: reject non-finite intervals across CLI and poller loop
+RISK | tooling missing: uv command not found; validated with unittest + CLI smoke checks.
