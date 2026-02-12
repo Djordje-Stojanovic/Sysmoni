@@ -19,6 +19,155 @@ from core.types import SystemSnapshot  # noqa: E402
 
 
 class MainCliTests(unittest.TestCase):
+    def test_main_since_or_until_requires_db_path(self) -> None:
+        for argv in (["--since", "1.0"], ["--until", "2.0"]):
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+
+            with self.subTest(argv=argv):
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    with self.assertRaises(SystemExit) as ctx:
+                        app_main.main(argv)
+
+                self.assertEqual(ctx.exception.code, 2)
+                self.assertEqual(stdout.getvalue(), "")
+                self.assertIn("--since/--until require --db-path", stderr.getvalue())
+
+    def test_main_since_or_until_rejects_watch_or_latest(self) -> None:
+        original_run_polling_loop = app_main.run_polling_loop
+        app_main.run_polling_loop = lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("run_polling_loop should not be called with invalid range args.")
+        )
+
+        try:
+            for argv, expected_error in (
+                (
+                    ["--watch", "--since", "1.0", "--db-path", "telemetry.sqlite"],
+                    "--since/--until cannot be used with --watch",
+                ),
+                (
+                    [
+                        "--latest",
+                        "1",
+                        "--since",
+                        "1.0",
+                        "--db-path",
+                        "telemetry.sqlite",
+                    ],
+                    "--since/--until cannot be used with --latest",
+                ),
+            ):
+                stdout = io.StringIO()
+                stderr = io.StringIO()
+                with self.subTest(argv=argv):
+                    with redirect_stdout(stdout), redirect_stderr(stderr):
+                        with self.assertRaises(SystemExit) as ctx:
+                            app_main.main(argv)
+
+                    self.assertEqual(ctx.exception.code, 2)
+                    self.assertEqual(stdout.getvalue(), "")
+                    self.assertIn(expected_error, stderr.getvalue())
+        finally:
+            app_main.run_polling_loop = original_run_polling_loop
+
+    def test_main_since_until_prints_requested_snapshots_from_store(self) -> None:
+        range_snapshots = [
+            SystemSnapshot(timestamp=10.0, cpu_percent=1.0, memory_percent=2.0),
+            SystemSnapshot(timestamp=11.0, cpu_percent=3.0, memory_percent=4.0),
+        ]
+        created_stores: list[object] = []
+
+        class _StoreStub:
+            def __init__(self, db_path: str) -> None:
+                self.db_path = db_path
+                self.closed = False
+                self.received_start: float | None = None
+                self.received_end: float | None = None
+                created_stores.append(self)
+
+            def between(
+                self,
+                *,
+                start_timestamp: float | None = None,
+                end_timestamp: float | None = None,
+            ) -> list[SystemSnapshot]:
+                self.received_start = start_timestamp
+                self.received_end = end_timestamp
+                return range_snapshots
+
+            def append(self, _snapshot: SystemSnapshot) -> None:
+                raise AssertionError("append should not be called during range reads.")
+
+            def close(self) -> None:
+                self.closed = True
+
+        original_store = app_main.TelemetryStore
+        original_collect_snapshot = app_main.collect_snapshot
+        original_run_polling_loop = app_main.run_polling_loop
+        app_main.TelemetryStore = _StoreStub
+        app_main.collect_snapshot = lambda: (_ for _ in ()).throw(
+            AssertionError("collect_snapshot should not be called during range reads.")
+        )
+        app_main.run_polling_loop = lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("run_polling_loop should not be called during range reads.")
+        )
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        try:
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                code = app_main.main(
+                    [
+                        "--db-path",
+                        "telemetry.sqlite",
+                        "--since",
+                        "10.0",
+                        "--until",
+                        "11.0",
+                        "--json",
+                    ]
+                )
+        finally:
+            app_main.TelemetryStore = original_store
+            app_main.collect_snapshot = original_collect_snapshot
+            app_main.run_polling_loop = original_run_polling_loop
+
+        self.assertEqual(code, 0)
+        self.assertEqual(stderr.getvalue(), "")
+        self.assertEqual(
+            stdout.getvalue().strip().splitlines(),
+            [
+                '{"cpu_percent": 1.0, "memory_percent": 2.0, "timestamp": 10.0}',
+                '{"cpu_percent": 3.0, "memory_percent": 4.0, "timestamp": 11.0}',
+            ],
+        )
+        self.assertEqual(len(created_stores), 1)
+        store = created_stores[0]
+        self.assertEqual(store.db_path, "telemetry.sqlite")
+        self.assertEqual(store.received_start, 10.0)
+        self.assertEqual(store.received_end, 11.0)
+        self.assertTrue(store.closed)
+
+    def test_main_rejects_since_greater_than_until(self) -> None:
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            with self.assertRaises(SystemExit) as ctx:
+                app_main.main(
+                    [
+                        "--db-path",
+                        "telemetry.sqlite",
+                        "--since",
+                        "11.0",
+                        "--until",
+                        "10.0",
+                    ]
+                )
+
+        self.assertEqual(ctx.exception.code, 2)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn("--since must be less than or equal to --until", stderr.getvalue())
+
     def test_main_latest_requires_db_path(self) -> None:
         stdout = io.StringIO()
         stderr = io.StringIO()

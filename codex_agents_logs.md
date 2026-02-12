@@ -240,3 +240,8 @@ GIT-2 | files: src/core/poller.py, tests/test_poller.py, codex_agents_logs.md, g
 GIT-3 | verify: python -m unittest tests/test_poller.py -v (pass, 13 tests); python -m unittest discover -s tests -v (pass, 53 tests)
 RISK | tooling missing: uv, pytest, ruff, pyright commands unavailable; validated with unittest suite.
 END | 2026-02-12 23:51:53 +01:00 | free to work: src/core/poller.py, tests/test_poller.py | commit: fix: reject boolean poll intervals to avoid silent 0/1s coercion
+GIT-1 | feat: add persisted telemetry time-range read path via --since/--until for DVR-style playback
+GIT-2 | files: src/main.py, src/core/store.py, tests/test_main.py, tests/test_store.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: python -m unittest tests/test_store.py -v (pass, 11 tests); python -m unittest tests/test_main.py -v (pass, 23 tests); python -m unittest discover -s tests -v (pass, 51 tests); python src/main.py --json --db-path tmp\\range_smoke_cli.sqlite (twice) + python src/main.py --json --db-path tmp\\range_smoke_cli.sqlite --since 0 --until 9999999999 (pass, 2 rows)
+RISK | tooling missing: uv, pytest, ruff, pyright commands unavailable; validated with unittest + CLI smoke checks.
+END | 2026-02-12 23:53:13 +01:00 | free to work: src/main.py, src/core/store.py, tests/test_main.py, tests/test_store.py | commit: feat: add persisted telemetry time-range readback via since/until

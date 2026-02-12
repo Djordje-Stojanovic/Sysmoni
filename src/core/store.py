@@ -29,6 +29,20 @@ def _require_positive_limit(limit: int) -> int:
     return normalized_limit
 
 
+def _normalize_optional_finite_timestamp(
+    timestamp: float | None,
+    *,
+    field_name: str,
+) -> float | None:
+    if timestamp is None:
+        return None
+
+    normalized_timestamp = float(timestamp)
+    if not math.isfinite(normalized_timestamp):
+        raise ValueError(f"{field_name} must be a finite number.")
+    return normalized_timestamp
+
+
 def _prepare_db_path(db_path: str | Path) -> str:
     normalized_path = str(db_path)
     if normalized_path == ":memory:":
@@ -165,6 +179,63 @@ class TelemetryStore:
             ).fetchall()
 
         rows.reverse()
+        return [
+            SystemSnapshot(
+                timestamp=row["timestamp"],
+                cpu_percent=row["cpu_percent"],
+                memory_percent=row["memory_percent"],
+            )
+            for row in rows
+        ]
+
+    def between(
+        self,
+        *,
+        start_timestamp: float | None = None,
+        end_timestamp: float | None = None,
+    ) -> list[SystemSnapshot]:
+        normalized_start = _normalize_optional_finite_timestamp(
+            start_timestamp,
+            field_name="start_timestamp",
+        )
+        normalized_end = _normalize_optional_finite_timestamp(
+            end_timestamp,
+            field_name="end_timestamp",
+        )
+
+        if (
+            normalized_start is not None
+            and normalized_end is not None
+            and normalized_start > normalized_end
+        ):
+            raise ValueError(
+                "start_timestamp must be less than or equal to end_timestamp."
+            )
+
+        filters: list[str] = []
+        params: list[float] = []
+        if normalized_start is not None:
+            filters.append("timestamp >= ?")
+            params.append(normalized_start)
+        if normalized_end is not None:
+            filters.append("timestamp <= ?")
+            params.append(normalized_end)
+
+        where_clause = ""
+        if filters:
+            where_clause = "WHERE " + " AND ".join(filters)
+
+        with self._lock:
+            rows = self._connection.execute(
+                f"""
+                SELECT timestamp, cpu_percent, memory_percent
+                FROM snapshots
+                {where_clause}
+                ORDER BY timestamp ASC, id ASC
+                """,
+                tuple(params),
+            ).fetchall()
+
         return [
             SystemSnapshot(
                 timestamp=row["timestamp"],

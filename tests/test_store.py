@@ -167,6 +167,33 @@ class TelemetryStoreTests(unittest.TestCase):
 
         self.assertEqual([snapshot.timestamp for snapshot in snapshots], [101.0, 102.0])
 
+    def test_between_returns_snapshots_within_inclusive_range(self) -> None:
+        with TelemetryStore(":memory:", now=lambda: 200.0) as store:
+            store.append(
+                SystemSnapshot(timestamp=100.0, cpu_percent=10.0, memory_percent=20.0)
+            )
+            store.append(
+                SystemSnapshot(timestamp=101.0, cpu_percent=11.0, memory_percent=21.0)
+            )
+            store.append(
+                SystemSnapshot(timestamp=102.0, cpu_percent=12.0, memory_percent=22.0)
+            )
+
+            snapshots = store.between(start_timestamp=100.5, end_timestamp=102.0)
+
+        self.assertEqual([snapshot.timestamp for snapshot in snapshots], [101.0, 102.0])
+
+    def test_between_rejects_invalid_timestamps(self) -> None:
+        with TelemetryStore(":memory:") as store:
+            with self.assertRaises(ValueError):
+                store.between(start_timestamp=math.nan)
+
+            with self.assertRaises(ValueError):
+                store.between(end_timestamp=math.inf)
+
+            with self.assertRaises(ValueError):
+                store.between(start_timestamp=5.0, end_timestamp=4.0)
+
     def test_append_prunes_samples_older_than_retention_window(self) -> None:
         current_time = 100.0
 

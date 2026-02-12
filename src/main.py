@@ -33,6 +33,13 @@ def _positive_interval_seconds(value: str) -> float:
     return interval
 
 
+def _finite_timestamp_seconds(value: str) -> float:
+    timestamp = float(value)
+    if not math.isfinite(timestamp):
+        raise argparse.ArgumentTypeError("timestamp must be a finite number")
+    return timestamp
+
+
 def _positive_sample_count(value: str) -> int:
     try:
         sample_count = int(value)
@@ -76,6 +83,18 @@ def build_parser() -> argparse.ArgumentParser:
         type=_positive_sample_count,
         default=None,
         help="Emit the latest N persisted snapshots from --db-path, then exit.",
+    )
+    parser.add_argument(
+        "--since",
+        type=_finite_timestamp_seconds,
+        default=None,
+        help="Emit persisted snapshots with timestamp >= this value; requires --db-path.",
+    )
+    parser.add_argument(
+        "--until",
+        type=_finite_timestamp_seconds,
+        default=None,
+        help="Emit persisted snapshots with timestamp <= this value; requires --db-path.",
     )
     parser.add_argument(
         "--db-path",
@@ -133,6 +152,15 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--latest cannot be used with --watch")
     if args.latest is not None and not args.db_path:
         parser.error("--latest requires --db-path")
+    has_range_read = args.since is not None or args.until is not None
+    if has_range_read and args.watch:
+        parser.error("--since/--until cannot be used with --watch")
+    if has_range_read and args.latest is not None:
+        parser.error("--since/--until cannot be used with --latest")
+    if has_range_read and not args.db_path:
+        parser.error("--since/--until require --db-path")
+    if args.since is not None and args.until is not None and args.since > args.until:
+        parser.error("--since must be less than or equal to --until")
 
     store: TelemetryStore | None = None
     try:
@@ -144,6 +172,17 @@ def main(argv: list[str] | None = None) -> int:
                 parser.error("--latest requires --db-path")
 
             for snapshot in store.latest(limit=args.latest):
+                _print_snapshot(snapshot, output_json=args.json)
+            return 0
+
+        if has_range_read:
+            if store is None:
+                parser.error("--since/--until require --db-path")
+
+            for snapshot in store.between(
+                start_timestamp=args.since,
+                end_timestamp=args.until,
+            ):
                 _print_snapshot(snapshot, output_json=args.json)
             return 0
 
