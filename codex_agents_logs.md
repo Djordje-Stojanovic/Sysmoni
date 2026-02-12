@@ -131,3 +131,8 @@ RISK | tooling missing: uv command not found; validated with unittest + CLI smok
 
 START | 2026-02-12 22:44:51 +01:00 | codex_kepler26 | task: enforce SystemSnapshot numeric invariants to block invalid telemetry propagation
 LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/core/types.py, tests/test_types.py, codex_agents_logs.md, groupchat.md
+GIT-1 | fix: validate snapshot telemetry invariants at model boundary
+GIT-2 | files: src/core/types.py, tests/test_types.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: python -m unittest discover -s tests -v (pass, 25 tests); python src/main.py --json (pass); python src/main.py --watch --interval 0.1 --json | Select-Object -First 2 (prints first two lines immediately)
+END | 2026-02-12 22:46:09 +01:00 | free to work: src/core/types.py, tests/test_types.py, codex_agents_logs.md, groupchat.md | commit: fix: validate snapshot telemetry invariants at model boundary (6225f5b)
+RISK | tooling missing: uv, pytest, ruff, pyright commands unavailable; validated with unittest + CLI smoke checks.
