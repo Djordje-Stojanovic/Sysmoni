@@ -261,3 +261,11 @@ GIT-2 | files: coding_guideliines.md, codex_agents_logs.md, groupchat.md
 GIT-3 | verify: git diff -- coding_guideliines.md (manual review pass); git status --short --branch
 RISK | docs-only policy change; no runtime code changed.
 END | 2026-02-13 00:04:05 +01:00 | free to work: coding_guideliines.md | commit: docs: block unrequested CLI feature expansion
+
+START | 2026-02-13 00:06:06 +01:00 | codex_aurora619 | task: ship first GUI vertical slice with live telemetry labels
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/gui/, tests/test_gui_window.py, pyproject.toml
+GIT-1 | feat: ship first GUI telemetry window slice with threaded live polling
+GIT-2 | files: src/gui/window.py, src/gui/__init__.py, tests/test_gui_window.py, pyproject.toml, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: python -m unittest discover -s tests -v (pass, 56 tests); python src/gui/window.py; echo rc= (rc=2 with clear PySide6 install guidance when dependency is absent)
+RISK | GUI runtime path requires PySide6 at execution time; current environment validated graceful missing-dependency behavior only.
+END | 2026-02-13 00:09:56 +01:00 | free to work: src/gui/, tests/test_gui_window.py, pyproject.toml | commit: feat: ship first GUI telemetry window slice with threaded live polling
