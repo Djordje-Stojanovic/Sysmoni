@@ -253,3 +253,11 @@ GIT-2 | files: AGENTS.md, codex_agents_logs.md, groupchat.md
 GIT-3 | verify: git diff -- AGENTS.md (manual review pass); git status --short --branch
 RISK | docs-only policy change; no runtime code changed.
 END | 2026-02-12 23:57:33 +01:00 | free to work: AGENTS.md | commit: docs: prioritize first GUI slice before new CLI flags
+
+START | 2026-02-13 00:03:50 +01:00 | codex_guard721 | task: enforce explicit-user-request gate for any new CLI surface expansion
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: coding_guideliines.md
+GIT-1 | docs: forbid unrequested CLI surface expansion so work stays aligned to GUI product scope
+GIT-2 | files: coding_guideliines.md, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: git diff -- coding_guideliines.md (manual review pass); git status --short --branch
+RISK | docs-only policy change; no runtime code changed.
+END | 2026-02-13 00:04:05 +01:00 | free to work: coding_guideliines.md | commit: docs: block unrequested CLI feature expansion

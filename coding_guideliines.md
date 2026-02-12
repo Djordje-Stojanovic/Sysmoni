@@ -54,3 +54,4 @@ Mandatory coordination rules for all Codex agents.
 51. Each change must be meaningful and advance the project (bug fix, user value, reliability, or clarity).
 52. Be realistic about constraints and scope; ship the simplest viable improvement first.
 53. Apply Elon-first-principles order on execution decisions: question requirement, delete, simplify, accelerate, automate.
+54. Do not add or expand CLI user-facing features (new flags/commands/modes) unless the user explicitly requested CLI work in the current task.
