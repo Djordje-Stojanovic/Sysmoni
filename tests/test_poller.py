@@ -5,6 +5,7 @@ import sys
 import threading
 import time
 import unittest
+from typing import Callable
 
 
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -13,6 +14,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from core import poller  # noqa: E402
+from core.types import SystemSnapshot  # noqa: E402
 
 
 class _PsutilStub:
@@ -121,6 +123,69 @@ class CollectSnapshotTests(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(stub.cpu_intervals.count(0.1), 1)
         self.assertEqual(stub.cpu_intervals.count(None), worker_count - 1)
+
+
+class PollSnapshotsTests(unittest.TestCase):
+    def test_poll_snapshots_requires_positive_interval(self) -> None:
+        with self.assertRaises(ValueError):
+            poller.poll_snapshots(lambda _snapshot: None, interval_seconds=0)
+
+    def test_poll_snapshots_stops_without_sampling_when_requested(self) -> None:
+        original_collect_snapshot = poller.collect_snapshot
+
+        def _unexpected_collect_snapshot(now: Callable[[], float] | None = None) -> SystemSnapshot:
+            raise AssertionError("collect_snapshot should not be called when stop is requested.")
+
+        poller.collect_snapshot = _unexpected_collect_snapshot
+        observed: list[SystemSnapshot] = []
+        sleep_calls: list[float] = []
+        try:
+            poller.poll_snapshots(
+                observed.append,
+                should_stop=lambda: True,
+                sleep=sleep_calls.append,
+            )
+        finally:
+            poller.collect_snapshot = original_collect_snapshot
+
+        self.assertEqual(observed, [])
+        self.assertEqual(sleep_calls, [])
+
+    def test_poll_snapshots_uses_remaining_time_for_sleep(self) -> None:
+        produced = [
+            SystemSnapshot(timestamp=1.0, cpu_percent=10.0, memory_percent=20.0),
+            SystemSnapshot(timestamp=2.0, cpu_percent=11.0, memory_percent=21.0),
+        ]
+        monotonic_values = iter([10.0, 10.2, 11.0, 11.6])
+
+        def _monotonic() -> float:
+            return next(monotonic_values)
+
+        observed: list[SystemSnapshot] = []
+        sleep_calls: list[float] = []
+        original_collect_snapshot = poller.collect_snapshot
+
+        def _collect_snapshot(now: Callable[[], float] | None = None) -> SystemSnapshot:
+            return produced[len(observed)]
+
+        def _should_stop() -> bool:
+            return len(observed) >= len(produced)
+
+        poller.collect_snapshot = _collect_snapshot
+        try:
+            poller.poll_snapshots(
+                observed.append,
+                interval_seconds=1.0,
+                should_stop=_should_stop,
+                sleep=sleep_calls.append,
+                monotonic=_monotonic,
+            )
+        finally:
+            poller.collect_snapshot = original_collect_snapshot
+
+        self.assertEqual(observed, produced)
+        self.assertEqual(len(sleep_calls), 1)
+        self.assertAlmostEqual(sleep_calls[0], 0.8)
 
 
 if __name__ == "__main__":

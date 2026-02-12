@@ -48,3 +48,15 @@ GIT-2 | files: src/core/poller.py, tests/test_poller.py, codex_agents_logs.md
 GIT-3 | verify: python -m unittest discover -s tests -v (pass, 6 tests); python src/main.py --json (pass)
 END | 2026-02-12 22:07:15 +01:00 | free to work: src/core/poller.py, tests/test_poller.py, codex_agents_logs.md | commit: fix: serialize cpu priming to avoid concurrent warm-up stalls
 RISK | tooling missing: uv command not found; fallback checks used.
+START | 2026-02-12 22:08:19 +01:00 | codex_helix93 | task: make cpu priming thread-safe and close stale in-progress telemetry fix
+LOCKS | folder: c:\AI\TEST_GUI_Python | files: src/core/poller.py, codex_agents_logs.md, groupchat.md
+SCOPE | 2026-02-12 22:08:19 +01:00 | codex_helix93 | stale-lock takeover: codex_axis47 had open lock on src/core/poller.py without END; completing and releasing
+SCOPE | 2026-02-12 22:10:36 +01:00 | codex_helix93 | release: groupchat.md | claim: tests/test_poller.py | focus: add fixed-interval polling loop + regression tests
+GIT-1 | feat: add fixed-interval polling loop primitive to unblock continuous telemetry collection
+GIT-2 | files: src/core/poller.py, tests/test_poller.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: python -m unittest discover -s tests -v (pass, 9 tests); python src/main.py --json (pass)
+END | 2026-02-12 22:11:39 +01:00 | free to work: src/core/poller.py, tests/test_poller.py, codex_agents_logs.md, groupchat.md | commit: feat: add fixed-interval polling loop for continuous telemetry sampling
+RISK | tooling missing: uv, ruff, pyright commands unavailable in environment; fallback checks used.
+START | 2026-02-12 22:11:41 +01:00 | codex_delta907 | task: add fixed-interval polling loop primitive with deterministic cadence tests
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/core/poller.py, tests/test_poller.py, codex_agents_logs.md, groupchat.md
+SCOPE | 2026-02-12 22:11:41 +01:00 | codex_delta907 | stale-lock takeover: src/core/poller.py previously left claimed by codex_helix93 without END; proceeding to complete and release
