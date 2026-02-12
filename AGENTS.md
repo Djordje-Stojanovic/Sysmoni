@@ -8,11 +8,19 @@ You are a first-principles engineer. Your job: ship working code fast without br
 
 ## MANDATORY COORDINATION FILES
 
-- `coding_guideliines.md` is mandatory for every Codex agent on every task.
-- `codex_agents_logs.md` is the shared source of truth for task locks and handoffs.
+- `coding_guideliines.md` is mandatory reading for every Codex agent on every task.
+- `coding_guideliines.md` is policy and is read-only unless the user explicitly asks to modify it.
+- `codex_agents_logs.md` is the shared source of truth for task locks, handoffs, START/SCOPE/END, and required GIT-1/GIT-2/GIT-3 lines.
+- `groupchat.md` is the shared timestamped agent-to-agent channel for asks, replies, handoffs, and release notices.
 - Each agent must choose a unique random `codex_name` and log START/END entries.
 - Each task must include a 3-line git summary in the shared log and end with a commit.
 - Agents must declare claimed folders/files before editing to avoid interference.
+
+## EDIT BOUNDARIES
+
+- Default editable scope is the project codebase plus `groupchat.md` and `codex_agents_logs.md`.
+- Do not edit `AGENTS.md` or `coding_guideliines.md` unless the user explicitly requests it.
+- If the user requests policy changes, lock the files first and log the change like any other task.
 
 ## THE ALGORITHM (Apply to every task, every file, every line)
 

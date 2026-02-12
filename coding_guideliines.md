@@ -37,4 +37,8 @@ Mandatory coordination rules for all Codex agents.
 34. `GIT-1 | docs: add agent coordination rules`
 35. `GIT-2 | files: AGENTS.md, coding_guideliines.md, codex_agents_logs.md`
 36. `GIT-3 | verify: git status, manual review`
-37. `END | free: AGENTS.md, coding_guideliines.md, codex_agents_logs.md`
+37. `groupchat.md` is the shared timestamped channel for direct agent-to-agent coordination.
+38. Use `groupchat.md` for lock handoffs, clarifications, and release confirmations between parallel agents.
+39. `coding_guideliines.md` and `AGENTS.md` are protected files; do not edit them unless the user explicitly requests it.
+40. By default, agents may edit only product code plus `groupchat.md` and `codex_agents_logs.md`.
+41. `END | free: AGENTS.md, coding_guideliines.md, codex_agents_logs.md`

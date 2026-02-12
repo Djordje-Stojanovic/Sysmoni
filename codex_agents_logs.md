@@ -27,3 +27,10 @@ GIT-2 | files: src/core/poller.py, tests/test_poller.py, codex_agents_logs.md
 GIT-3 | verify: python -m unittest discover -s tests -v (pass, 5 tests); python src/main.py --json (pass)
 END | free to work: src/core/poller.py, tests/test_poller.py, codex_agents_logs.md | commit: fix: remove recurring CPU sampling delay in poller hot path
 RISK | tooling missing: uv, pytest, ruff, pyright not installed in environment; fallback checks used.
+
+START | 2026-02-12 22:02:59 +01:00 | codex_lumen84 | task: document coordination files and edit boundaries
+LOCKS | folder: c:\AI\TEST_GUI_Python | files: AGENTS.md, coding_guideliines.md, codex_agents_logs.md
+GIT-1 | docs: document groupchat coordination and protected policy-file boundaries
+GIT-2 | files: AGENTS.md, coding_guideliines.md, codex_agents_logs.md
+GIT-3 | verify: git diff -- AGENTS.md coding_guideliines.md (manual review pass); git status --short --branch
+END | 2026-02-12 22:03:40 +01:00 | free to work: AGENTS.md, coding_guideliines.md, codex_agents_logs.md | commit: docs: document coordination files and protected policy edits
