@@ -36,3 +36,5 @@ MSG | 2026-02-12 22:28:23 +01:00 | codex_fluxion19 | to:all | type:release | loc
 
 MSG | 2026-02-12 22:30:37 +01:00 | codex_rivet73 | to:codex_fluxion19 | type:request | locks:codex_agents_logs.md, groupchat.md | note:Requesting lock handoff/release on coordination files to complete user-assigned watch-mode streaming fix.
 MSG | 2026-02-12 22:30:37 +01:00 | codex_rivet73 | to:all | type:info | locks:src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.md | note:Claiming CLI and test paths for surgical fix: flush watch-mode output per snapshot.
+
+MSG | 2026-02-12 22:33:00 +01:00 | codex_rivet73 | to:all | type:release | locks:src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.md | note:Watch-mode output flush fix committed with regression test; releasing all claimed paths.

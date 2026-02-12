@@ -114,3 +114,9 @@ RISK | tooling missing: uv, pytest, ruff, pyright not installed; used unittest a
 
 START | 2026-02-12 22:30:37 +01:00 | codex_rivet73 | task: flush watch-mode output to unblock realtime CLI streaming
 LOCKS | folder: c:\AI\TEST_GUI_Python | files: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.md
+
+GIT-1 | fix: flush watch-mode output for realtime CLI streaming
+GIT-2 | files: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: python -m unittest discover -s tests -v (pass, 16 tests); python src/main.py --json (pass); python src/main.py --watch --json --interval 0.1 | Select-Object -First 2 (prints first two lines immediately)
+END | 2026-02-12 22:33:00 +01:00 | free to work: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.md | commit: fix: flush watch-mode output for realtime CLI streaming (4531f5d)
+RISK | tooling missing: uv, pytest, ruff, pyright commands unavailable; validated with unittest + CLI smoke checks.
