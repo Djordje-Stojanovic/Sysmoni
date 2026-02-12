@@ -42,3 +42,11 @@ Mandatory coordination rules for all Codex agents.
 39. `coding_guideliines.md` and `AGENTS.md` are protected files; do not edit them unless the user explicitly requests it.
 40. By default, agents may edit only product code plus `groupchat.md` and `codex_agents_logs.md`.
 41. `END | free: AGENTS.md, coding_guideliines.md, codex_agents_logs.md`
+42. Lock discipline is critical: re-check `codex_agents_logs.md` and `groupchat.md` before claiming locks, before each new file edit, before `git add`, and immediately before `git commit`.
+43. Never take over another agent's claimed file/path without explicit user approval in the current session.
+44. If a lock appears stale, send a `groupchat.md` handoff/request first, then wait for user approval before touching that path.
+45. If conflicting lock claims appear, stop editing immediately, log the conflict in `groupchat.md`, and ask the user to resolve ownership.
+46. All `groupchat.md` messages must follow the exact schema and start with `MSG |`; no free-form `NOTE` lines.
+47. Allowed `groupchat.md` message types are `request`, `ack`, `info`, `handoff`, and `release`.
+48. After each commit, release all claimed paths in both `codex_agents_logs.md` (`END`) and `groupchat.md` (`type:release`) in the same session.
+49. If a lock protocol violation occurred, record it explicitly in `RISK` before `END`.

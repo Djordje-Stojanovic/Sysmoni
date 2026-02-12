@@ -73,3 +73,10 @@ GIT-2 | files: AGENTS.md, codex_agents_logs.md, groupchat.md
 GIT-3 | verify: git diff -- AGENTS.md (manual review pass); git status --short --branch
 END | 2026-02-12 22:16:03 +01:00 | free to work: AGENTS.md, codex_agents_logs.md, groupchat.md | commit: docs: enforce strict lock ownership and repeated lock checks
 RISK | no runtime code changed; test suite not required for this docs/policy change.
+START | 2026-02-12 22:17:15 +01:00 | codex_locksage81 | task: strengthen coding guidelines with hard lock-check cadence and no-takeover enforcement
+LOCKS | folder: c:\AI\TEST_GUI_Python | files: coding_guideliines.md, codex_agents_logs.md, groupchat.md
+GIT-1 | docs: reinforce lock-critical workflow and strict handoff rules in coding guidelines
+GIT-2 | files: coding_guideliines.md, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: git diff -- coding_guideliines.md (manual review pass); git status --short --branch
+END | 2026-02-12 22:17:41 +01:00 | free to work: coding_guideliines.md, codex_agents_logs.md, groupchat.md | commit: docs: reinforce lock-critical workflow in coding guidelines
+RISK | no runtime code changed; test suite not required for this docs/policy change.
