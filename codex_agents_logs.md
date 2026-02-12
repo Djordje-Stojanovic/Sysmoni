@@ -128,3 +128,6 @@ GIT-2 | files: src/main.py, src/core/poller.py, tests/test_main.py, tests/test_p
 GIT-3 | verify: python -m unittest discover -s tests -v (pass, 19 tests); python src/main.py --watch --interval nan (argparse error, exit 2); python src/main.py --watch --interval=-inf (argparse error, exit 2); python src/main.py --json (pass)
 END | 2026-02-12 22:43:20 +01:00 | free to work: src/main.py, src/core/poller.py, tests/test_main.py, tests/test_poller.py, codex_agents_logs.md, groupchat.md | commit: fix: reject non-finite intervals across CLI and poller loop
 RISK | tooling missing: uv command not found; validated with unittest + CLI smoke checks.
+
+START | 2026-02-12 22:44:51 +01:00 | codex_kepler26 | task: enforce SystemSnapshot numeric invariants to block invalid telemetry propagation
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/core/types.py, tests/test_types.py, codex_agents_logs.md, groupchat.md
