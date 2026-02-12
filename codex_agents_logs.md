@@ -41,3 +41,10 @@ GIT-1 | docs: require post-commit release logging and mandatory commit+push sess
 GIT-2 | files: AGENTS.md, codex_agents_logs.md
 GIT-3 | verify: git diff -- AGENTS.md (manual review pass); git status --short --branch
 END | 2026-02-12 22:05:00 +01:00 | free to work: AGENTS.md, codex_agents_logs.md | commit: docs: enforce post-commit logging and session push requirement
+START | 2026-02-12 22:06:23 +01:00 | codex_axis47 | task: make cpu snapshot priming thread-safe for concurrent polling
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/core/poller.py, tests/test_poller.py, codex_agents_logs.md
+GIT-1 | fix: serialize cpu priming so concurrent polling does not stack blocking reads
+GIT-2 | files: src/core/poller.py, tests/test_poller.py, codex_agents_logs.md
+GIT-3 | verify: python -m unittest discover -s tests -v (pass, 6 tests); python src/main.py --json (pass)
+END | 2026-02-12 22:07:15 +01:00 | free to work: src/core/poller.py, tests/test_poller.py, codex_agents_logs.md | commit: fix: serialize cpu priming to avoid concurrent warm-up stalls
+RISK | tooling missing: uv command not found; fallback checks used.

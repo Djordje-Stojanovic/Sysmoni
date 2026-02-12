@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pathlib
 import sys
+import threading
+import time
 import unittest
 
 
@@ -14,13 +16,23 @@ from core import poller  # noqa: E402
 
 
 class _PsutilStub:
-    def __init__(self, cpu_percent: float = 12.5, memory_percent: float = 41.0) -> None:
+    def __init__(
+        self,
+        cpu_percent: float = 12.5,
+        memory_percent: float = 41.0,
+        cpu_delay_seconds: float = 0.0,
+    ) -> None:
         self._cpu_percent = cpu_percent
         self._memory_percent = memory_percent
+        self._cpu_delay_seconds = cpu_delay_seconds
+        self._cpu_intervals_lock = threading.Lock()
         self.cpu_intervals: list[float | None] = []
 
     def cpu_percent(self, interval: float | None = None) -> float:
-        self.cpu_intervals.append(interval)
+        if self._cpu_delay_seconds:
+            time.sleep(self._cpu_delay_seconds)
+        with self._cpu_intervals_lock:
+            self.cpu_intervals.append(interval)
         return self._cpu_percent
 
     def virtual_memory(self) -> object:
@@ -77,6 +89,38 @@ class CollectSnapshotTests(unittest.TestCase):
         finally:
             poller.psutil = original
             poller._cpu_percent_primed = original_primed
+
+    def test_collect_snapshot_primes_cpu_once_under_concurrency(self) -> None:
+        worker_count = 8
+        stub = _PsutilStub(cpu_percent=5.0, memory_percent=10.0, cpu_delay_seconds=0.02)
+        original = poller.psutil
+        original_primed = poller._cpu_percent_primed
+        poller.psutil = stub
+        poller._cpu_percent_primed = False
+
+        errors: list[Exception] = []
+        barrier = threading.Barrier(worker_count)
+
+        def _worker() -> None:
+            try:
+                barrier.wait()
+                poller.collect_snapshot(now=lambda: 1.0)
+            except Exception as exc:  # pragma: no cover - error path assertion below
+                errors.append(exc)
+
+        threads = [threading.Thread(target=_worker) for _ in range(worker_count)]
+        try:
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
+        finally:
+            poller.psutil = original
+            poller._cpu_percent_primed = original_primed
+
+        self.assertEqual(errors, [])
+        self.assertEqual(stub.cpu_intervals.count(0.1), 1)
+        self.assertEqual(stub.cpu_intervals.count(None), worker_count - 1)
 
 
 if __name__ == "__main__":
