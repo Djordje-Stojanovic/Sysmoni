@@ -125,6 +125,47 @@ class CollectSnapshotTests(unittest.TestCase):
         self.assertEqual(stub.cpu_intervals.count(None), worker_count - 1)
 
 
+class RunPollingLoopTests(unittest.TestCase):
+    def test_run_polling_loop_requires_positive_interval(self) -> None:
+        with self.assertRaises(ValueError):
+            poller.run_polling_loop(
+                0,
+                lambda _snapshot: None,
+                stop_event=threading.Event(),
+            )
+
+    def test_run_polling_loop_stops_when_stop_event_is_set(self) -> None:
+        produced = [
+            SystemSnapshot(timestamp=1.0, cpu_percent=10.0, memory_percent=20.0),
+            SystemSnapshot(timestamp=2.0, cpu_percent=11.0, memory_percent=21.0),
+        ]
+        observed: list[SystemSnapshot] = []
+        stop_event = threading.Event()
+        monotonic_values = iter([10.0, 11.1, 11.1, 12.2])
+
+        def _monotonic() -> float:
+            return next(monotonic_values)
+
+        def _collect() -> SystemSnapshot:
+            return produced[len(observed)]
+
+        def _on_snapshot(snapshot: SystemSnapshot) -> None:
+            observed.append(snapshot)
+            if len(observed) >= len(produced):
+                stop_event.set()
+
+        emitted = poller.run_polling_loop(
+            1.0,
+            _on_snapshot,
+            stop_event=stop_event,
+            collect=_collect,
+            monotonic=_monotonic,
+        )
+
+        self.assertEqual(emitted, len(produced))
+        self.assertEqual(observed, produced)
+
+
 class PollSnapshotsTests(unittest.TestCase):
     def test_poll_snapshots_requires_positive_interval(self) -> None:
         with self.assertRaises(ValueError):
@@ -140,7 +181,7 @@ class PollSnapshotsTests(unittest.TestCase):
         observed: list[SystemSnapshot] = []
         sleep_calls: list[float] = []
         try:
-            poller.poll_snapshots(
+            emitted = poller.poll_snapshots(
                 observed.append,
                 should_stop=lambda: True,
                 sleep=sleep_calls.append,
@@ -148,6 +189,7 @@ class PollSnapshotsTests(unittest.TestCase):
         finally:
             poller.collect_snapshot = original_collect_snapshot
 
+        self.assertEqual(emitted, 0)
         self.assertEqual(observed, [])
         self.assertEqual(sleep_calls, [])
 
@@ -173,7 +215,7 @@ class PollSnapshotsTests(unittest.TestCase):
 
         poller.collect_snapshot = _collect_snapshot
         try:
-            poller.poll_snapshots(
+            emitted = poller.poll_snapshots(
                 observed.append,
                 interval_seconds=1.0,
                 should_stop=_should_stop,
@@ -183,6 +225,7 @@ class PollSnapshotsTests(unittest.TestCase):
         finally:
             poller.collect_snapshot = original_collect_snapshot
 
+        self.assertEqual(emitted, len(produced))
         self.assertEqual(observed, produced)
         self.assertEqual(len(sleep_calls), 1)
         self.assertAlmostEqual(sleep_calls[0], 0.8)

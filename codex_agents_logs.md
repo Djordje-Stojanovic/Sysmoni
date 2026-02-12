@@ -103,3 +103,11 @@ GIT-2 | files: AGENTS.md, coding_guideliines.md, README.md, groupchat.md, codex_
 GIT-3 | verify: git diff -- AGENTS.md coding_guideliines.md README.md groupchat.md (manual review pass); git status --short --branch
 END | 2026-02-12 22:25:21 +01:00 | free to work: AGENTS.md, coding_guideliines.md, README.md, codex_agents_logs.md, groupchat.md | commit: docs: enforce surgical meaningful first-principles policy
 RISK | no runtime code changed; tests not required for docs-only update.
+
+START | 2026-02-12 22:26:13 +01:00 | codex_fluxion19 | task: remove duplicate polling-loop implementation and harden runtime loop tests
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/core/poller.py, tests/test_poller.py, codex_agents_logs.md, groupchat.md
+GIT-1 | refactor: unify polling loop path and harden runtime-loop regression tests
+GIT-2 | files: src/core/poller.py, tests/test_poller.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: python -m unittest discover -s tests -v (pass, 15 tests); python src/main.py --json (pass); python src/main.py --watch --interval 0.2 --json (startup smoke pass, command timed out as expected for continuous mode)
+END | 2026-02-12 22:28:23 +01:00 | free to work: src/core/poller.py, tests/test_poller.py, codex_agents_logs.md, groupchat.md | commit: refactor: unify polling loop path and harden runtime-loop regression tests
+RISK | tooling missing: uv, pytest, ruff, pyright not installed; used unittest and CLI smoke checks.

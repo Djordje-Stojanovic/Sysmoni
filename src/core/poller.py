@@ -54,27 +54,17 @@ def run_polling_loop(
     if interval_seconds <= 0:
         raise ValueError("interval_seconds must be greater than 0")
 
-    collect_snapshot_fn = collect or collect_snapshot
-    monotonic_now = monotonic or time.monotonic
-    next_tick = float(monotonic_now())
-    emitted = 0
+    def _wait(timeout_seconds: float) -> None:
+        stop_event.wait(timeout_seconds)
 
-    while not stop_event.is_set():
-        on_snapshot(collect_snapshot_fn())
-        emitted += 1
-
-        if stop_event.is_set():
-            break
-
-        next_tick += interval_seconds
-        now = float(monotonic_now())
-        if now >= next_tick:
-            next_tick = now
-            continue
-
-        stop_event.wait(next_tick - now)
-
-    return emitted
+    return poll_snapshots(
+        on_snapshot,
+        interval_seconds=interval_seconds,
+        should_stop=stop_event.is_set,
+        sleep=_wait,
+        monotonic=monotonic,
+        collect=collect,
+    )
 
 
 def poll_snapshots(
@@ -84,7 +74,8 @@ def poll_snapshots(
     should_stop: Callable[[], bool] | None = None,
     sleep: Callable[[float], None] | None = None,
     monotonic: Callable[[], float] | None = None,
-) -> None:
+    collect: Callable[[], SystemSnapshot] | None = None,
+) -> int:
     """Collect snapshots at a fixed interval until `should_stop` returns True."""
     if interval_seconds <= 0:
         raise ValueError("interval_seconds must be greater than 0.")
@@ -92,11 +83,16 @@ def poll_snapshots(
     stop = (lambda: False) if should_stop is None else should_stop
     sleeper = time.sleep if sleep is None else sleep
     clock = time.monotonic if monotonic is None else monotonic
+    collect_snapshot_fn = collect or collect_snapshot
+    emitted = 0
 
     while not stop():
         cycle_started_at = clock()
-        on_snapshot(collect_snapshot())
+        on_snapshot(collect_snapshot_fn())
+        emitted += 1
 
         remaining = interval_seconds - (clock() - cycle_started_at)
         if remaining > 0 and not stop():
             sleeper(remaining)
+
+    return emitted
