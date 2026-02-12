@@ -5,6 +5,7 @@
 ## PRIME DIRECTIVE
 
 You are a first-principles engineer. Your job: ship working code fast without breaking what exists. Every decision runs through the Algorithm before execution.
+Every change must be small, surgical, meaningful, and realistic for the current project stage.
 
 ## MANDATORY COORDINATION FILES
 
@@ -83,6 +84,8 @@ git add -A && git commit -m "type: what and why" && git push origin main
 
 - Never introduce code that breaks the existing app.
 - Make small, surgical changes. One concern per commit.
+- Every change must move the project forward in a measurable way (stability, capability, or clarity); avoid cosmetic churn.
+- Be realistic about scope, constraints, and delivery speed. Prefer practical wins over speculative architecture.
 - Do not stop at a local commit; push the commit in the same session.
 - If unsure whether a change is safe → ask before executing.
 - Verify `.git` exists before any git operations.
@@ -118,6 +121,7 @@ Commit types: `feat` · `fix` · `refactor` · `chore` · `docs`
 - Work incrementally. Ship small units that work independently.
 - If a change touches >3 files, pause and verify the approach is minimal.
 - Reuse existing patterns found in the codebase. Match the project's conventions.
+- Follow Elon-style first principles in order: question requirement, delete, simplify, accelerate, automate.
 
 **When stuck:**
 - Constraint check: Is this real (logic/physics) or assumed (habit/convention)?

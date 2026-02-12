@@ -50,3 +50,7 @@ Mandatory coordination rules for all Codex agents.
 47. Allowed `groupchat.md` message types are `request`, `ack`, `info`, `handoff`, and `release`.
 48. After each commit, release all claimed paths in both `codex_agents_logs.md` (`END`) and `groupchat.md` (`type:release`) in the same session.
 49. If a lock protocol violation occurred, record it explicitly in `RISK` before `END`.
+50. Make small, surgical changes by default; avoid broad refactors unless explicitly requested.
+51. Each change must be meaningful and advance the project (bug fix, user value, reliability, or clarity).
+52. Be realistic about constraints and scope; ship the simplest viable improvement first.
+53. Apply Elon-first-principles order on execution decisions: question requirement, delete, simplify, accelerate, automate.

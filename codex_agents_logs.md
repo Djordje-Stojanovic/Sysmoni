@@ -95,3 +95,11 @@ GIT-2 | files: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.
 GIT-3 | verify: python -m unittest discover -s tests -v (pass, 13 tests); python src/main.py --watch --interval 0 (argparse error, exit 2); python src/main.py --json (pass)
 END | 2026-02-12 22:22:43 +01:00 | free to work: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.md | commit: fix: validate --watch interval at CLI boundary
 RISK | tooling missing: uv command not found; used python -m unittest and CLI smoke checks instead.
+
+START | 2026-02-12 22:23:52 +01:00 | codex_vector84 | task: add surgical meaningful-change and Elon first-principles policy to markdown docs
+LOCKS | folder: c:\AI\TEST_GUI_Python | files: AGENTS.md, coding_guideliines.md, README.md, codex_agents_logs.md, groupchat.md
+GIT-1 | docs: enforce surgical meaningful and realistic Elon-first-principles execution across markdown policies
+GIT-2 | files: AGENTS.md, coding_guideliines.md, README.md, groupchat.md, codex_agents_logs.md
+GIT-3 | verify: git diff -- AGENTS.md coding_guideliines.md README.md groupchat.md (manual review pass); git status --short --branch
+END | 2026-02-12 22:25:21 +01:00 | free to work: AGENTS.md, coding_guideliines.md, README.md, codex_agents_logs.md, groupchat.md | commit: docs: enforce surgical meaningful first-principles policy
+RISK | no runtime code changed; tests not required for docs-only update.

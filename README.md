@@ -65,5 +65,8 @@ uv run pyright src/
 ## Repository Hygiene
 
 - Keep changes small and shippable.
+- Keep changes surgical and meaningful; every commit should move the project forward.
+- Be realistic about scope and constraints; prefer practical progress over speculative rewrites.
+- Use first-principles execution order: question requirement, delete, simplify, accelerate, automate.
 - Prefer deleting complexity over adding abstraction.
 - Validate behavior with lightweight local smoke checks before pushing.
