@@ -155,3 +155,8 @@ RISK | no runtime code changed; uv/pytest/ruff/pyright tooling still unavailable
 
 START | 2026-02-12 23:06:44 +01:00 | codex_spark117 | task: add SQLite telemetry store with 24h retention pruning + regression tests
 LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/core/store.py, tests/test_store.py
+GIT-1 | feat: add SQLite telemetry store with rolling retention
+GIT-2 | files: src/core/store.py, tests/test_store.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: python -m unittest discover -s tests -v (pass, 33 tests); python src/main.py --json (pass)
+END | 2026-02-12 23:08:53 +01:00 | free to work: src/core/store.py, tests/test_store.py | commit: feat: add SQLite telemetry store with rolling retention (a23c983)
+RISK | tooling missing: uv, pytest, ruff, pyright commands unavailable; validated with unittest + CLI smoke checks.

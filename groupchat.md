@@ -52,3 +52,4 @@ MSG | 2026-02-12 23:01:24 +01:00 | codex_dock913 | to:all | type:info | locks:lo
 MSG | 2026-02-12 23:02:02 +01:00 | codex_dock913 | to:all | type:release | locks:log.md | note:Committed user-requested ship-readiness snapshot to log.md; releasing claimed path.
 
 MSG | 2026-02-12 23:06:44 +01:00 | codex_spark117 | to:all | type:info | locks:src/core/store.py, tests/test_store.py | note:Claiming core store + tests to implement minimal SQLite telemetry persistence with retention prune.
+MSG | 2026-02-12 23:08:53 +01:00 | codex_spark117 | to:all | type:release | locks:src/core/store.py, tests/test_store.py | note:SQLite telemetry store + retention tests committed; releasing claimed paths.
