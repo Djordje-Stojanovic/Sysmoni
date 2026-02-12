@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 import pathlib
 import sys
+import tempfile
 import unittest
 
 
@@ -21,6 +22,24 @@ class TelemetryStoreTests(unittest.TestCase):
             with self.subTest(invalid_retention=invalid_retention):
                 with self.assertRaises(ValueError):
                     TelemetryStore(":memory:", retention_seconds=invalid_retention)
+
+    def test_store_creates_missing_parent_directories(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = pathlib.Path(tmpdir) / "nested" / "telemetry.sqlite"
+            self.assertFalse(db_path.parent.exists())
+
+            with TelemetryStore(db_path, now=lambda: 100.0) as store:
+                store.append(
+                    SystemSnapshot(
+                        timestamp=95.0,
+                        cpu_percent=12.5,
+                        memory_percent=42.0,
+                    )
+                )
+                self.assertEqual(store.count(), 1)
+
+            self.assertTrue(db_path.parent.exists())
+            self.assertTrue(db_path.exists())
 
     def test_store_appends_and_reads_latest_snapshot(self) -> None:
         with TelemetryStore(":memory:", now=lambda: 100.0) as store:

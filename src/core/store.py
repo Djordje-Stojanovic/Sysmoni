@@ -29,6 +29,15 @@ def _require_positive_limit(limit: int) -> int:
     return normalized_limit
 
 
+def _prepare_db_path(db_path: str | Path) -> str:
+    normalized_path = str(db_path)
+    if normalized_path == ":memory:":
+        return normalized_path
+
+    Path(normalized_path).parent.mkdir(parents=True, exist_ok=True)
+    return normalized_path
+
+
 class TelemetryStore:
     """SQLite-backed snapshot storage with rolling retention pruning."""
 
@@ -42,7 +51,10 @@ class TelemetryStore:
         self._retention_seconds = _require_positive_finite_retention(retention_seconds)
         self._now = time.time if now is None else now
         self._lock = threading.Lock()
-        self._connection = sqlite3.connect(str(db_path), check_same_thread=False)
+        self._connection = sqlite3.connect(
+            _prepare_db_path(db_path),
+            check_same_thread=False,
+        )
         self._connection.row_factory = sqlite3.Row
 
         self._initialize_schema()
@@ -119,4 +131,3 @@ class TelemetryStore:
 
     def __exit__(self, exc_type, exc, traceback) -> None:
         self.close()
-

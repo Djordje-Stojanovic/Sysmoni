@@ -173,3 +173,11 @@ GIT-2 | files: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.
 GIT-3 | verify: python -m unittest discover -s tests -v (pass, 35 tests); python src/main.py --json --db-path __cli_persist_smoke.sqlite (pass, writes 1 row); python src/main.py --watch --json --interval 0.05 --count 2 --db-path __cli_watch_persist_smoke.sqlite (pass, writes 2 rows)
 END | 2026-02-12 23:13:18 +01:00 | free to work: src/main.py, tests/test_main.py | commit: feat: persist CLI snapshots to SQLite when --db-path is set
 RISK | tooling missing: uv, pytest, ruff, pyright commands unavailable; validated with unittest + CLI smoke checks.
+
+START | 2026-02-12 23:21:52 +01:00 | codex_nimbus724 | task: auto-create db parent directories for SQLite persistence reliability
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/core/store.py, tests/test_store.py
+GIT-1 | fix: auto-create SQLite db parent directories so --db-path works on fresh folders
+GIT-2 | files: src/core/store.py, tests/test_store.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: python -m unittest tests/test_store.py -v (pass, 6 tests); python -m unittest discover -s tests -v (pass, 36 tests); python src/main.py --json --db-path tmp\\nested_<timestamp>\\telemetry.sqlite (pass, db_created=true, rows=1)
+RISK | policy blocked recursive cleanup command; local tmp/ smoke-check artifacts left untracked and excluded from commit.
+END | 2026-02-12 23:23:38 +01:00 | free to work: src/core/store.py, tests/test_store.py | commit: fix: auto-create SQLite db parent directories for --db-path
