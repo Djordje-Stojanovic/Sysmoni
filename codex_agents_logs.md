@@ -245,3 +245,11 @@ GIT-2 | files: src/main.py, src/core/store.py, tests/test_main.py, tests/test_st
 GIT-3 | verify: python -m unittest tests/test_store.py -v (pass, 11 tests); python -m unittest tests/test_main.py -v (pass, 23 tests); python -m unittest discover -s tests -v (pass, 51 tests); python src/main.py --json --db-path tmp\\range_smoke_cli.sqlite (twice) + python src/main.py --json --db-path tmp\\range_smoke_cli.sqlite --since 0 --until 9999999999 (pass, 2 rows)
 RISK | tooling missing: uv, pytest, ruff, pyright commands unavailable; validated with unittest + CLI smoke checks.
 END | 2026-02-12 23:53:13 +01:00 | free to work: src/main.py, src/core/store.py, tests/test_main.py, tests/test_store.py | commit: feat: add persisted telemetry time-range readback via since/until
+
+START | 2026-02-12 23:57:07 +01:00 | codex_frame281 | task: add minimal guardrail to prioritize first GUI vertical slice over new CLI flags
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: AGENTS.md
+GIT-1 | docs: add single workflow guardrail to prioritize first GUI slice over new CLI flags
+GIT-2 | files: AGENTS.md, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: git diff -- AGENTS.md (manual review pass); git status --short --branch
+RISK | docs-only policy change; no runtime code changed.
+END | 2026-02-12 23:57:33 +01:00 | free to work: AGENTS.md | commit: docs: prioritize first GUI slice before new CLI flags

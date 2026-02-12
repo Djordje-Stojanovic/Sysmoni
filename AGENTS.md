@@ -121,6 +121,7 @@ Commit types: `feat` · `fix` · `refactor` · `chore` · `docs`
 - Work incrementally. Ship small units that work independently.
 - If a change touches >3 files, pause and verify the approach is minimal.
 - Reuse existing patterns found in the codebase. Match the project's conventions.
+- If `src/gui/window.py` is missing, default to shipping that first GUI slice before adding new CLI flags unless the user explicitly asks for CLI work.
 - Follow Elon-style first principles in order: question requirement, delete, simplify, accelerate, automate.
 
 **When stuck:**
