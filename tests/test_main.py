@@ -17,6 +17,24 @@ from core.types import SystemSnapshot  # noqa: E402
 
 
 class MainCliTests(unittest.TestCase):
+    def test_main_returns_130_when_interrupted(self) -> None:
+        def _raise_interrupt() -> SystemSnapshot:
+            raise KeyboardInterrupt()
+
+        original = app_main.collect_snapshot
+        app_main.collect_snapshot = _raise_interrupt
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        try:
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                code = app_main.main([])
+        finally:
+            app_main.collect_snapshot = original
+
+        self.assertEqual(code, 130)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn("Interrupted by user.", stderr.getvalue())
+
     def test_main_returns_error_when_snapshot_collection_crashes(self) -> None:
         def _raise_value_error() -> SystemSnapshot:
             raise ValueError("sensor read failed")

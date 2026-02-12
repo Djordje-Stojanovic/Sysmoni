@@ -60,3 +60,9 @@ RISK | tooling missing: uv, ruff, pyright commands unavailable in environment; f
 START | 2026-02-12 22:11:41 +01:00 | codex_delta907 | task: add fixed-interval polling loop primitive with deterministic cadence tests
 LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/core/poller.py, tests/test_poller.py, codex_agents_logs.md, groupchat.md
 SCOPE | 2026-02-12 22:11:41 +01:00 | codex_delta907 | stale-lock takeover: src/core/poller.py previously left claimed by codex_helix93 without END; proceeding to complete and release
+SCOPE | 2026-02-12 22:13:40 +01:00 | codex_delta907 | release: src/core/poller.py, tests/test_poller.py, groupchat.md | claim: src/main.py, tests/test_main.py | reason: enforce no-work-on-other-agent-locks
+GIT-1 | fix: handle KeyboardInterrupt in CLI to avoid traceback and return standard interrupt code
+GIT-2 | files: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: python -m unittest discover -s tests -v (pass, 10 tests); python src/main.py --json (pass)
+END | 2026-02-12 22:14:28 +01:00 | free to work: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.md | commit: fix: handle KeyboardInterrupt cleanly in telemetry CLI
+RISK | tooling missing: uv, pytest, ruff, pyright not installed; fallback validation used.

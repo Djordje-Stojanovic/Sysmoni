@@ -23,6 +23,9 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         snapshot = collect_snapshot()
+    except KeyboardInterrupt:
+        print("Interrupted by user.", file=sys.stderr)
+        return 130
     except RuntimeError as exc:
         print(str(exc), file=sys.stderr)
         return 2
