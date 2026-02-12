@@ -66,3 +66,10 @@ GIT-2 | files: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.
 GIT-3 | verify: python -m unittest discover -s tests -v (pass, 10 tests); python src/main.py --json (pass)
 END | 2026-02-12 22:14:28 +01:00 | free to work: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.md | commit: fix: handle KeyboardInterrupt cleanly in telemetry CLI
 RISK | tooling missing: uv, pytest, ruff, pyright not installed; fallback validation used.
+START | 2026-02-12 22:15:25 +01:00 | codex_lockwarden52 | task: harden lock ownership policy to prevent unauthorized file takeovers
+LOCKS | folder: c:\AI\TEST_GUI_Python | files: AGENTS.md, codex_agents_logs.md, groupchat.md
+GIT-1 | docs: harden lock policy to forbid unapproved takeover and require repeated checks
+GIT-2 | files: AGENTS.md, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: git diff -- AGENTS.md (manual review pass); git status --short --branch
+END | 2026-02-12 22:16:03 +01:00 | free to work: AGENTS.md, codex_agents_logs.md, groupchat.md | commit: docs: enforce strict lock ownership and repeated lock checks
+RISK | no runtime code changed; test suite not required for this docs/policy change.

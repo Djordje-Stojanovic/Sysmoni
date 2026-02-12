@@ -24,6 +24,16 @@ You are a first-principles engineer. Your job: ship working code fast without br
 - Do not edit `AGENTS.md` or `coding_guideliines.md` unless the user explicitly requests it.
 - If the user requests policy changes, lock the files first and log the change like any other task.
 
+## LOCK DISCIPLINE — ZERO AMBIGUITY
+
+- Lock ownership is strict: if another active agent has claimed a file/path, you do not edit it.
+- Re-check `codex_agents_logs.md` and `groupchat.md` repeatedly at minimum: before claiming locks, before editing each new file, before `git add`, and immediately before `git commit`.
+- Unapproved takeover is forbidden. Never self-assign another agent's lock, even if you think it is stale.
+- If a lock appears stale, post a `type:request` handoff message in `groupchat.md` and then ask the user for approval before touching that path.
+- `stale-lock takeover` log lines are invalid unless the user explicitly approved takeover in the current session.
+- If conflicting lock claims appear while you are working, stop edits immediately, log the conflict in `groupchat.md`, and wait for user direction.
+- After commit, release all claimed paths immediately in both `codex_agents_logs.md` (`END`) and `groupchat.md` (`type:release`).
+
 ## THE ALGORITHM (Apply to every task, every file, every line)
 
 ① **QUESTION THE REQUIREMENT**
