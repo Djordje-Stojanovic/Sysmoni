@@ -136,3 +136,11 @@ GIT-2 | files: src/core/types.py, tests/test_types.py, codex_agents_logs.md, gro
 GIT-3 | verify: python -m unittest discover -s tests -v (pass, 25 tests); python src/main.py --json (pass); python src/main.py --watch --interval 0.1 --json | Select-Object -First 2 (prints first two lines immediately)
 END | 2026-02-12 22:46:09 +01:00 | free to work: src/core/types.py, tests/test_types.py, codex_agents_logs.md, groupchat.md | commit: fix: validate snapshot telemetry invariants at model boundary (6225f5b)
 RISK | tooling missing: uv, pytest, ruff, pyright commands unavailable; validated with unittest + CLI smoke checks.
+
+START | 2026-02-12 22:47:44 +01:00 | codex_pivot306 | task: add bounded watch sample count to stop CLI streaming without external pipe termination
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/main.py, tests/test_main.py
+GIT-1 | feat: add bounded watch sample count for deterministic CLI streaming
+GIT-2 | files: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: python -m unittest discover -s tests -v (pass, 28 tests); python src/main.py --watch --json --interval 0.1 --count 2 (pass, emits 2 snapshots); python src/main.py --count 1 (argparse error: --count requires --watch)
+END | 2026-02-12 22:49:40 +01:00 | free to work: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.md | commit: feat: add bounded watch sample count for deterministic CLI streaming (6c5923b)
+RISK | tooling missing: uv, pytest, ruff, pyright commands unavailable; validated with unittest + CLI smoke checks.
