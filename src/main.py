@@ -7,6 +7,7 @@ import sys
 import threading
 
 from core.poller import collect_snapshot, run_polling_loop
+from core.store import TelemetryStore
 from core.types import SystemSnapshot
 
 
@@ -57,6 +58,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Number of snapshots to emit before exiting in --watch mode.",
     )
+    parser.add_argument(
+        "--db-path",
+        default=None,
+        help="Optional SQLite DB path for persisting emitted snapshots.",
+    )
     return parser
 
 
@@ -85,13 +91,19 @@ def main(argv: list[str] | None = None) -> int:
     if args.count is not None and not args.watch:
         parser.error("--count requires --watch")
 
+    store: TelemetryStore | None = None
     try:
+        if args.db_path:
+            store = TelemetryStore(args.db_path)
+
         if args.watch:
             stop_event = threading.Event()
             remaining_samples = args.count
 
             def _on_snapshot(snapshot: SystemSnapshot) -> None:
                 nonlocal remaining_samples
+                if store is not None:
+                    store.append(snapshot)
                 _print_snapshot(
                     snapshot,
                     output_json=args.json,
@@ -112,6 +124,10 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         snapshot = collect_snapshot()
+        if store is not None:
+            store.append(snapshot)
+        _print_snapshot(snapshot, output_json=args.json)
+        return 0
     except KeyboardInterrupt:
         print("Interrupted by user.", file=sys.stderr)
         return 130
@@ -121,9 +137,9 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:
         print(f"Failed to collect telemetry snapshot: {exc}", file=sys.stderr)
         return 2
-
-    _print_snapshot(snapshot, output_json=args.json)
-    return 0
+    finally:
+        if store is not None:
+            store.close()
 
 
 if __name__ == "__main__":

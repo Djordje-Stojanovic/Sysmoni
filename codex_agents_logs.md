@@ -160,3 +160,16 @@ GIT-2 | files: src/core/store.py, tests/test_store.py, codex_agents_logs.md, gro
 GIT-3 | verify: python -m unittest discover -s tests -v (pass, 33 tests); python src/main.py --json (pass)
 END | 2026-02-12 23:08:53 +01:00 | free to work: src/core/store.py, tests/test_store.py | commit: feat: add SQLite telemetry store with rolling retention (a23c983)
 RISK | tooling missing: uv, pytest, ruff, pyright commands unavailable; validated with unittest + CLI smoke checks.
+
+START | 2026-02-12 23:10:44 +01:00 | codex_strata902 | task: wire optional SQLite persistence into CLI snapshot/watch pipeline
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/main.py, tests/test_main.py
+
+START | 2026-02-12 23:12:41 +01:00 | codex_orbit514 | task: user-approved stale-lock cleanup for codex_nebula13 while preserving codex_strata902 active lock
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/core/poller.py, tests/test_poller.py
+SCOPE | 2026-02-12 23:12:41 +01:00 | codex_orbit514 | coordination-only stale-lock cleanup; updating codex_agents_logs.md and groupchat.md without claiming them per explicit user directive.
+SCOPE | 2026-02-12 23:13:04 +01:00 | codex_orbit514 | user-approved stale-lock release: codex_nebula13 lock on src/core/poller.py, tests/test_poller.py, codex_agents_logs.md is now cleared; codex_strata902 lock remains active.
+GIT-1 | feat: connect CLI telemetry output to optional SQLite persistence
+GIT-2 | files: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: python -m unittest discover -s tests -v (pass, 35 tests); python src/main.py --json --db-path __cli_persist_smoke.sqlite (pass, writes 1 row); python src/main.py --watch --json --interval 0.05 --count 2 --db-path __cli_watch_persist_smoke.sqlite (pass, writes 2 rows)
+END | 2026-02-12 23:13:18 +01:00 | free to work: src/main.py, tests/test_main.py | commit: feat: persist CLI snapshots to SQLite when --db-path is set
+RISK | tooling missing: uv, pytest, ruff, pyright commands unavailable; validated with unittest + CLI smoke checks.

@@ -51,6 +51,108 @@ class MainCliTests(unittest.TestCase):
         finally:
             app_main.run_polling_loop = original_run_polling_loop
 
+    def test_main_persists_snapshot_when_db_path_is_provided(self) -> None:
+        snapshot = SystemSnapshot(timestamp=10.5, cpu_percent=12.5, memory_percent=42.0)
+        created_stores: list[object] = []
+
+        class _StoreStub:
+            def __init__(self, db_path: str) -> None:
+                self.db_path = db_path
+                self.appended: list[SystemSnapshot] = []
+                self.closed = False
+                created_stores.append(self)
+
+            def append(self, snapshot: SystemSnapshot) -> None:
+                self.appended.append(snapshot)
+
+            def close(self) -> None:
+                self.closed = True
+
+        original_collect_snapshot = app_main.collect_snapshot
+        original_telemetry_store = app_main.TelemetryStore
+        app_main.collect_snapshot = lambda: snapshot
+        app_main.TelemetryStore = _StoreStub
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        try:
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                code = app_main.main(["--json", "--db-path", "telemetry.sqlite"])
+        finally:
+            app_main.collect_snapshot = original_collect_snapshot
+            app_main.TelemetryStore = original_telemetry_store
+
+        self.assertEqual(code, 0)
+        self.assertEqual(stderr.getvalue(), "")
+        self.assertEqual(
+            stdout.getvalue().strip(),
+            '{"cpu_percent": 12.5, "memory_percent": 42.0, "timestamp": 10.5}',
+        )
+        self.assertEqual(len(created_stores), 1)
+        store = created_stores[0]
+        self.assertEqual(store.db_path, "telemetry.sqlite")
+        self.assertEqual(store.appended, [snapshot])
+        self.assertTrue(store.closed)
+
+    def test_main_watch_mode_persists_each_snapshot_when_db_path_is_provided(self) -> None:
+        produced = [
+            SystemSnapshot(timestamp=10.0, cpu_percent=1.0, memory_percent=2.0),
+            SystemSnapshot(timestamp=11.0, cpu_percent=3.0, memory_percent=4.0),
+        ]
+        created_stores: list[object] = []
+
+        class _StoreStub:
+            def __init__(self, db_path: str) -> None:
+                self.db_path = db_path
+                self.appended: list[SystemSnapshot] = []
+                self.closed = False
+                created_stores.append(self)
+
+            def append(self, snapshot: SystemSnapshot) -> None:
+                self.appended.append(snapshot)
+
+            def close(self) -> None:
+                self.closed = True
+
+        def _run_polling_loop(interval_seconds: float, on_snapshot, *, stop_event) -> int:
+            for snapshot in produced:
+                on_snapshot(snapshot)
+            return len(produced)
+
+        original_run_polling_loop = app_main.run_polling_loop
+        original_collect_snapshot = app_main.collect_snapshot
+        original_telemetry_store = app_main.TelemetryStore
+        app_main.run_polling_loop = _run_polling_loop
+        app_main.collect_snapshot = lambda: (_ for _ in ()).throw(
+            AssertionError("collect_snapshot should not be called in watch mode.")
+        )
+        app_main.TelemetryStore = _StoreStub
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        try:
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                code = app_main.main(
+                    ["--watch", "--json", "--db-path", "telemetry.sqlite"]
+                )
+        finally:
+            app_main.run_polling_loop = original_run_polling_loop
+            app_main.collect_snapshot = original_collect_snapshot
+            app_main.TelemetryStore = original_telemetry_store
+
+        self.assertEqual(code, 0)
+        self.assertEqual(stderr.getvalue(), "")
+        self.assertEqual(
+            stdout.getvalue().strip().splitlines(),
+            [
+                '{"cpu_percent": 1.0, "memory_percent": 2.0, "timestamp": 10.0}',
+                '{"cpu_percent": 3.0, "memory_percent": 4.0, "timestamp": 11.0}',
+            ],
+        )
+        self.assertEqual(len(created_stores), 1)
+        store = created_stores[0]
+        self.assertEqual(store.db_path, "telemetry.sqlite")
+        self.assertEqual(store.appended, produced)
+        self.assertTrue(store.closed)
+
     def test_main_watch_mode_stops_after_count(self) -> None:
         produced = [
             SystemSnapshot(timestamp=10.0, cpu_percent=1.0, memory_percent=2.0),
