@@ -9,6 +9,13 @@ from core.poller import collect_snapshot, run_polling_loop
 from core.types import SystemSnapshot
 
 
+def _positive_interval_seconds(value: str) -> float:
+    interval = float(value)
+    if interval <= 0:
+        raise argparse.ArgumentTypeError("interval must be greater than 0")
+    return interval
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Aura telemetry bootstrap CLI.")
     parser.add_argument(
@@ -23,7 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--interval",
-        type=float,
+        type=_positive_interval_seconds,
         default=1.0,
         help="Polling interval in seconds for --watch mode (default: 1.0).",
     )

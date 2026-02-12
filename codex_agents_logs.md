@@ -87,3 +87,11 @@ GIT-1 | feat: add CLI watch mode for continuous telemetry streaming
 GIT-2 | files: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.md
 GIT-3 | verify: python -m unittest discover -s tests -v (pass, 12 tests); python src/main.py --json (pass)
 END | 2026-02-12 22:19:42 +01:00 | free to work: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.md | commit: feat: add CLI watch mode for continuous telemetry streaming
+
+START | 2026-02-12 22:21:06 +01:00 | codex_zenith58 | task: validate watch interval at CLI boundary and add regression tests
+LOCKS | folder: c:\AI\TEST_GUI_Python | files: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.md
+GIT-1 | fix: validate --watch interval at argument parsing to fail fast with clear CLI errors
+GIT-2 | files: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: python -m unittest discover -s tests -v (pass, 13 tests); python src/main.py --watch --interval 0 (argparse error, exit 2); python src/main.py --json (pass)
+END | 2026-02-12 22:22:43 +01:00 | free to work: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.md | commit: fix: validate --watch interval at CLI boundary
+RISK | tooling missing: uv command not found; used python -m unittest and CLI smoke checks instead.

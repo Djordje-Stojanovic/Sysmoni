@@ -17,6 +17,24 @@ from core.types import SystemSnapshot  # noqa: E402
 
 
 class MainCliTests(unittest.TestCase):
+    def test_main_watch_mode_rejects_non_positive_interval(self) -> None:
+        original_run_polling_loop = app_main.run_polling_loop
+        app_main.run_polling_loop = lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("run_polling_loop should not be called for invalid interval.")
+        )
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        try:
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                with self.assertRaises(SystemExit) as ctx:
+                    app_main.main(["--watch", "--interval", "0"])
+        finally:
+            app_main.run_polling_loop = original_run_polling_loop
+
+        self.assertEqual(ctx.exception.code, 2)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn("interval must be greater than 0", stderr.getvalue())
+
     def test_main_watch_mode_streams_json_snapshots(self) -> None:
         produced = [
             SystemSnapshot(timestamp=10.0, cpu_percent=1.0, memory_percent=2.0),
