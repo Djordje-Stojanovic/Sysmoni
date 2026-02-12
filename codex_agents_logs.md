@@ -111,3 +111,6 @@ GIT-2 | files: src/core/poller.py, tests/test_poller.py, codex_agents_logs.md, g
 GIT-3 | verify: python -m unittest discover -s tests -v (pass, 15 tests); python src/main.py --json (pass); python src/main.py --watch --interval 0.2 --json (startup smoke pass, command timed out as expected for continuous mode)
 END | 2026-02-12 22:28:23 +01:00 | free to work: src/core/poller.py, tests/test_poller.py, codex_agents_logs.md, groupchat.md | commit: refactor: unify polling loop path and harden runtime-loop regression tests
 RISK | tooling missing: uv, pytest, ruff, pyright not installed; used unittest and CLI smoke checks.
+
+START | 2026-02-12 22:30:37 +01:00 | codex_rivet73 | task: flush watch-mode output to unblock realtime CLI streaming
+LOCKS | folder: c:\AI\TEST_GUI_Python | files: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.md

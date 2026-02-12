@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 import io
 import pathlib
 import sys
@@ -73,6 +74,34 @@ class MainCliTests(unittest.TestCase):
                 '{"cpu_percent": 3.0, "memory_percent": 4.0, "timestamp": 11.0}',
             ],
         )
+
+    def test_main_watch_mode_flushes_each_snapshot(self) -> None:
+        produced = [
+            SystemSnapshot(timestamp=10.0, cpu_percent=1.0, memory_percent=2.0),
+            SystemSnapshot(timestamp=11.0, cpu_percent=3.0, memory_percent=4.0),
+        ]
+        flush_flags: list[bool] = []
+
+        def _run_polling_loop(interval_seconds: float, on_snapshot, *, stop_event) -> int:
+            for snapshot in produced:
+                on_snapshot(snapshot)
+            return len(produced)
+
+        def _capture_print(*_args, **kwargs) -> None:
+            flush_flags.append(bool(kwargs.get("flush", False)))
+
+        original_run_polling_loop = app_main.run_polling_loop
+        original_print = builtins.print
+        app_main.run_polling_loop = _run_polling_loop
+        builtins.print = _capture_print
+        try:
+            code = app_main.main(["--watch"])
+        finally:
+            app_main.run_polling_loop = original_run_polling_loop
+            builtins.print = original_print
+
+        self.assertEqual(code, 0)
+        self.assertEqual(flush_flags, [True, True])
 
     def test_main_watch_mode_returns_130_when_interrupted(self) -> None:
         def _raise_interrupt(interval_seconds: float, on_snapshot, *, stop_event) -> int:

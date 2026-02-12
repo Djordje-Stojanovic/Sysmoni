@@ -37,15 +37,21 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _print_snapshot(snapshot: SystemSnapshot, *, output_json: bool) -> None:
+def _print_snapshot(
+    snapshot: SystemSnapshot,
+    *,
+    output_json: bool,
+    flush: bool = False,
+) -> None:
     if output_json:
-        print(json.dumps(snapshot.to_dict(), sort_keys=True))
+        print(json.dumps(snapshot.to_dict(), sort_keys=True), flush=flush)
         return
 
     print(
         f"cpu={snapshot.cpu_percent:.1f}% "
         f"mem={snapshot.memory_percent:.1f}% "
-        f"ts={snapshot.timestamp:.3f}"
+        f"ts={snapshot.timestamp:.3f}",
+        flush=flush,
     )
 
 
@@ -57,7 +63,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.watch:
             run_polling_loop(
                 args.interval,
-                lambda snapshot: _print_snapshot(snapshot, output_json=args.json),
+                lambda snapshot: _print_snapshot(
+                    snapshot,
+                    output_json=args.json,
+                    flush=True,
+                ),
                 stop_event=threading.Event(),
             )
             return 0
