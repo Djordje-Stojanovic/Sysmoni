@@ -18,6 +18,85 @@ from core.types import SystemSnapshot  # noqa: E402
 
 
 class MainCliTests(unittest.TestCase):
+    def test_main_count_requires_watch(self) -> None:
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            with self.assertRaises(SystemExit) as ctx:
+                app_main.main(["--count", "1"])
+
+        self.assertEqual(ctx.exception.code, 2)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn("--count requires --watch", stderr.getvalue())
+
+    def test_main_watch_mode_rejects_non_positive_count(self) -> None:
+        original_run_polling_loop = app_main.run_polling_loop
+        app_main.run_polling_loop = lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("run_polling_loop should not be called for invalid count.")
+        )
+
+        try:
+            for invalid_value in ("0", "-1"):
+                stdout = io.StringIO()
+                stderr = io.StringIO()
+                with self.subTest(invalid_value=invalid_value):
+                    with redirect_stdout(stdout), redirect_stderr(stderr):
+                        with self.assertRaises(SystemExit) as ctx:
+                            app_main.main(["--watch", "--count", invalid_value])
+
+                    self.assertEqual(ctx.exception.code, 2)
+                    self.assertEqual(stdout.getvalue(), "")
+                    self.assertIn("count must be an integer greater than 0", stderr.getvalue())
+        finally:
+            app_main.run_polling_loop = original_run_polling_loop
+
+    def test_main_watch_mode_stops_after_count(self) -> None:
+        produced = [
+            SystemSnapshot(timestamp=10.0, cpu_percent=1.0, memory_percent=2.0),
+            SystemSnapshot(timestamp=11.0, cpu_percent=3.0, memory_percent=4.0),
+            SystemSnapshot(timestamp=12.0, cpu_percent=5.0, memory_percent=6.0),
+        ]
+        observed_interval_seconds: list[float] = []
+
+        def _run_polling_loop(interval_seconds: float, on_snapshot, *, stop_event) -> int:
+            observed_interval_seconds.append(interval_seconds)
+            emitted = 0
+            for snapshot in produced:
+                if stop_event.is_set():
+                    break
+                on_snapshot(snapshot)
+                emitted += 1
+            return emitted
+
+        original_run_polling_loop = app_main.run_polling_loop
+        original_collect_snapshot = app_main.collect_snapshot
+        app_main.run_polling_loop = _run_polling_loop
+        app_main.collect_snapshot = lambda: (_ for _ in ()).throw(
+            AssertionError("collect_snapshot should not be called in watch mode.")
+        )
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        try:
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                code = app_main.main(
+                    ["--watch", "--json", "--interval", "0.5", "--count", "2"]
+                )
+        finally:
+            app_main.run_polling_loop = original_run_polling_loop
+            app_main.collect_snapshot = original_collect_snapshot
+
+        self.assertEqual(code, 0)
+        self.assertEqual(stderr.getvalue(), "")
+        self.assertEqual(observed_interval_seconds, [0.5])
+        self.assertEqual(
+            stdout.getvalue().strip().splitlines(),
+            [
+                '{"cpu_percent": 1.0, "memory_percent": 2.0, "timestamp": 10.0}',
+                '{"cpu_percent": 3.0, "memory_percent": 4.0, "timestamp": 11.0}',
+            ],
+        )
+
     def test_main_watch_mode_rejects_non_finite_interval(self) -> None:
         original_run_polling_loop = app_main.run_polling_loop
         app_main.run_polling_loop = lambda *args, **kwargs: (_ for _ in ()).throw(

@@ -19,6 +19,20 @@ def _positive_interval_seconds(value: str) -> float:
     return interval
 
 
+def _positive_sample_count(value: str) -> int:
+    try:
+        sample_count = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            "count must be an integer greater than 0"
+        ) from exc
+
+    if sample_count <= 0:
+        raise argparse.ArgumentTypeError("count must be an integer greater than 0")
+
+    return sample_count
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Aura telemetry bootstrap CLI.")
     parser.add_argument(
@@ -36,6 +50,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=_positive_interval_seconds,
         default=1.0,
         help="Polling interval in seconds for --watch mode (default: 1.0).",
+    )
+    parser.add_argument(
+        "--count",
+        type=_positive_sample_count,
+        default=None,
+        help="Number of snapshots to emit before exiting in --watch mode.",
     )
     return parser
 
@@ -62,16 +82,32 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
+    if args.count is not None and not args.watch:
+        parser.error("--count requires --watch")
+
     try:
         if args.watch:
-            run_polling_loop(
-                args.interval,
-                lambda snapshot: _print_snapshot(
+            stop_event = threading.Event()
+            remaining_samples = args.count
+
+            def _on_snapshot(snapshot: SystemSnapshot) -> None:
+                nonlocal remaining_samples
+                _print_snapshot(
                     snapshot,
                     output_json=args.json,
                     flush=True,
-                ),
-                stop_event=threading.Event(),
+                )
+                if remaining_samples is None:
+                    return
+
+                remaining_samples -= 1
+                if remaining_samples <= 0:
+                    stop_event.set()
+
+            run_polling_loop(
+                args.interval,
+                _on_snapshot,
+                stop_event=stop_event,
             )
             return 0
 
