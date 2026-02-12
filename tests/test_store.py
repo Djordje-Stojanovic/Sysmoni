@@ -7,6 +7,7 @@ import shutil
 import sys
 import unittest
 import uuid
+from contextlib import closing
 
 
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -79,23 +80,24 @@ class TelemetryStoreTests(unittest.TestCase):
         self.addCleanup(shutil.rmtree, tmpdir, True)
 
         db_path = tmpdir / "telemetry.sqlite"
-        with sqlite3.connect(db_path) as connection:
-            connection.execute(
-                """
-                CREATE TABLE snapshots (
-                    timestamp REAL PRIMARY KEY,
-                    cpu_percent REAL NOT NULL,
-                    memory_percent REAL NOT NULL
+        with closing(sqlite3.connect(db_path)) as connection:
+            with connection:
+                connection.execute(
+                    """
+                    CREATE TABLE snapshots (
+                        timestamp REAL PRIMARY KEY,
+                        cpu_percent REAL NOT NULL,
+                        memory_percent REAL NOT NULL
+                    )
+                    """
                 )
-                """
-            )
-            connection.execute(
-                """
-                INSERT INTO snapshots (timestamp, cpu_percent, memory_percent)
-                VALUES (?, ?, ?)
-                """,
-                (100.0, 10.0, 20.0),
-            )
+                connection.execute(
+                    """
+                    INSERT INTO snapshots (timestamp, cpu_percent, memory_percent)
+                    VALUES (?, ?, ?)
+                    """,
+                    (100.0, 10.0, 20.0),
+                )
 
         with TelemetryStore(db_path, now=lambda: 200.0) as store:
             store.append(
@@ -107,7 +109,7 @@ class TelemetryStoreTests(unittest.TestCase):
             snapshots = store.latest(limit=10)
             self.assertEqual(store.count(), 3)
 
-        with sqlite3.connect(db_path) as connection:
+        with closing(sqlite3.connect(db_path)) as connection:
             columns = connection.execute("PRAGMA table_info(snapshots)").fetchall()
 
         primary_key_columns = [column[1] for column in columns if column[5] == 1]
@@ -117,6 +119,30 @@ class TelemetryStoreTests(unittest.TestCase):
             [snapshot.cpu_percent for snapshot in snapshots],
             [10.0, 11.0, 12.0],
         )
+
+    def test_store_rejects_malformed_id_backed_schema_at_startup(self) -> None:
+        tmpdir = PROJECT_ROOT / f"__store_invalid_{uuid.uuid4().hex}"
+        tmpdir.mkdir()
+        self.addCleanup(shutil.rmtree, tmpdir, True)
+
+        db_path = tmpdir / "telemetry.sqlite"
+        with closing(sqlite3.connect(db_path)) as connection:
+            with connection:
+                connection.execute(
+                    """
+                    CREATE TABLE snapshots (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        timestamp REAL NOT NULL
+                    )
+                    """
+                )
+
+        with self.assertRaises(RuntimeError) as ctx:
+            TelemetryStore(db_path)
+
+        self.assertIn("Unsupported snapshots table schema", str(ctx.exception))
+        db_path.unlink()
+        self.assertFalse(db_path.exists())
 
     def test_latest_requires_positive_limit(self) -> None:
         with TelemetryStore(":memory:") as store:

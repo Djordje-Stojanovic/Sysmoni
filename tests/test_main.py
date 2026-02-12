@@ -19,6 +19,104 @@ from core.types import SystemSnapshot  # noqa: E402
 
 
 class MainCliTests(unittest.TestCase):
+    def test_main_latest_requires_db_path(self) -> None:
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            with self.assertRaises(SystemExit) as ctx:
+                app_main.main(["--latest", "1"])
+
+        self.assertEqual(ctx.exception.code, 2)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn("--latest requires --db-path", stderr.getvalue())
+
+    def test_main_latest_rejects_watch_mode(self) -> None:
+        original_run_polling_loop = app_main.run_polling_loop
+        app_main.run_polling_loop = lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("run_polling_loop should not be called with --latest.")
+        )
+
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        try:
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                with self.assertRaises(SystemExit) as ctx:
+                    app_main.main(["--watch", "--latest", "1", "--db-path", "telemetry.sqlite"])
+        finally:
+            app_main.run_polling_loop = original_run_polling_loop
+
+        self.assertEqual(ctx.exception.code, 2)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn("--latest cannot be used with --watch", stderr.getvalue())
+
+    def test_main_latest_prints_requested_snapshots_from_store(self) -> None:
+        latest_snapshots = [
+            SystemSnapshot(timestamp=10.0, cpu_percent=1.0, memory_percent=2.0),
+            SystemSnapshot(timestamp=11.0, cpu_percent=3.0, memory_percent=4.0),
+        ]
+        created_stores: list[object] = []
+
+        class _StoreStub:
+            def __init__(self, db_path: str) -> None:
+                self.db_path = db_path
+                self.closed = False
+                self.received_limit: int | None = None
+                created_stores.append(self)
+
+            def latest(self, *, limit: int = 1) -> list[SystemSnapshot]:
+                self.received_limit = limit
+                return latest_snapshots
+
+            def append(self, _snapshot: SystemSnapshot) -> None:
+                raise AssertionError("append should not be called when reading latest data.")
+
+            def close(self) -> None:
+                self.closed = True
+
+        original_store = app_main.TelemetryStore
+        original_collect_snapshot = app_main.collect_snapshot
+        original_run_polling_loop = app_main.run_polling_loop
+        app_main.TelemetryStore = _StoreStub
+        app_main.collect_snapshot = lambda: (_ for _ in ()).throw(
+            AssertionError("collect_snapshot should not be called with --latest.")
+        )
+        app_main.run_polling_loop = lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("run_polling_loop should not be called with --latest.")
+        )
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        try:
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                code = app_main.main(
+                    [
+                        "--db-path",
+                        "telemetry.sqlite",
+                        "--latest",
+                        "2",
+                        "--json",
+                    ]
+                )
+        finally:
+            app_main.TelemetryStore = original_store
+            app_main.collect_snapshot = original_collect_snapshot
+            app_main.run_polling_loop = original_run_polling_loop
+
+        self.assertEqual(code, 0)
+        self.assertEqual(stderr.getvalue(), "")
+        self.assertEqual(
+            stdout.getvalue().strip().splitlines(),
+            [
+                '{"cpu_percent": 1.0, "memory_percent": 2.0, "timestamp": 10.0}',
+                '{"cpu_percent": 3.0, "memory_percent": 4.0, "timestamp": 11.0}',
+            ],
+        )
+        self.assertEqual(len(created_stores), 1)
+        store = created_stores[0]
+        self.assertEqual(store.db_path, "telemetry.sqlite")
+        self.assertEqual(store.received_limit, 2)
+        self.assertTrue(store.closed)
+
     def test_main_count_requires_watch(self) -> None:
         stdout = io.StringIO()
         stderr = io.StringIO()

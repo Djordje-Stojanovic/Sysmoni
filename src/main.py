@@ -72,6 +72,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Number of snapshots to emit before exiting in --watch mode.",
     )
     parser.add_argument(
+        "--latest",
+        type=_positive_sample_count,
+        default=None,
+        help="Emit the latest N persisted snapshots from --db-path, then exit.",
+    )
+    parser.add_argument(
         "--db-path",
         default=None,
         help="Optional SQLite DB path for persisting emitted snapshots.",
@@ -123,11 +129,23 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.count is not None and not args.watch:
         parser.error("--count requires --watch")
+    if args.latest is not None and args.watch:
+        parser.error("--latest cannot be used with --watch")
+    if args.latest is not None and not args.db_path:
+        parser.error("--latest requires --db-path")
 
     store: TelemetryStore | None = None
     try:
         if args.db_path:
             store = TelemetryStore(args.db_path)
+
+        if args.latest is not None:
+            if store is None:
+                parser.error("--latest requires --db-path")
+
+            for snapshot in store.latest(limit=args.latest):
+                _print_snapshot(snapshot, output_json=args.json)
+            return 0
 
         if args.watch:
             stop_event = threading.Event()

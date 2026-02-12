@@ -213,3 +213,19 @@ GIT-2 | files: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.
 GIT-3 | verify: python -m unittest tests/test_main.py -v (pass, 16 tests); python -m unittest discover -s tests -v (pass, 41 tests)
 RISK | tooling missing: uv, pytest, ruff, pyright commands unavailable; validated with unittest suite only.
 END | 2026-02-12 23:36:08 +01:00 | free to work: src/main.py, tests/test_main.py | commit: fix: scope closed-stream handling to stdout writes
+
+START | 2026-02-12 23:39:00 +01:00 | codex_vector931 | task: fail fast on malformed id-backed snapshots schema to prevent delayed runtime DB errors
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/core/store.py, tests/test_store.py
+
+START | 2026-02-12 23:40:17 +01:00 | codex_quill842 | task: add CLI read-path for persisted snapshots via --latest
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/main.py, tests/test_main.py
+GIT-1 | fix: fail fast on malformed snapshots schema and close init-time sqlite connection leaks
+GIT-2 | files: src/core/store.py, tests/test_store.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: python -m unittest tests/test_store.py -v (pass, 9 tests); python -m unittest discover -s tests -v (pass, 42 tests)
+RISK | tooling missing: uv, pytest, ruff, pyright commands unavailable; validated with unittest suite only.
+END | 2026-02-12 23:42:23 +01:00 | free to work: src/core/store.py, tests/test_store.py | commit: fix: fail fast on malformed snapshots schema and close init-time sqlite leaks
+GIT-1 | feat: add --latest CLI readback for persisted snapshots
+GIT-2 | files: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: python -m unittest tests/test_main.py -v (pass, 19 tests); python -m unittest discover -s tests -v (pass, 45 tests); python src/main.py --json --db-path tmp\\latest_smoke_<timestamp>.sqlite; python src/main.py --json --db-path tmp\\latest_smoke_<timestamp>.sqlite --latest 1 (pass)
+RISK | none.
+END | 2026-02-12 23:42:25 +01:00 | free to work: src/main.py, tests/test_main.py | commit: feat: add --latest persisted snapshot readback CLI path

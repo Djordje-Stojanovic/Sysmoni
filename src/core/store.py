@@ -47,6 +47,16 @@ def _is_legacy_snapshots_schema(columns: list[sqlite3.Row]) -> bool:
     return int(timestamp_column["pk"]) == 1
 
 
+def _is_supported_id_backed_schema(columns: list[sqlite3.Row]) -> bool:
+    column_names = {str(column["name"]) for column in columns}
+    required_columns = {"id", "timestamp", "cpu_percent", "memory_percent"}
+    if not required_columns.issubset(column_names):
+        return False
+
+    id_column = next(column for column in columns if column["name"] == "id")
+    return int(id_column["pk"]) == 1
+
+
 class TelemetryStore:
     """SQLite-backed snapshot storage with rolling retention pruning."""
 
@@ -66,7 +76,11 @@ class TelemetryStore:
         )
         self._connection.row_factory = sqlite3.Row
 
-        self._initialize_schema()
+        try:
+            self._initialize_schema()
+        except Exception:
+            self._connection.close()
+            raise
 
     def _initialize_schema(self) -> None:
         with self._connection:
@@ -75,10 +89,10 @@ class TelemetryStore:
                 self._create_snapshots_table()
             elif _is_legacy_snapshots_schema(columns):
                 self._migrate_legacy_snapshots_table()
-            elif not any(column["name"] == "id" for column in columns):
+            elif not _is_supported_id_backed_schema(columns):
                 raise RuntimeError(
                     "Unsupported snapshots table schema: expected either legacy schema "
-                    "or id-backed schema."
+                    "or id-backed schema with primary key `id` and telemetry columns."
                 )
 
             self._connection.execute(
