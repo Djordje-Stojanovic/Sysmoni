@@ -3,8 +3,10 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import threading
 
-from core.poller import collect_snapshot
+from core.poller import collect_snapshot, run_polling_loop
+from core.types import SystemSnapshot
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -14,7 +16,30 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print a JSON snapshot instead of text output.",
     )
+    parser.add_argument(
+        "--watch",
+        action="store_true",
+        help="Stream snapshots continuously until interrupted.",
+    )
+    parser.add_argument(
+        "--interval",
+        type=float,
+        default=1.0,
+        help="Polling interval in seconds for --watch mode (default: 1.0).",
+    )
     return parser
+
+
+def _print_snapshot(snapshot: SystemSnapshot, *, output_json: bool) -> None:
+    if output_json:
+        print(json.dumps(snapshot.to_dict(), sort_keys=True))
+        return
+
+    print(
+        f"cpu={snapshot.cpu_percent:.1f}% "
+        f"mem={snapshot.memory_percent:.1f}% "
+        f"ts={snapshot.timestamp:.3f}"
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -22,6 +47,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
+        if args.watch:
+            run_polling_loop(
+                args.interval,
+                lambda snapshot: _print_snapshot(snapshot, output_json=args.json),
+                stop_event=threading.Event(),
+            )
+            return 0
+
         snapshot = collect_snapshot()
     except KeyboardInterrupt:
         print("Interrupted by user.", file=sys.stderr)
@@ -33,14 +66,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Failed to collect telemetry snapshot: {exc}", file=sys.stderr)
         return 2
 
-    if args.json:
-        print(json.dumps(snapshot.to_dict(), sort_keys=True))
-    else:
-        print(
-            f"cpu={snapshot.cpu_percent:.1f}% "
-            f"mem={snapshot.memory_percent:.1f}% "
-            f"ts={snapshot.timestamp:.3f}"
-        )
+    _print_snapshot(snapshot, output_json=args.json)
     return 0
 
 

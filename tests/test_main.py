@@ -17,6 +17,63 @@ from core.types import SystemSnapshot  # noqa: E402
 
 
 class MainCliTests(unittest.TestCase):
+    def test_main_watch_mode_streams_json_snapshots(self) -> None:
+        produced = [
+            SystemSnapshot(timestamp=10.0, cpu_percent=1.0, memory_percent=2.0),
+            SystemSnapshot(timestamp=11.0, cpu_percent=3.0, memory_percent=4.0),
+        ]
+        observed_interval_seconds: list[float] = []
+
+        def _run_polling_loop(interval_seconds: float, on_snapshot, *, stop_event) -> int:
+            observed_interval_seconds.append(interval_seconds)
+            for snapshot in produced:
+                on_snapshot(snapshot)
+            return len(produced)
+
+        original_run_polling_loop = app_main.run_polling_loop
+        original_collect_snapshot = app_main.collect_snapshot
+        app_main.run_polling_loop = _run_polling_loop
+        app_main.collect_snapshot = lambda: (_ for _ in ()).throw(
+            AssertionError("collect_snapshot should not be called in watch mode.")
+        )
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        try:
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                code = app_main.main(["--watch", "--json", "--interval", "0.5"])
+        finally:
+            app_main.run_polling_loop = original_run_polling_loop
+            app_main.collect_snapshot = original_collect_snapshot
+
+        self.assertEqual(code, 0)
+        self.assertEqual(stderr.getvalue(), "")
+        self.assertEqual(observed_interval_seconds, [0.5])
+        self.assertEqual(
+            stdout.getvalue().strip().splitlines(),
+            [
+                '{"cpu_percent": 1.0, "memory_percent": 2.0, "timestamp": 10.0}',
+                '{"cpu_percent": 3.0, "memory_percent": 4.0, "timestamp": 11.0}',
+            ],
+        )
+
+    def test_main_watch_mode_returns_130_when_interrupted(self) -> None:
+        def _raise_interrupt(interval_seconds: float, on_snapshot, *, stop_event) -> int:
+            raise KeyboardInterrupt()
+
+        original = app_main.run_polling_loop
+        app_main.run_polling_loop = _raise_interrupt
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        try:
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                code = app_main.main(["--watch"])
+        finally:
+            app_main.run_polling_loop = original
+
+        self.assertEqual(code, 130)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn("Interrupted by user.", stderr.getvalue())
+
     def test_main_returns_130_when_interrupted(self) -> None:
         def _raise_interrupt() -> SystemSnapshot:
             raise KeyboardInterrupt()

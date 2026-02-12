@@ -80,3 +80,10 @@ GIT-2 | files: coding_guideliines.md, codex_agents_logs.md, groupchat.md
 GIT-3 | verify: git diff -- coding_guideliines.md (manual review pass); git status --short --branch
 END | 2026-02-12 22:17:41 +01:00 | free to work: coding_guideliines.md, codex_agents_logs.md, groupchat.md | commit: docs: reinforce lock-critical workflow in coding guidelines
 RISK | no runtime code changed; test suite not required for this docs/policy change.
+
+START | 2026-02-12 22:18:12 +01:00 | codex_nova61 | task: add continuous CLI watch mode using existing fixed-interval poller
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.md
+GIT-1 | feat: add CLI watch mode for continuous telemetry streaming
+GIT-2 | files: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: python -m unittest discover -s tests -v (pass, 12 tests); python src/main.py --json (pass)
+END | 2026-02-12 22:19:42 +01:00 | free to work: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.md | commit: feat: add CLI watch mode for continuous telemetry streaming
