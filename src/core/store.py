@@ -38,6 +38,15 @@ def _prepare_db_path(db_path: str | Path) -> str:
     return normalized_path
 
 
+def _is_legacy_snapshots_schema(columns: list[sqlite3.Row]) -> bool:
+    column_names = {str(column["name"]) for column in columns}
+    if column_names != {"timestamp", "cpu_percent", "memory_percent"}:
+        return False
+
+    timestamp_column = next(column for column in columns if column["name"] == "timestamp")
+    return int(timestamp_column["pk"]) == 1
+
+
 class TelemetryStore:
     """SQLite-backed snapshot storage with rolling retention pruning."""
 
@@ -61,21 +70,58 @@ class TelemetryStore:
 
     def _initialize_schema(self) -> None:
         with self._connection:
-            self._connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS snapshots (
-                    timestamp REAL PRIMARY KEY,
-                    cpu_percent REAL NOT NULL,
-                    memory_percent REAL NOT NULL
+            columns = self._connection.execute("PRAGMA table_info(snapshots)").fetchall()
+            if not columns:
+                self._create_snapshots_table()
+            elif _is_legacy_snapshots_schema(columns):
+                self._migrate_legacy_snapshots_table()
+            elif not any(column["name"] == "id" for column in columns):
+                raise RuntimeError(
+                    "Unsupported snapshots table schema: expected either legacy schema "
+                    "or id-backed schema."
                 )
-                """
+
+            self._connection.execute(
+                "CREATE INDEX IF NOT EXISTS idx_snapshots_timestamp ON snapshots (timestamp)"
             )
+
+    def _create_snapshots_table(self) -> None:
+        self._connection.execute(
+            """
+            CREATE TABLE snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp REAL NOT NULL,
+                cpu_percent REAL NOT NULL,
+                memory_percent REAL NOT NULL
+            )
+            """
+        )
+
+    def _migrate_legacy_snapshots_table(self) -> None:
+        self._connection.execute("ALTER TABLE snapshots RENAME TO snapshots_legacy")
+        self._create_snapshots_table()
+        self._connection.execute(
+            """
+            INSERT INTO snapshots (
+                timestamp,
+                cpu_percent,
+                memory_percent
+            )
+            SELECT
+                timestamp,
+                cpu_percent,
+                memory_percent
+            FROM snapshots_legacy
+            ORDER BY timestamp ASC
+            """
+        )
+        self._connection.execute("DROP TABLE snapshots_legacy")
 
     def append(self, snapshot: SystemSnapshot) -> None:
         with self._lock, self._connection:
             self._connection.execute(
                 """
-                INSERT OR REPLACE INTO snapshots (
+                INSERT INTO snapshots (
                     timestamp,
                     cpu_percent,
                     memory_percent
@@ -98,7 +144,7 @@ class TelemetryStore:
                 """
                 SELECT timestamp, cpu_percent, memory_percent
                 FROM snapshots
-                ORDER BY timestamp DESC
+                ORDER BY timestamp DESC, id DESC
                 LIMIT ?
                 """,
                 (normalized_limit,),

@@ -197,3 +197,11 @@ GIT-2 | files: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.
 GIT-3 | verify: python -m unittest tests/test_main.py -v (pass, 15 tests); python -m unittest discover -s tests -v (pass, 38 tests); subprocess pipe-close smoke (rc=0, stderr='')
 END | 2026-02-12 23:30:49 +01:00 | free to work: src/main.py, tests/test_main.py | commit: fix: handle closed-stream output failures in watch mode
 RISK | tooling missing: uv, pytest, ruff, pyright commands unavailable; validated with unittest + subprocess smoke checks.
+
+START | 2026-02-12 23:31:10 +01:00 | codex_glint783 | task: retain duplicate-timestamp snapshots in SQLite store without overwrite
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/core/store.py, tests/test_store.py
+GIT-1 | fix: preserve duplicate-timestamp snapshots by migrating TelemetryStore to id-backed rows
+GIT-2 | files: src/core/store.py, tests/test_store.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: python -m unittest tests/test_store.py -v (pass, 8 tests); python -m unittest discover -s tests -v (pass, 40 tests)
+RISK | tooling missing: uv, pytest, ruff, pyright commands unavailable; validated with unittest suite only.
+END | 2026-02-12 23:32:46 +01:00 | free to work: src/core/store.py, tests/test_store.py | commit: fix: preserve duplicate-timestamp telemetry snapshots in SQLite store
