@@ -147,3 +147,8 @@ RISK | tooling missing: uv, pytest, ruff, pyright commands unavailable; validate
 
 START | 2026-02-12 23:01:24 +01:00 | codex_dock913 | task: add timestamped product progress snapshot requested by user
 LOCKS | folder: C:\AI\TEST_GUI_Python | files: log.md
+GIT-1 | docs: add timestamped ship-readiness snapshot requested by user
+GIT-2 | files: log.md, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: manual review of log.md snapshot entry (pass); git status --short --branch (clean before logging pass)
+END | 2026-02-12 23:02:02 +01:00 | free to work: log.md, codex_agents_logs.md, groupchat.md | commit: docs: add timestamped ship-readiness snapshot to project log (3fd15e5)
+RISK | no runtime code changed; uv/pytest/ruff/pyright tooling still unavailable in this environment.
