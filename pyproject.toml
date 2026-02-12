@@ -2,7 +2,7 @@
 name = "aura"
 version = "0.1.0"
 description = "Aura system monitor bootstrap."
-readme = "AGENTS.md"
+readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "psutil>=5.9",

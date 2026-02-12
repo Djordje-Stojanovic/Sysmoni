@@ -1,6 +1,44 @@
 __pycache__/
-*.pyc
-tests/
-.claude/
+*.py[cod]
+*$py.class
+
+# Virtual environments
 .venv/
+venv/
+env/
+
+# Packaging/build
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# Tool caches
+.ruff_cache/
+.mypy_cache/
+.pytype/
+.pyright/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# IDE/editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local workspace config
+.claude/
+
+# Runtime artifacts
+*.log
+*.prof
+aura.prof
 
