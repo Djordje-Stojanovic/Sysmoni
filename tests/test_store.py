@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import math
 import pathlib
+import shutil
 import sys
-import tempfile
 import unittest
+import uuid
 
 
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -24,22 +25,25 @@ class TelemetryStoreTests(unittest.TestCase):
                     TelemetryStore(":memory:", retention_seconds=invalid_retention)
 
     def test_store_creates_missing_parent_directories(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = pathlib.Path(tmpdir) / "nested" / "telemetry.sqlite"
-            self.assertFalse(db_path.parent.exists())
+        tmpdir = PROJECT_ROOT / f"__store_test_{uuid.uuid4().hex}"
+        tmpdir.mkdir()
+        self.addCleanup(shutil.rmtree, tmpdir, True)
 
-            with TelemetryStore(db_path, now=lambda: 100.0) as store:
-                store.append(
-                    SystemSnapshot(
-                        timestamp=95.0,
-                        cpu_percent=12.5,
-                        memory_percent=42.0,
-                    )
+        db_path = tmpdir / "nested" / "telemetry.sqlite"
+        self.assertFalse(db_path.parent.exists())
+
+        with TelemetryStore(db_path, now=lambda: 100.0) as store:
+            store.append(
+                SystemSnapshot(
+                    timestamp=95.0,
+                    cpu_percent=12.5,
+                    memory_percent=42.0,
                 )
-                self.assertEqual(store.count(), 1)
+            )
+            self.assertEqual(store.count(), 1)
 
-            self.assertTrue(db_path.parent.exists())
-            self.assertTrue(db_path.exists())
+        self.assertTrue(db_path.parent.exists())
+        self.assertTrue(db_path.exists())
 
     def test_store_appends_and_reads_latest_snapshot(self) -> None:
         with TelemetryStore(":memory:", now=lambda: 100.0) as store:

@@ -181,3 +181,11 @@ GIT-2 | files: src/core/store.py, tests/test_store.py, codex_agents_logs.md, gro
 GIT-3 | verify: python -m unittest tests/test_store.py -v (pass, 6 tests); python -m unittest discover -s tests -v (pass, 36 tests); python src/main.py --json --db-path tmp\\nested_<timestamp>\\telemetry.sqlite (pass, db_created=true, rows=1)
 RISK | policy blocked recursive cleanup command; local tmp/ smoke-check artifacts left untracked and excluded from commit.
 END | 2026-02-12 23:23:38 +01:00 | free to work: src/core/store.py, tests/test_store.py | commit: fix: auto-create SQLite db parent directories for --db-path
+
+START | 2026-02-12 23:25:48 +01:00 | codex_prism642 | task: make TelemetryStore directory-creation test sandbox-safe
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: tests/test_store.py
+GIT-1 | fix: make store directory-creation test sandbox-safe under restricted environments
+GIT-2 | files: tests/test_store.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: python -m unittest tests/test_store.py -v (pass, 6 tests); python -m unittest discover -s tests -v (pass, 36 tests)
+RISK | environment left inaccessible tmp* folders from prior tempfile runs; excluded from this commit.
+END | 2026-02-12 23:27:12 +01:00 | free to work: tests/test_store.py | commit: fix: make store directory-creation test sandbox-safe under restricted environments
