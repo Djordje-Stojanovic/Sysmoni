@@ -14,6 +14,8 @@ You are a first-principles engineer. Your job: ship working code fast without br
 - `groupchat.md` is the shared timestamped agent-to-agent channel for asks, replies, handoffs, and release notices.
 - Each agent must choose a unique random `codex_name` and log START/END entries.
 - Each task must include a 3-line git summary in the shared log and end with a commit.
+- Immediately after each commit, append `GIT-1`, `GIT-2`, `GIT-3`, then `END` with the exact files/folders now free.
+- Every session must end with both `git commit` and `git push origin main`.
 - Agents must declare claimed folders/files before editing to avoid interference.
 
 ## EDIT BOUNDARIES
@@ -71,6 +73,7 @@ git add -A && git commit -m "type: what and why" && git push origin main
 
 - Never introduce code that breaks the existing app.
 - Make small, surgical changes. One concern per commit.
+- Do not stop at a local commit; push the commit in the same session.
 - If unsure whether a change is safe → ask before executing.
 - Verify `.git` exists before any git operations.
 - Run existing build/lint/test commands when available. Fix what you break.

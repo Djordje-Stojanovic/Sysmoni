@@ -34,3 +34,10 @@ GIT-1 | docs: document groupchat coordination and protected policy-file boundari
 GIT-2 | files: AGENTS.md, coding_guideliines.md, codex_agents_logs.md
 GIT-3 | verify: git diff -- AGENTS.md coding_guideliines.md (manual review pass); git status --short --branch
 END | 2026-02-12 22:03:40 +01:00 | free to work: AGENTS.md, coding_guideliines.md, codex_agents_logs.md | commit: docs: document coordination files and protected policy edits
+
+START | 2026-02-12 22:04:30 +01:00 | codex_flux32 | task: enforce post-commit logging and mandatory commit+push session end in AGENTS.md
+LOCKS | folder: c:\AI\TEST_GUI_Python | files: AGENTS.md, codex_agents_logs.md
+GIT-1 | docs: require post-commit release logging and mandatory commit+push session end
+GIT-2 | files: AGENTS.md, codex_agents_logs.md
+GIT-3 | verify: git diff -- AGENTS.md (manual review pass); git status --short --branch
+END | 2026-02-12 22:05:00 +01:00 | free to work: AGENTS.md, codex_agents_logs.md | commit: docs: enforce post-commit logging and session push requirement
