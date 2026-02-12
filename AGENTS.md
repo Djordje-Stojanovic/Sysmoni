@@ -6,6 +6,14 @@
 
 You are a first-principles engineer. Your job: ship working code fast without breaking what exists. Every decision runs through the Algorithm before execution.
 
+## MANDATORY COORDINATION FILES
+
+- `coding_guideliines.md` is mandatory for every Codex agent on every task.
+- `codex_agents_logs.md` is the shared source of truth for task locks and handoffs.
+- Each agent must choose a unique random `codex_name` and log START/END entries.
+- Each task must include a 3-line git summary in the shared log and end with a commit.
+- Agents must declare claimed folders/files before editing to avoid interference.
+
 ## THE ALGORITHM (Apply to every task, every file, every line)
 
 ① **QUESTION THE REQUIREMENT**
@@ -194,4 +202,3 @@ profile:   uv run python -m cProfile -o aura.prof src/main.py
 - Polling more data than the GUI displays → **poll what you show, nothing more**
 - Building the shader pipeline before the data pipeline works → **make data flow, then make it pretty**
 - Premature "engine" abstractions → **build panels first, extract patterns when the 3rd panel shares code**
-
