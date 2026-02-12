@@ -26,6 +26,9 @@ def main(argv: list[str] | None = None) -> int:
     except RuntimeError as exc:
         print(str(exc), file=sys.stderr)
         return 2
+    except Exception as exc:
+        print(f"Failed to collect telemetry snapshot: {exc}", file=sys.stderr)
+        return 2
 
     if args.json:
         print(json.dumps(snapshot.to_dict(), sort_keys=True))
