@@ -269,3 +269,19 @@ GIT-2 | files: src/gui/window.py, src/gui/__init__.py, tests/test_gui_window.py,
 GIT-3 | verify: python -m unittest discover -s tests -v (pass, 56 tests); python src/gui/window.py; echo rc= (rc=2 with clear PySide6 install guidance when dependency is absent)
 RISK | GUI runtime path requires PySide6 at execution time; current environment validated graceful missing-dependency behavior only.
 END | 2026-02-13 00:09:56 +01:00 | free to work: src/gui/, tests/test_gui_window.py, pyproject.toml | commit: feat: ship first GUI telemetry window slice with threaded live polling
+
+START | 2026-02-13 00:18:31 +01:00 | codex_aurora619 | task: fix uv sync project packaging and add ultra-short Windows 11 local runbook
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: pyproject.toml, RUN_WINDOWS11.md
+GIT-1 | fix: disable project packaging in uv so plain sync works for local Windows run
+GIT-2 | files: pyproject.toml, RUN_WINDOWS11.md, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv sync (pass); uv run python -m unittest tests/test_gui_window.py -v (pass, 3 tests); uv run python src/gui/window.py (launches, command timeout expected while GUI stays open)
+RISK | none.
+END | 2026-02-13 00:19:31 +01:00 | free to work: pyproject.toml, RUN_WINDOWS11.md | commit: fix: make uv sync work and add ultra-short Windows runbook
+
+START | 2026-02-13 00:20:28 +01:00 | codex_aurora619 | task: make run docs path-agnostic and minimal command count for GitHub pull users
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: RUN_WINDOWS11.md, pyproject.toml, uv.lock
+GIT-1 | docs: make Windows runbook machine-independent with shortest uv commands
+GIT-2 | files: RUN_WINDOWS11.md, uv.lock, pyproject.toml, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv sync (pass); uv run python -m unittest tests/test_gui_window.py -v (pass, 3 tests); uv run python src/gui/window.py (pass, exits cleanly in this environment)
+RISK | none.
+END | 2026-02-13 00:21:42 +01:00 | free to work: RUN_WINDOWS11.md, pyproject.toml, uv.lock | commit: docs: machine-independent minimal Windows run commands
