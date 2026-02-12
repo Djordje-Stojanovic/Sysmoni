@@ -1,14 +1,19 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import json
 import math
+import os
 import sys
 import threading
 
 from core.poller import collect_snapshot, run_polling_loop
 from core.store import TelemetryStore
 from core.types import SystemSnapshot
+
+
+_CLOSED_STREAM_ERRNOS = {errno.EPIPE, errno.EINVAL}
 
 
 def _positive_interval_seconds(value: str) -> float:
@@ -84,6 +89,21 @@ def _print_snapshot(
     )
 
 
+def _redirect_stdout_to_devnull() -> None:
+    """Avoid interpreter shutdown flush errors after a closed-pipe write failure."""
+    try:
+        devnull_fd = os.open(os.devnull, os.O_WRONLY)
+    except OSError:
+        return
+
+    try:
+        os.dup2(devnull_fd, sys.stdout.fileno())
+    except Exception:
+        pass
+    finally:
+        os.close(devnull_fd)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -128,6 +148,12 @@ def main(argv: list[str] | None = None) -> int:
             store.append(snapshot)
         _print_snapshot(snapshot, output_json=args.json)
         return 0
+    except OSError as exc:
+        if isinstance(exc, BrokenPipeError) or exc.errno in _CLOSED_STREAM_ERRNOS:
+            _redirect_stdout_to_devnull()
+            return 0
+        print(f"Failed to collect telemetry snapshot: {exc}", file=sys.stderr)
+        return 2
     except KeyboardInterrupt:
         print("Interrupted by user.", file=sys.stderr)
         return 130

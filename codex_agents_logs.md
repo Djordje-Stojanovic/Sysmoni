@@ -189,3 +189,11 @@ GIT-2 | files: tests/test_store.py, codex_agents_logs.md, groupchat.md
 GIT-3 | verify: python -m unittest tests/test_store.py -v (pass, 6 tests); python -m unittest discover -s tests -v (pass, 36 tests)
 RISK | environment left inaccessible tmp* folders from prior tempfile runs; excluded from this commit.
 END | 2026-02-12 23:27:12 +01:00 | free to work: tests/test_store.py | commit: fix: make store directory-creation test sandbox-safe under restricted environments
+
+START | 2026-02-12 23:28:01 +01:00 | codex_torque451 | task: handle broken-pipe exits for watch-mode streaming
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/main.py, tests/test_main.py
+GIT-1 | fix: handle closed-stream output errors so watch mode exits cleanly when downstream closes
+GIT-2 | files: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: python -m unittest tests/test_main.py -v (pass, 15 tests); python -m unittest discover -s tests -v (pass, 38 tests); subprocess pipe-close smoke (rc=0, stderr='')
+END | 2026-02-12 23:30:49 +01:00 | free to work: src/main.py, tests/test_main.py | commit: fix: handle closed-stream output failures in watch mode
+RISK | tooling missing: uv, pytest, ruff, pyright commands unavailable; validated with unittest + subprocess smoke checks.

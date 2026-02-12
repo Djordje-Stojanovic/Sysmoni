@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import builtins
+import errno
 import io
 import pathlib
 import sys
@@ -307,6 +308,66 @@ class MainCliTests(unittest.TestCase):
 
         self.assertEqual(code, 0)
         self.assertEqual(flush_flags, [True, True])
+
+    def test_main_watch_mode_returns_zero_on_broken_pipe(self) -> None:
+        produced = [
+            SystemSnapshot(timestamp=10.0, cpu_percent=1.0, memory_percent=2.0),
+        ]
+
+        def _run_polling_loop(interval_seconds: float, on_snapshot, *, stop_event) -> int:
+            for snapshot in produced:
+                on_snapshot(snapshot)
+            return len(produced)
+
+        def _raise_broken_pipe(*_args, **_kwargs) -> None:
+            raise BrokenPipeError()
+
+        original_run_polling_loop = app_main.run_polling_loop
+        original_print = builtins.print
+        app_main.run_polling_loop = _run_polling_loop
+        builtins.print = _raise_broken_pipe
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        try:
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                code = app_main.main(["--watch"])
+        finally:
+            app_main.run_polling_loop = original_run_polling_loop
+            builtins.print = original_print
+
+        self.assertEqual(code, 0)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertEqual(stderr.getvalue(), "")
+
+    def test_main_watch_mode_returns_zero_on_closed_stream_oserror(self) -> None:
+        produced = [
+            SystemSnapshot(timestamp=10.0, cpu_percent=1.0, memory_percent=2.0),
+        ]
+
+        def _run_polling_loop(interval_seconds: float, on_snapshot, *, stop_event) -> int:
+            for snapshot in produced:
+                on_snapshot(snapshot)
+            return len(produced)
+
+        def _raise_closed_stream(*_args, **_kwargs) -> None:
+            raise OSError(errno.EINVAL, "Invalid argument")
+
+        original_run_polling_loop = app_main.run_polling_loop
+        original_print = builtins.print
+        app_main.run_polling_loop = _run_polling_loop
+        builtins.print = _raise_closed_stream
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        try:
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                code = app_main.main(["--watch"])
+        finally:
+            app_main.run_polling_loop = original_run_polling_loop
+            builtins.print = original_print
+
+        self.assertEqual(code, 0)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertEqual(stderr.getvalue(), "")
 
     def test_main_watch_mode_returns_130_when_interrupted(self) -> None:
         def _raise_interrupt(interval_seconds: float, on_snapshot, *, stop_event) -> int:
