@@ -16,9 +16,14 @@ _cpu_percent_primed = False
 _cpu_prime_lock = threading.Lock()
 
 
-def _require_positive_finite_interval(interval_seconds: float) -> None:
-    if not math.isfinite(interval_seconds) or interval_seconds <= 0:
+def _require_positive_finite_interval(interval_seconds: float) -> float:
+    if isinstance(interval_seconds, bool):
         raise ValueError("interval_seconds must be a finite number greater than 0.")
+
+    normalized_interval = float(interval_seconds)
+    if not math.isfinite(normalized_interval) or normalized_interval <= 0:
+        raise ValueError("interval_seconds must be a finite number greater than 0.")
+    return normalized_interval
 
 
 def collect_snapshot(now: Callable[[], float] | None = None) -> SystemSnapshot:
@@ -57,7 +62,7 @@ def run_polling_loop(
     monotonic: Callable[[], float] | None = None,
 ) -> int:
     """Collect snapshots at a fixed interval until the stop event is set."""
-    _require_positive_finite_interval(interval_seconds)
+    interval_seconds = _require_positive_finite_interval(interval_seconds)
 
     def _wait(timeout_seconds: float) -> None:
         stop_event.wait(timeout_seconds)
@@ -82,7 +87,7 @@ def poll_snapshots(
     collect: Callable[[], SystemSnapshot] | None = None,
 ) -> int:
     """Collect snapshots at a fixed interval until `should_stop` returns True."""
-    _require_positive_finite_interval(interval_seconds)
+    interval_seconds = _require_positive_finite_interval(interval_seconds)
 
     stop = (lambda: False) if should_stop is None else should_stop
     sleeper = time.sleep if sleep is None else sleep

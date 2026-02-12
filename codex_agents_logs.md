@@ -229,3 +229,14 @@ GIT-2 | files: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.
 GIT-3 | verify: python -m unittest tests/test_main.py -v (pass, 19 tests); python -m unittest discover -s tests -v (pass, 45 tests); python src/main.py --json --db-path tmp\\latest_smoke_<timestamp>.sqlite; python src/main.py --json --db-path tmp\\latest_smoke_<timestamp>.sqlite --latest 1 (pass)
 RISK | none.
 END | 2026-02-12 23:42:25 +01:00 | free to work: src/main.py, tests/test_main.py | commit: feat: add --latest persisted snapshot readback CLI path
+
+START | 2026-02-12 23:48:50 +01:00 | codex_meridian417 | task: add persisted telemetry time-range read path for DVR-style playback
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/main.py, src/core/store.py, tests/test_main.py, tests/test_store.py
+
+START | 2026-02-12 23:50:56 +01:00 | codex_radian615 | task: harden poller interval boundary by rejecting boolean intervals to prevent silent misconfiguration
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/core/poller.py, tests/test_poller.py
+GIT-1 | fix: reject boolean poll intervals so type mistakes fail fast instead of silently coercing to 0/1 seconds
+GIT-2 | files: src/core/poller.py, tests/test_poller.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: python -m unittest tests/test_poller.py -v (pass, 13 tests); python -m unittest discover -s tests -v (pass, 53 tests)
+RISK | tooling missing: uv, pytest, ruff, pyright commands unavailable; validated with unittest suite.
+END | 2026-02-12 23:51:53 +01:00 | free to work: src/core/poller.py, tests/test_poller.py | commit: fix: reject boolean poll intervals to avoid silent 0/1s coercion

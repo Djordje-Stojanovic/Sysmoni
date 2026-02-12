@@ -127,6 +127,16 @@ class CollectSnapshotTests(unittest.TestCase):
 
 
 class RunPollingLoopTests(unittest.TestCase):
+    def test_run_polling_loop_rejects_boolean_interval(self) -> None:
+        for invalid_interval in (True, False):
+            with self.subTest(invalid_interval=invalid_interval):
+                with self.assertRaises(ValueError):
+                    poller.run_polling_loop(
+                        invalid_interval,
+                        lambda _snapshot: None,
+                        stop_event=threading.Event(),
+                    )
+
     def test_run_polling_loop_requires_positive_interval(self) -> None:
         with self.assertRaises(ValueError):
             poller.run_polling_loop(
@@ -178,6 +188,15 @@ class RunPollingLoopTests(unittest.TestCase):
 
 
 class PollSnapshotsTests(unittest.TestCase):
+    def test_poll_snapshots_rejects_boolean_interval(self) -> None:
+        for invalid_interval in (True, False):
+            with self.subTest(invalid_interval=invalid_interval):
+                with self.assertRaises(ValueError):
+                    poller.poll_snapshots(
+                        lambda _snapshot: None,
+                        interval_seconds=invalid_interval,
+                    )
+
     def test_poll_snapshots_requires_positive_interval(self) -> None:
         with self.assertRaises(ValueError):
             poller.poll_snapshots(lambda _snapshot: None, interval_seconds=0)
