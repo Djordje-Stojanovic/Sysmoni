@@ -205,3 +205,11 @@ GIT-2 | files: src/core/store.py, tests/test_store.py, codex_agents_logs.md, gro
 GIT-3 | verify: python -m unittest tests/test_store.py -v (pass, 8 tests); python -m unittest discover -s tests -v (pass, 40 tests)
 RISK | tooling missing: uv, pytest, ruff, pyright commands unavailable; validated with unittest suite only.
 END | 2026-02-12 23:32:46 +01:00 | free to work: src/core/store.py, tests/test_store.py | commit: fix: preserve duplicate-timestamp telemetry snapshots in SQLite store
+
+START | 2026-02-12 23:34:37 +01:00 | codex_ion742 | task: scope closed-stream handling to stdout writes so non-output OSErrors fail correctly
+LOCKS | folder: c:\AI\TEST_GUI_Python | files: src/main.py, tests/test_main.py
+GIT-1 | fix: scope closed-stream handling to stdout writes so non-output OSErrors fail correctly
+GIT-2 | files: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: python -m unittest tests/test_main.py -v (pass, 16 tests); python -m unittest discover -s tests -v (pass, 41 tests)
+RISK | tooling missing: uv, pytest, ruff, pyright commands unavailable; validated with unittest suite only.
+END | 2026-02-12 23:36:08 +01:00 | free to work: src/main.py, tests/test_main.py | commit: fix: scope closed-stream handling to stdout writes

@@ -16,6 +16,14 @@ from core.types import SystemSnapshot
 _CLOSED_STREAM_ERRNOS = {errno.EPIPE, errno.EINVAL}
 
 
+class _ClosedOutputStreamError(RuntimeError):
+    """Raised when stdout closes while emitting telemetry output."""
+
+
+def _is_closed_stream_error(exc: OSError) -> bool:
+    return isinstance(exc, BrokenPipeError) or exc.errno in _CLOSED_STREAM_ERRNOS
+
+
 def _positive_interval_seconds(value: str) -> float:
     interval = float(value)
     if not math.isfinite(interval) or interval <= 0:
@@ -77,16 +85,21 @@ def _print_snapshot(
     output_json: bool,
     flush: bool = False,
 ) -> None:
-    if output_json:
-        print(json.dumps(snapshot.to_dict(), sort_keys=True), flush=flush)
-        return
-
-    print(
-        f"cpu={snapshot.cpu_percent:.1f}% "
-        f"mem={snapshot.memory_percent:.1f}% "
-        f"ts={snapshot.timestamp:.3f}",
-        flush=flush,
+    line = (
+        json.dumps(snapshot.to_dict(), sort_keys=True)
+        if output_json
+        else (
+            f"cpu={snapshot.cpu_percent:.1f}% "
+            f"mem={snapshot.memory_percent:.1f}% "
+            f"ts={snapshot.timestamp:.3f}"
+        )
     )
+    try:
+        print(line, flush=flush)
+    except OSError as exc:
+        if _is_closed_stream_error(exc):
+            raise _ClosedOutputStreamError from exc
+        raise
 
 
 def _redirect_stdout_to_devnull() -> None:
@@ -148,10 +161,10 @@ def main(argv: list[str] | None = None) -> int:
             store.append(snapshot)
         _print_snapshot(snapshot, output_json=args.json)
         return 0
+    except _ClosedOutputStreamError:
+        _redirect_stdout_to_devnull()
+        return 0
     except OSError as exc:
-        if isinstance(exc, BrokenPipeError) or exc.errno in _CLOSED_STREAM_ERRNOS:
-            _redirect_stdout_to_devnull()
-            return 0
         print(f"Failed to collect telemetry snapshot: {exc}", file=sys.stderr)
         return 2
     except KeyboardInterrupt:

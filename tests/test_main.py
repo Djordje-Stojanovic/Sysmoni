@@ -369,6 +369,29 @@ class MainCliTests(unittest.TestCase):
         self.assertEqual(stdout.getvalue(), "")
         self.assertEqual(stderr.getvalue(), "")
 
+    def test_main_returns_error_when_store_open_raises_oserror_einval(self) -> None:
+        def _raise_einval(_db_path: str) -> object:
+            raise OSError(errno.EINVAL, "Invalid argument")
+
+        original_store = app_main.TelemetryStore
+        original_collect_snapshot = app_main.collect_snapshot
+        app_main.TelemetryStore = _raise_einval
+        app_main.collect_snapshot = lambda: (_ for _ in ()).throw(
+            AssertionError("collect_snapshot should not run when store init fails.")
+        )
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        try:
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                code = app_main.main(["--db-path", "bad.sqlite"])
+        finally:
+            app_main.TelemetryStore = original_store
+            app_main.collect_snapshot = original_collect_snapshot
+
+        self.assertEqual(code, 2)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn("Failed to collect telemetry snapshot: [Errno 22]", stderr.getvalue())
+
     def test_main_watch_mode_returns_130_when_interrupted(self) -> None:
         def _raise_interrupt(interval_seconds: float, on_snapshot, *, stop_event) -> int:
             raise KeyboardInterrupt()
