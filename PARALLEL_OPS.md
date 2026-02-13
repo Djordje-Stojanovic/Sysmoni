@@ -1,56 +1,65 @@
-# PARALLEL_OPS.md
+# PARALLEL_OPS.md - Run 4 Codex Sessions Without Collision
 
-## Goal
+## Problem
 
-Run 5 Codex sessions in parallel without token-wasting lock loops.
+Old flow caused token burn:
+- agents picked from same global priority pool
+- file lock contention forced loops
+- agents re-planned instead of shipping
 
-## Why Loops Happened
+## Fix
 
-- Agents were selecting from one shared "most important task" pool.
-- File-level locking forced repeated re-planning.
-- Agents blocked on each other for small cross-part dependencies.
+Directory ownership model:
+- SENSOR -> `src/telemetry/**`
+- RENDER -> `src/render/**`
+- SHELL -> `src/shell/**`
+- PLATFORM -> `src/runtime/**` (platform domain in this repo)
 
-## New System
+No overlap. No lock loops.
 
-1. Fixed module ownership (directory-level).
-2. Fixed codename per module.
-3. Fixed priority queue per module.
-4. Cross-module dependencies requested through `groupchat.md`, not by editing foreign files.
-5. All sessions commit+push independently.
+## One-Time Migration Prompt
 
-## Launch Sequence
+Use this exact launch prompt once when structure changes are needed:
 
-1. Start one migration/stability session when structure changes are needed.
-2. Launch 5 parallel sessions using prompts from `DISPATCH.md`.
-3. Keep each session in its own module forever.
+```text
+Restructure the codebase per ARCHITECTURE.md migration table. Move files, update all imports, verify tests pass. Commit and push. Do NOT start any feature work.
+```
 
-## Runtime Rules
+## Launch Steps
 
-1. No agent may choose work from another module backlog.
-2. No agent may lock whole repo after startup.
-3. If a task needs contract change:
-   - Post request in `groupchat.md`.
-   - Continue with local placeholder/stub.
-4. Re-check `codex_agents_logs.md` + `groupchat.md` before commit.
+1. Open 4 Codex sessions.
+2. Paste matching block from `DISPATCH.md` into each.
+3. Let each engineer choose next highest-leverage task inside their own module.
 
-## Anti-Collision Protocol
+## Cross-Module Coordination
 
-- Ownership key is path, not task description.
-- Priority tie-breaker is local queue order, never "global importance".
-- If two agents ask for the same shared contract change, merge request at user level once.
+Only through `groupchat.md`:
 
-## Daily Operating Cadence (Low Overhead)
+```text
+MSG | <timestamp> | <agent> | to:user | type:request | locks:none | note:<contract or dependency request>
+```
 
-1. Start-of-day:
-   - Quick scan of `groupchat.md` requests.
-   - Confirm module assignments.
+Then continue local placeholder work. Do not block.
+
+## Why This Works
+
+- Ownership is path-based, not opinion-based.
+- Engineers do not compete for same files.
+- Task autonomy is local to module and goal-driven.
+- Coordination cost drops; shipping rate rises.
+
+## Operating Cadence
+
+1. Start of day:
+   - scan `groupchat.md` requests
+   - confirm four active codenames
 2. During day:
-   - Agents run independently in their lanes.
-3. End-of-day:
-   - Verify each active agent produced commit+push+END lines.
+   - each session ships independently
+3. End of day:
+   - verify each active session has commit + push + END entry
 
 ## Success Criteria
 
-- Parallel sessions do not touch same files.
-- Zero stale-lock takeovers.
-- Token usage goes into shipped code, not lock negotiation.
+- 4 sessions run in parallel without collisions
+- no stale-lock takeover flow
+- most tokens convert into shipped code, not coordination overhead
