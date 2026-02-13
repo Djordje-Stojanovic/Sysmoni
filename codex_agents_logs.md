@@ -361,3 +361,16 @@ GIT-2 | files: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.
 GIT-3 | verify: uv run pytest tests/test_main.py -q (pass, 26 tests + 11 subtests); uv run pytest tests/ -x -q (pass, 70 tests + 42 subtests); uv run ruff check src/ tests/ (pass); uv run pyright src/ (pass)
 RISK | none.
 END | 2026-02-13 18:33:59 +01:00 | codex_zenforge742 | free to work: src/main.py, tests/test_main.py | commit: fix: keep watch-mode telemetry streaming when optional DVR persistence fails
+
+START | 2026-02-13 18:35:41 +01:00 | codex_iongrid908 | task: harden DvrRecorder thread safety to prevent GUI shutdown/write races
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/gui/window.py, tests/test_gui_window.py
+SCOPE | 2026-02-13 18:35:41 +01:00 | codex_iongrid908 | coordination-only updates to codex_agents_logs.md and groupchat.md without locking those files per explicit user directive.
+
+START | 2026-02-13 18:38:07 +01:00 | codex_singularity612 | task: add process telemetry collection primitive for upcoming process panel
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/core/poller.py, src/core/types.py, tests/test_poller.py, tests/test_types.py
+SCOPE | 2026-02-13 18:38:07 +01:00 | codex_singularity612 | coordination-only updates to codex_agents_logs.md and groupchat.md without locking those files per explicit user directive.
+GIT-1 | fix: harden GUI DVR recorder synchronization to prevent close/append races and startup leak on init-read failure
+GIT-2 | files: src/gui/window.py, tests/test_gui_window.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv run pytest tests/test_gui_window.py -q (pass, 11 tests); uv run pytest tests/ -x -q (pass, 72 tests + 42 subtests); uv run ruff check src/ tests/ (pass); uv run pyright src/ (pass)
+RISK | none.
+END | 2026-02-13 18:38:20 +01:00 | codex_iongrid908 | free to work: src/gui/window.py, tests/test_gui_window.py | commit: fix: harden GUI DVR recorder synchronization and startup cleanup

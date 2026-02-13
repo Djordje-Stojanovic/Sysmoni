@@ -52,6 +52,7 @@ class DvrRecorder:
     """Persists GUI snapshots into the local telemetry store when configured."""
 
     def __init__(self, db_path: str | None) -> None:
+        self._lock = threading.Lock()
         self.db_path = db_path
         self.sample_count: int | None = None
         self.latest_snapshot: SystemSnapshot | None = None
@@ -61,26 +62,49 @@ class DvrRecorder:
         if db_path is None:
             return
 
+        store: TelemetryStore | None = None
         try:
-            self._store = TelemetryStore(db_path)
-            self.sample_count = self._store.count()
-            latest_snapshots = self._store.latest(limit=1)
+            store = TelemetryStore(db_path)
+            sample_count = store.count()
+            latest_snapshot: SystemSnapshot | None = None
+            latest_snapshots = store.latest(limit=1)
             if latest_snapshots:
-                self.latest_snapshot = latest_snapshots[0]
+                latest_snapshot = latest_snapshots[0]
         except Exception as exc:
-            self.error = str(exc)
-
-    def append(self, snapshot: SystemSnapshot) -> None:
-        if self._store is None:
+            with self._lock:
+                self.error = str(exc)
+            if store is not None:
+                try:
+                    store.close()
+                except Exception:
+                    pass
             return
 
-        try:
-            self.sample_count = self._store.append_and_count(snapshot)
-        except Exception as exc:
-            self.error = str(exc)
-            self.close()
+        with self._lock:
+            self._store = store
+            self.sample_count = sample_count
+            self.latest_snapshot = latest_snapshot
 
-    def close(self) -> None:
+    def append(self, snapshot: SystemSnapshot) -> None:
+        with self._lock:
+            if self._store is None:
+                return
+
+            try:
+                self.sample_count = self._store.append_and_count(snapshot)
+            except Exception as exc:
+                self.error = str(exc)
+                self._close_locked()
+
+    def get_latest_snapshot(self) -> SystemSnapshot | None:
+        with self._lock:
+            return self.latest_snapshot
+
+    def get_status(self) -> tuple[str | None, int | None, str | None]:
+        with self._lock:
+            return self.db_path, self.sample_count, self.error
+
+    def _close_locked(self) -> None:
         if self._store is None:
             return
 
@@ -89,22 +113,28 @@ class DvrRecorder:
         finally:
             self._store = None
 
+    def close(self) -> None:
+        with self._lock:
+            self._close_locked()
+
 
 def format_initial_status(recorder: DvrRecorder) -> str:
-    if recorder.db_path is None:
+    db_path, sample_count, error = recorder.get_status()
+    if db_path is None:
         return "Collecting telemetry..."
-    if recorder.error is not None:
-        return f"Collecting telemetry... | DVR unavailable: {recorder.error}"
-    sample_count = 0 if recorder.sample_count is None else recorder.sample_count
+    if error is not None:
+        return f"Collecting telemetry... | DVR unavailable: {error}"
+    sample_count = 0 if sample_count is None else sample_count
     return f"Collecting telemetry... | DVR samples: {sample_count}"
 
 
 def format_stream_status(recorder: DvrRecorder) -> str:
-    if recorder.db_path is None:
+    db_path, sample_count, error = recorder.get_status()
+    if db_path is None:
         return "Streaming telemetry"
-    if recorder.error is not None:
-        return f"Streaming telemetry | DVR unavailable: {recorder.error}"
-    sample_count = 0 if recorder.sample_count is None else recorder.sample_count
+    if error is not None:
+        return f"Streaming telemetry | DVR unavailable: {error}"
+    sample_count = 0 if sample_count is None else sample_count
     return f"Streaming telemetry | DVR samples: {sample_count}"
 
 
@@ -200,7 +230,7 @@ if _QT_IMPORT_ERROR is None:
             self._worker_thread.start()
 
         def _seed_latest_snapshot(self) -> None:
-            latest_snapshot = self._recorder.latest_snapshot
+            latest_snapshot = self._recorder.get_latest_snapshot()
             if latest_snapshot is None:
                 return
             self._render_snapshot(latest_snapshot)

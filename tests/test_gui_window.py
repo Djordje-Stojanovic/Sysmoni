@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import pathlib
 import sys
+import threading
 import unittest
 from contextlib import redirect_stderr
 
@@ -120,6 +121,100 @@ class GuiWindowTests(unittest.TestCase):
         self.assertIn("disk full", recorder.error or "")
         self.assertIn("DVR unavailable", status)
 
+    def test_dvr_recorder_closes_store_when_startup_read_fails(self) -> None:
+        created_stores: list[object] = []
+
+        class _StoreStub:
+            def __init__(self, db_path: str) -> None:
+                self.db_path = db_path
+                self.closed = False
+                created_stores.append(self)
+
+            def count(self) -> int:
+                raise OSError("startup read failed")
+
+            def latest(self, *, limit: int = 1) -> list[SystemSnapshot]:
+                return []
+
+            def close(self) -> None:
+                self.closed = True
+
+        original_store = gui_window.TelemetryStore
+        gui_window.TelemetryStore = _StoreStub
+        try:
+            recorder = gui_window.DvrRecorder("telemetry.sqlite")
+            status = gui_window.format_initial_status(recorder)
+        finally:
+            gui_window.TelemetryStore = original_store
+
+        self.assertEqual(len(created_stores), 1)
+        self.assertTrue(created_stores[0].closed)
+        self.assertIn("startup read failed", recorder.error or "")
+        self.assertIn("DVR unavailable", status)
+
+    def test_dvr_recorder_close_waits_for_inflight_append(self) -> None:
+        created_stores: list[object] = []
+        append_entered = threading.Event()
+        release_append = threading.Event()
+        close_started = threading.Event()
+        call_order: list[str] = []
+
+        class _StoreStub:
+            def __init__(self, db_path: str) -> None:
+                self.db_path = db_path
+                self.closed = False
+                created_stores.append(self)
+
+            def append_and_count(self, snapshot: SystemSnapshot) -> int:
+                del snapshot
+                append_entered.set()
+                release_append.wait(timeout=1.0)
+                call_order.append("append")
+                return 1
+
+            def count(self) -> int:
+                return 0
+
+            def latest(self, *, limit: int = 1) -> list[SystemSnapshot]:
+                return []
+
+            def close(self) -> None:
+                self.closed = True
+                call_order.append("close")
+
+        original_store = gui_window.TelemetryStore
+        gui_window.TelemetryStore = _StoreStub
+        try:
+            recorder = gui_window.DvrRecorder("telemetry.sqlite")
+            snapshot = SystemSnapshot(timestamp=1.0, cpu_percent=10.0, memory_percent=20.0)
+
+            append_thread = threading.Thread(target=lambda: recorder.append(snapshot))
+            append_thread.start()
+            self.assertTrue(append_entered.wait(timeout=1.0))
+
+            def _close_recorder() -> None:
+                close_started.set()
+                recorder.close()
+
+            close_thread = threading.Thread(target=_close_recorder)
+            close_thread.start()
+            self.assertTrue(close_started.wait(timeout=1.0))
+            close_thread.join(timeout=0.05)
+            self.assertTrue(close_thread.is_alive())
+
+            release_append.set()
+            append_thread.join(timeout=1.0)
+            close_thread.join(timeout=1.0)
+        finally:
+            gui_window.TelemetryStore = original_store
+
+        self.assertFalse(append_thread.is_alive())
+        self.assertFalse(close_thread.is_alive())
+        self.assertEqual(len(created_stores), 1)
+        self.assertTrue(created_stores[0].closed)
+        self.assertEqual(call_order, ["append", "close"])
+        self.assertEqual(recorder.sample_count, 1)
+
     @unittest.skipIf(gui_window._QT_IMPORT_ERROR is not None, "PySide6 is unavailable")
     def test_snapshot_worker_persists_in_worker_thread_and_emits_status(self) -> None:
         snapshot = SystemSnapshot(timestamp=1.0, cpu_percent=10.0, memory_percent=20.0)
@@ -137,6 +232,9 @@ class GuiWindowTests(unittest.TestCase):
             def append(self, value: SystemSnapshot) -> None:
                 self.appended.append(value)
                 self.sample_count += 1
+
+            def get_status(self) -> tuple[str | None, int | None, str | None]:
+                return self.db_path, self.sample_count, self.error
 
         recorder = _RecorderStub()
 
@@ -207,6 +305,9 @@ class GuiWindowTests(unittest.TestCase):
             def append(self, value: SystemSnapshot) -> None:
                 self.appended.append(value)
                 self.sample_count += 1
+
+            def get_status(self) -> tuple[str | None, int | None, str | None]:
+                return self.db_path, self.sample_count, self.error
 
         recorder = _RecorderStub()
         expected_snapshot = SystemSnapshot(timestamp=2.0, cpu_percent=11.0, memory_percent=21.0)
