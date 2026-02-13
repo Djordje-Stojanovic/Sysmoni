@@ -193,7 +193,7 @@ def collect_thermal_snapshot(
 ) -> ThermalSnapshot:
     """Collect thermal readings from all available sources.
 
-    Never raises - degrades gracefully to an empty snapshot.
+    Never raises — degrades gracefully to an empty snapshot.
     """
     current_time = time.time if now is None else now
     ts = float(current_time())
