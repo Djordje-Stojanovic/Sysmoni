@@ -6,4 +6,6 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 
 # from repo root
 uv run python src\gui\window.py
+# or the canonical module path
+uv run python src\shell\window.py
 ```

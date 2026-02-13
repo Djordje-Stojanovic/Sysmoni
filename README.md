@@ -23,11 +23,13 @@ and a premium visual layer without cloud dependencies or telemetry upload.
 
 Bootstrap phase:
 
-- Minimal telemetry collection entrypoint exists in `src/main.py`.
-- Core sample model and poller exist in `src/core/types.py` and `src/core/poller.py`.
+- Runtime CLI entrypoint is in `src/runtime/main.py` (`src/main.py` remains a compatibility wrapper).
+- Shared sample models are in `src/contracts/types.py`.
+- Telemetry collection is in `src/telemetry/poller.py`.
+- GUI shell is in `src/shell/window.py` (`src/gui/window.py` remains a compatibility wrapper).
 - Dependency baseline exists in `pyproject.toml`.
 
-No full UI panels are implemented yet.
+No full cinematic panel stack is implemented yet.
 
 ## Tech Stack
 

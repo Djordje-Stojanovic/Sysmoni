@@ -8,13 +8,13 @@ import unittest
 from contextlib import redirect_stderr
 
 
-PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
+PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]
 SRC_ROOT = PROJECT_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from core.types import ProcessSample, SystemSnapshot  # noqa: E402
-from gui import window as gui_window  # noqa: E402
+from contracts.types import ProcessSample, SystemSnapshot  # noqa: E402
+from shell import window as gui_window  # noqa: E402
 
 
 class GuiWindowTests(unittest.TestCase):

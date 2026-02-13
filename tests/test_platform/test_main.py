@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import builtins
 import errno
+import importlib
 import io
 import pathlib
 import sys
@@ -9,13 +10,14 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 
 
-PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
+PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]
 SRC_ROOT = PROJECT_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-import main as app_main  # noqa: E402
-from core.types import SystemSnapshot  # noqa: E402
+from contracts.types import SystemSnapshot  # noqa: E402
+
+app_main = importlib.import_module("runtime.main")
 
 
 class MainCliTests(unittest.TestCase):

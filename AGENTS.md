@@ -1,230 +1,140 @@
-﻿# AGENTS.md — First Principles AI Engineering System
+# AGENTS.md — First-Principles Parallel Delivery
 
-> Every token in this file earns its place. If it doesn't change behavior, it gets deleted.
+> Keep what works. Delete what does not move the product.
 
 ## PRIME DIRECTIVE
 
-You are a first-principles engineer. Your job: ship working code fast without breaking what exists. Every decision runs through the Algorithm before execution.
-Every change must be small, surgical, meaningful, and realistic for the current project stage.
+Ship working code fast without breaking existing behavior.
+Every decision follows this order: question requirement -> delete -> simplify -> accelerate -> automate.
 
-## MANDATORY COORDINATION FILES
+## MANDATORY FILES
 
-- `coding_guideliines.md` is mandatory reading for every Codex agent on every task.
-- `coding_guideliines.md` is policy and is read-only unless the user explicitly asks to modify it.
-- `codex_agents_logs.md` is the shared source of truth for task locks, handoffs, START/SCOPE/END, and required GIT-1/GIT-2/GIT-3 lines.
-- `groupchat.md` is the shared timestamped agent-to-agent channel for asks, replies, handoffs, and release notices.
-- Each agent must choose a unique random `codex_name` and log START/END entries.
-- Each task must include a 3-line git summary in the shared log and end with a commit.
-- Immediately after each commit, append `GIT-1`, `GIT-2`, `GIT-3`, then `END` with the exact files/folders now free.
-- Every session must end with both `git commit` and `git push origin main`.
-- Agents must declare claimed folders/files before editing to avoid interference.
+- `ai.md` (core system prompt and engineering ethos)
+- `coding_guideliines.md` (execution rules/checklist)
+- `ARCHITECTURE.md` (module ownership and split)
+- `DISPATCH.md` (launch prompts by team size)
+- `PARALLEL_OPS.md` (parallel run protocol)
+- `codex_agents_logs.md` (START/SCOPE/GIT-1/GIT-2/GIT-3/END audit)
+- `groupchat.md` (cross-agent request/release channel)
 
-## EDIT BOUNDARIES
+## MODULE OWNERSHIP (DEFAULT)
 
-- Default editable scope is the project codebase plus `groupchat.md` and `codex_agents_logs.md`.
-- Do not edit `AGENTS.md` or `coding_guideliines.md` unless the user explicitly requests it.
-- If the user requests policy changes, lock the files first and log the change like any other task.
+- `Overhead`: all `*.md` docs/process policy files
+- `Contracts`: `src/contracts/**`
+- `Telemetry`: `src/telemetry/**`
+- `Runtime Platform`: `src/runtime/**`
+- `Shell GUI`: `src/shell/**`
+- `Compatibility`: `src/main.py`, `src/core/**`, `src/gui/**`
+- Tests mirror module ownership under `tests/`
 
-## LOCK DISCIPLINE — ZERO AMBIGUITY
+No agent edits another module path unless the user explicitly approves.
 
-- Lock ownership is strict: if another active agent has claimed a file/path, you do not edit it.
-- Re-check `codex_agents_logs.md` and `groupchat.md` repeatedly at minimum: before claiming locks, before editing each new file, before `git add`, and immediately before `git commit`.
-- Unapproved takeover is forbidden. Never self-assign another agent's lock, even if you think it is stale.
-- If a lock appears stale, post a `type:request` handoff message in `groupchat.md` and then ask the user for approval before touching that path.
-- `stale-lock takeover` log lines are invalid unless the user explicitly approved takeover in the current session.
-- If conflicting lock claims appear while you are working, stop edits immediately, log the conflict in `groupchat.md`, and wait for user direction.
-- After commit, release all claimed paths immediately in both `codex_agents_logs.md` (`END`) and `groupchat.md` (`type:release`).
+## SHARED-CHANGE RULE
 
-## THE ALGORITHM (Apply to every task, every file, every line)
+`src/contracts/**` is shared API surface.
+Treat it as protected: request change in `groupchat.md`, wait for user approval, then apply.
 
-① **QUESTION THE REQUIREMENT**
-   Who asked for this? Point to the user need or delete it.
-   "Best practice" ≠ necessary. Smart people's requirements are the most dangerous — question harder.
+## THE ALGORITHM
 
-② **DELETE**
-   Remove every part, process, and abstraction you can.
-   If you don't add back ≥10% later, you didn't delete enough.
-   The best code is no code. The best abstraction is none.
-   **Idiot Index:** if complexity far exceeds value delivered → redesign from scratch.
+1. **Question requirement**: confirm user value; remove assumptions.
+2. **Delete**: remove unnecessary parts first.
+3. **Simplify**: fewer files, fewer branches, fewer abstractions.
+4. **Accelerate**: optimize only after design is minimal.
+5. **Automate**: automate only stable manual flow.
 
-③ **SIMPLIFY**
-   Only simplify what survived deletion. Never optimize what shouldn't exist.
-   Fewer files, fewer layers, fewer indirections. Fewest moving parts that solve the problem.
+## EXECUTION WORKFLOW
 
-④ **ACCELERATE**
-   Speed up only after steps 1-3. Accelerating a bad design digs the hole faster.
-   Bias toward shipping. Perfect is the enemy of deployed.
+### Start
 
-⑤ **AUTOMATE**
-   Automate LAST, after the manual process is proven.
-   Automating garbage = fast garbage at scale.
+1. Read mandatory files.
+2. Pick one owned task.
+3. Append `START` + `LOCKS` in `codex_agents_logs.md`.
+4. Post one `type:info` line in `groupchat.md`.
 
-## THINKING MODEL
+### Build
 
-Reason from first principles, not analogy. Decompose to fundamentals, then rebuild.
+- Make small surgical changes.
+- Keep one concern per commit.
+- Re-check `codex_agents_logs.md` and `groupchat.md` before touching any new path.
 
-**Before writing any code:**
-1. What is the *actual* problem? (Not the assumed one)
-2. What's the simplest thing that works?
-3. Does this already exist in the codebase? → SEARCH FIRST, build second.
-4. What breaks if I do this? What breaks if I don't?
+### Finish
 
-**Decision quality:**
-- Inversion: "What guarantees failure here?" — avoid those paths.
-- Second-order: "And then what?" — ask 3× minimum before committing to an approach.
-- Opportunity cost: "What am I NOT doing by doing this?"
-- Say "I don't know" when you don't know. Never confabulate. Never guess at architecture.
+1. Run relevant verification commands.
+2. Commit and push.
+3. Append `GIT-1`, `GIT-2`, `GIT-3`, `END` in `codex_agents_logs.md`.
+4. Post `type:release` in `groupchat.md` with freed paths.
 
-## STABILITY — THE NON-NEGOTIABLE
+## LOG SCHEMA
 
-**Every change must be safe to ship:**
+`codex_agents_logs.md`:
+- `START | <timestamp+tz> | <codename> | task: <summary>`
+- `LOCKS | folder: <path> | files: <paths>`
+- optional `SCOPE | ...`
+- `GIT-1 | <type>: <what and why>`
+- `GIT-2 | files: <changed files>`
+- `GIT-3 | verify: <commands + result>`
+- optional `RISK | <short risk/blocker>`
+- `END | <timestamp+tz> | <codename> | free to work: <paths> | commit: <message>`
+
+`groupchat.md`:
+- `MSG | <timestamp> | <agent> | to:<agent|all|user> | type:<request|ack|info|handoff|release> | locks:<paths|none> | note:<one line>`
+
+## STABILITY (NON-NEGOTIABLE)
+
 ```bash
-git add -A && git commit -m "type: what and why" && git push origin main
+git add -A && git commit -m "<type>: <what and why>" && git push origin main
 ```
 
-- Never introduce code that breaks the existing app.
-- Make small, surgical changes. One concern per commit.
-- Every change must move the project forward in a measurable way (stability, capability, or clarity); avoid cosmetic churn.
-- Be realistic about scope, constraints, and delivery speed. Prefer practical wins over speculative architecture.
-- Do not stop at a local commit; push the commit in the same session.
-- If unsure whether a change is safe → ask before executing.
-- Verify `.git` exists before any git operations.
-- Run existing build/lint/test commands when available. Fix what you break.
-
-Commit types: `feat` · `fix` · `refactor` · `chore` · `docs`
+- No force push.
+- No history rewrites on shared branch.
+- Do not leave session without commit + push unless blocked by user decision.
 
 ## CODING PRINCIPLES
 
-**Write code that ships, not code that impresses:**
-
-- Working and simple beats elegant and complex. Every time.
-- Inline over abstracted until the pattern repeats 3+ times.
-- Use language/framework idioms — don't fight the tools.
-- Handle errors at boundaries. Don't swallow them, don't over-handle them.
-- Types are documentation. Use them strictly.
-- Files >200 lines → split by single responsibility.
-- Never duplicate functionality. Search the codebase before creating anything new.
-
-**State management pattern:**
-- Optimistic UI: update local state → sync DB → revert on error.
-- Atomic store updates to prevent UI flicker.
-- Derived/computed values over redundant stored state.
-
-## WORKFLOW
-
-**Starting a task:**
-1. Read the relevant existing code. Understand before you change.
-2. Check if solution/component/pattern already exists.
-3. Identify the minimal change. Apply Algorithm Step ②.
-
-**During execution:**
-- Work incrementally. Ship small units that work independently.
-- If a change touches >3 files, pause and verify the approach is minimal.
-- Reuse existing patterns found in the codebase. Match the project's conventions.
-- If `src/gui/window.py` is missing, default to shipping that first GUI slice before adding new CLI flags unless the user explicitly asks for CLI work.
-- Follow Elon-style first principles in order: question requirement, delete, simplify, accelerate, automate.
-
-**When stuck:**
-- Constraint check: Is this real (logic/physics) or assumed (habit/convention)?
-- Look at the problem from a completely different domain's perspective.
-- If stuck >2 attempts on same approach → step back, rethink from step ①.
+- Working + simple beats clever + fragile.
+- Avoid future-proof abstractions until repeated need exists.
+- Handle errors at boundaries.
+- Keep files focused; split if responsibility becomes mixed.
+- Search before building new functionality.
+- Each engineer owns their own tests (no separate QA lane).
 
 ## PROJECT CONTEXT
 
-### What Is This
+Aura is a local-only, premium desktop system monitor.
+Primary goals:
+- smooth real-time telemetry UX
+- low idle overhead
+- shippable reliability on Windows
 
-**Aura** — the Rolex of system monitors. A cinematic, GPU-accelerated desktop app that turns real-time system telemetry into a premium visual experience. Zero AI, zero cloud, zero clutter. Pure Python, pure aesthetics, pure precision. Built for people who treat their workstation like a cockpit.
-
-### Stack
-
-- **Runtime:** Python 3.12+ (strict — no JS, no Electron, pure Python)
-- **GUI:** PySide6 + Qt Quick/QML (hardware-accelerated scene graph, shader support, 60FPS render pipeline)
-- **Graphics:** OpenGL shaders via PySide6 — custom fragment shaders for glow, blur, heat distortion, glassmorphism
-- **Telemetry:** psutil for system polling + C-extension wrappers where psutil is too slow (CPU per-core, thermals, per-process)
-- **Data:** SQLite (via sqlite3 stdlib) for 24-hour telemetry DVR buffer — no async needed, polling is threaded
-- **Animation:** Qt property animation system + custom Bézier interpolation for 60FPS smooth data curves
-- **State:** Plain dataclasses + Qt signals/slots — no ORMs, no reactive frameworks, no abstraction layers
-- **Packaging:** uv for dependency management and virtualenv
-
-### Design Principles (Project-Specific)
-
-- **Cinematic, not informational:** Every pixel is intentional. If a widget looks like a stock OS control, it gets redesigned. 100% custom-drawn.
-- **60FPS or bust:** The render pipeline never drops frames. Polling, data processing, and DB writes happen off the GUI thread. Always.
-- **< 0.5% CPU idle:** A system monitor that taxes the system is a contradiction. Aggressive optimization of the hot path.
-- **< 60MB RAM idle:** Lean memory footprint. Ring buffers for telemetry, not unbounded lists.
-- **Glassmorphism as system feedback:** UI transparency/frost/distortion reacts to thermals — the interface IS the data.
-- **Local-only, zero-network:** No telemetry, no updates, no cloud. Runs air-gapped. SQLite is the only persistence.
-- **Single-window, panel-based:** One frameless window, multiple dockable panels. No dialogs, no popups, no modals.
-
-### Structure
+Current structure:
 
 ```
 src/
-├── main.py                — Entry point, QApplication setup, event loop
-├── core/                  — Data pipeline (polling → processing → storage)
-│   ├── poller.py          — Threaded system data collection (psutil + C-ext)
-│   ├── pipeline.py        — Data smoothing, Bézier interpolation, ring buffers
-│   ├── store.py           — SQLite DVR buffer (24h rolling window, timestamp scrub)
-│   └── types.py           — All dataclasses: SystemSnapshot, CpuCore, Process, ThermalZone
-├── gui/                   — All visual components
-│   ├── window.py          — Frameless main window, panel layout, compositing
-│   ├── theme.py           — Colors, gradients, glassmorphism params, global style constants
-│   ├── panels/            — Individual dashboard panels
-│   │   ├── flow.py        — "Flow" visualization — Bézier CPU/RAM/GPU curves at 60FPS
-│   │   ├── topology.py    — Isometric 3D hardware map (OpenGL, dynamic glow per zone)
-│   │   ├── processes.py   — "Energy Orbs" process viewer (size=RAM, color=CPU, vibration=load)
-│   │   └── dvr.py         — Telemetry scrub/timeline — drag to replay 24h of system state
-│   ├── widgets/           — Reusable custom-drawn primitives
-│   │   ├── orb.py         — Animated orb widget (processes, status indicators)
-│   │   ├── graph.py       — Bézier-smoothed line graph with glow trail
-│   │   ├── gauge.py       — Radial/arc gauge with animated fill
-│   │   └── frost.py       — Glassmorphism blur/frost layer (shader-backed)
-│   └── shaders/           — GLSL fragment shaders
-│       ├── blur.glsl      — Gaussian blur for frost effect
-│       ├── glow.glsl      — Bloom/glow for temperature zones
-│       ├── heat.glsl      — Heat haze distortion (thermal feedback)
-│       └── orb.glsl       — Orb pulsation and dissipation
-├── config/                — TOML config loading, user preferences
-└── utils/                 — Minimal helpers (logging, unit conversion, platform detection)
+├── contracts/
+├── telemetry/
+├── runtime/
+├── shell/
+├── core/   (compatibility shims)
+├── gui/    (compatibility shims)
+└── main.py (compatibility entrypoint)
 ```
 
-### Commands
+## COMMANDS
 
-```
+```bash
 dev:       uv run python src/main.py
 test:      uv run pytest tests/ -x
-lint:      uv run ruff check src/
-format:    uv run ruff format src/
+lint:      uv run ruff check src/ tests/
+format:    uv run ruff format src/ tests/
 typecheck: uv run pyright src/
 deps:      uv sync
 profile:   uv run python -m cProfile -o aura.prof src/main.py
 ```
 
-### Gotchas
+## ANTI-PATTERNS
 
-- **Qt event loop vs threads:** Polling runs in QThread. NEVER call Qt widgets from the polling thread — use signals/slots to push data to the GUI thread. Violation = segfault.
-- **OpenGL context:** Shader compilation and GL calls must happen on the thread that owns the GL context (the GUI thread). Pre-compile shaders at startup, not per-frame.
-- **psutil per-process overhead:** `psutil.process_iter()` is expensive with many attrs. Poll only `pid, name, cpu_percent, memory_info`. Cache process names — they rarely change.
-- **Ring buffer sizing:** 24h at 1-second polling = 86,400 samples per metric. Use numpy arrays or `collections.deque(maxlen=N)`, not Python lists. SQLite for persistence, deque for live view.
-- **Bézier interpolation cost:** Cubic Bézier on 60FPS with 100+ data points — precompute control points on data update (1Hz), interpolate on render (60Hz). Never recompute control points per frame.
-- **Frameless window dragging:** Custom title bar means manual hit-testing for drag, minimize, close. Handle `nativeEvent` on Windows for proper Aero Snap and taskbar behavior.
-- **GLSL portability:** Test shaders on both Intel integrated and NVIDIA discrete. Intel drivers are strict about GLSL version declarations and precision qualifiers.
-- **Process kill animation:** When a user kills a process via the orb view, animate the dissipation THEN send the signal. If the process dies before animation starts, handle the race gracefully.
-- **Thermal sensor availability:** Not all hardware exposes thermals via psutil. Detect at startup, gracefully degrade — show "N/A" zones on the topology map, never crash.
-- **High-DPI scaling:** PySide6 handles DPI scaling but custom OpenGL viewports need manual `devicePixelRatio()` adjustment or everything renders at half resolution on 4K displays.
-
-## ANTI-PATTERNS — Guaranteed Failure Modes
-
-- Building before searching if it exists → **always search first**
-- Optimizing code that shouldn't exist → **delete it instead**
-- Abstraction "for the future" → **YAGNI. Build when the 3rd use case appears.**
-- Changing working code to match "best practices" without a bug driving it → **leave it alone**
-- Large changes touching many files → **small surgical commits only**
-- Swallowing errors → **handle or propagate, never hide**
-- Adding deps for trivial functions → **write the 10 lines yourself**
-- Generating tests for the sake of coverage → **test what matters: boundaries, edge cases, integrations**
-- Rendering anything per-frame that can be precomputed → **compute on data change, interpolate on render**
-- Using QWidget when QML/Quick would be simpler for animation → **use the right tool for the visual layer**
-- Polling more data than the GUI displays → **poll what you show, nothing more**
-- Building the shader pipeline before the data pipeline works → **make data flow, then make it pretty**
-- Premature "engine" abstractions → **build panels first, extract patterns when the 3rd panel shares code**
+- Global "pick next important task" without module boundary
+- Cross-module edits without approval
+- Waiting idle on another agent when placeholder work is possible
+- Large speculative rewrites
+- Extra process that does not increase shipped value

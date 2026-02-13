@@ -396,3 +396,6 @@ GIT-2 | files: src/core/poller.py, tests/test_poller.py, codex_agents_logs.md, g
 GIT-3 | verify: uv run pytest tests/test_poller.py -q (pass, 20 tests + 13 subtests); uv run pytest tests/ -x -q (pass, 85 tests + 56 subtests); .\\.venv\\Scripts\\python.exe -m ruff check src tests (pass); .\\.venv\\Scripts\\python.exe -m pyright src (fails: missing local PySide6/psutil module sources)
 RISK | local pyright still cannot resolve PySide6/psutil sources in this sandbox; functional tests and lint are green.
 END | 2026-02-13 20:06:15 +01:00 | codex_cachegrid214 | free to work: src/core/poller.py, tests/test_poller.py | commit: fix: cache process names in top-process collector hot path
+
+START | 2026-02-13 20:34:13 +01:00 | codex_quartzlane583 | task: restructure module ownership architecture and parallel-agent workflow with preserved first-principles docs
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/, tests/, AGENTS.md, coding_guideliines.md, ai.md, ARCHITECTURE.md, DISPATCH.md, PARALLEL_OPS.md, README.md, RUN_WINDOWS11.md

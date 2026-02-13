@@ -1,4 +1,4 @@
-from telemetry.poller import (
+from .poller import (
     collect_snapshot,
     collect_top_processes,
     poll_snapshots,

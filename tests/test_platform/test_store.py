@@ -10,13 +10,13 @@ import uuid
 from contextlib import closing
 
 
-PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
+PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]
 SRC_ROOT = PROJECT_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from core.store import TelemetryStore  # noqa: E402
-from core.types import SystemSnapshot  # noqa: E402
+from contracts.types import SystemSnapshot  # noqa: E402
+from runtime.store import TelemetryStore  # noqa: E402
 
 
 class TelemetryStoreTests(unittest.TestCase):
