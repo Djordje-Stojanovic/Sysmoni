@@ -71,8 +71,7 @@ class DvrRecorder:
             return
 
         try:
-            self._store.append(snapshot)
-            self.sample_count = self._store.count()
+            self.sample_count = self._store.append_and_count(snapshot)
         except Exception as exc:
             self.error = str(exc)
             self.close()

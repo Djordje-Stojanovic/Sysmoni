@@ -154,20 +154,35 @@ class TelemetryStore:
             (cutoff,),
         )
 
+    def _insert_snapshot_locked(self, snapshot: SystemSnapshot) -> None:
+        self._connection.execute(
+            """
+            INSERT INTO snapshots (
+                timestamp,
+                cpu_percent,
+                memory_percent
+            )
+            VALUES (?, ?, ?)
+            """,
+            (snapshot.timestamp, snapshot.cpu_percent, snapshot.memory_percent),
+        )
+
+    def _count_rows_locked(self) -> int:
+        row = self._connection.execute("SELECT COUNT(*) AS total FROM snapshots").fetchone()
+        if row is None:
+            return 0
+        return int(row["total"])
+
     def append(self, snapshot: SystemSnapshot) -> None:
         with self._lock, self._connection:
-            self._connection.execute(
-                """
-                INSERT INTO snapshots (
-                    timestamp,
-                    cpu_percent,
-                    memory_percent
-                )
-                VALUES (?, ?, ?)
-                """,
-                (snapshot.timestamp, snapshot.cpu_percent, snapshot.memory_percent),
-            )
+            self._insert_snapshot_locked(snapshot)
             self._prune_expired_locked()
+
+    def append_and_count(self, snapshot: SystemSnapshot) -> int:
+        with self._lock, self._connection:
+            self._insert_snapshot_locked(snapshot)
+            self._prune_expired_locked()
+            return self._count_rows_locked()
 
     def latest(self, *, limit: int = 1) -> list[SystemSnapshot]:
         normalized_limit = _require_positive_limit(limit)
@@ -255,11 +270,7 @@ class TelemetryStore:
     def count(self) -> int:
         with self._lock, self._connection:
             self._prune_expired_locked()
-            row = self._connection.execute("SELECT COUNT(*) AS total FROM snapshots").fetchone()
-
-        if row is None:
-            return 0
-        return int(row["total"])
+            return self._count_rows_locked()
 
     def close(self) -> None:
         with self._lock:

@@ -34,13 +34,16 @@ class GuiWindowTests(unittest.TestCase):
                 self.closed = False
                 self.appended: list[SystemSnapshot] = []
                 self._count = 4
+                self.count_calls = 0
                 created_stores.append(self)
 
-            def append(self, snapshot: SystemSnapshot) -> None:
+            def append_and_count(self, snapshot: SystemSnapshot) -> int:
                 self.appended.append(snapshot)
                 self._count += 1
+                return self._count
 
             def count(self) -> int:
+                self.count_calls += 1
                 return self._count
 
             def close(self) -> None:
@@ -62,6 +65,7 @@ class GuiWindowTests(unittest.TestCase):
         store = created_stores[0]
         self.assertEqual(store.db_path, "telemetry.sqlite")
         self.assertEqual(store.appended, [snapshot])
+        self.assertEqual(store.count_calls, 1)
         self.assertEqual(recorder.sample_count, 5)
         self.assertEqual(status, "Streaming telemetry | DVR samples: 5")
         self.assertTrue(store.closed)
@@ -76,7 +80,7 @@ class GuiWindowTests(unittest.TestCase):
                 self._count = 1
                 created_stores.append(self)
 
-            def append(self, snapshot: SystemSnapshot) -> None:
+            def append_and_count(self, snapshot: SystemSnapshot) -> int:
                 raise OSError("disk full")
 
             def count(self) -> int:

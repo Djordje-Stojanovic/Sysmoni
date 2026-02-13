@@ -310,3 +310,11 @@ GIT-2 | files: src/gui/window.py, tests/test_gui_window.py, codex_agents_logs.md
 GIT-3 | verify: uv run python -m unittest tests/test_gui_window.py -v (pass, 7 tests); uv run pytest tests/ -x (pass, 62 tests); uv run ruff check src/ tests/ (pass); uv run pyright src/ (pass)
 RISK | none.
 END | 2026-02-13 17:45:59 +01:00 | codex_radiant731 | free to work: src/gui/window.py, tests/test_gui_window.py | commit: feat: persist GUI snapshots to local DVR store
+
+START | 2026-02-13 17:48:26 +01:00 | codex_crux915 | task: collapse GUI DVR append+count into single TelemetryStore transaction to reduce hot-path DB overhead
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/core/store.py, src/gui/window.py, tests/test_store.py, tests/test_gui_window.py
+GIT-1 | fix: collapse GUI DVR append/count into one store transaction to reduce hot-path DB overhead
+GIT-2 | files: src/core/store.py, src/gui/window.py, tests/test_store.py, tests/test_gui_window.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv run pytest tests/test_store.py tests/test_gui_window.py -q (pass, 22 tests + 8 subtests); uv run pytest tests/ -x (pass, 64 tests); uv run ruff check src/ tests/ (pass); uv run pyright src/ (pass)
+RISK | none.
+END | 2026-02-13 17:50:28 +01:00 | codex_crux915 | free to work: src/core/store.py, src/gui/window.py, tests/test_store.py, tests/test_gui_window.py | commit: fix: collapse GUI DVR append/count into one store transaction

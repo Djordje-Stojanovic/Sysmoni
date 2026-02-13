@@ -59,6 +59,38 @@ class TelemetryStoreTests(unittest.TestCase):
             self.assertEqual(store.count(), 1)
             self.assertEqual(store.latest(), [snapshot])
 
+    def test_append_and_count_returns_current_row_count(self) -> None:
+        with TelemetryStore(":memory:", now=lambda: 200.0) as store:
+            first = SystemSnapshot(timestamp=100.0, cpu_percent=10.0, memory_percent=20.0)
+            second = SystemSnapshot(timestamp=101.0, cpu_percent=11.0, memory_percent=21.0)
+
+            self.assertEqual(store.append_and_count(first), 1)
+            self.assertEqual(store.append_and_count(second), 2)
+            self.assertEqual(store.count(), 2)
+
+    def test_append_and_count_applies_retention_before_counting(self) -> None:
+        current_time = 100.0
+
+        def _now() -> float:
+            return current_time
+
+        with TelemetryStore(":memory:", retention_seconds=5.0, now=_now) as store:
+            self.assertEqual(
+                store.append_and_count(
+                    SystemSnapshot(timestamp=100.0, cpu_percent=10.0, memory_percent=20.0)
+                ),
+                1,
+            )
+
+            current_time = 106.0
+            self.assertEqual(
+                store.append_and_count(
+                    SystemSnapshot(timestamp=106.0, cpu_percent=11.0, memory_percent=21.0)
+                ),
+                1,
+            )
+            self.assertEqual(store.latest(limit=10)[0].timestamp, 106.0)
+
     def test_store_retains_duplicate_timestamp_samples(self) -> None:
         with TelemetryStore(":memory:", now=lambda: 200.0) as store:
             first = SystemSnapshot(timestamp=100.0, cpu_percent=10.0, memory_percent=20.0)
