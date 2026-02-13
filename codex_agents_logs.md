@@ -63,3 +63,9 @@ GIT-1 | feat: add frame-disciplined compositor and dynamic cockpit theme primiti
 GIT-2 | files: src/render/__init__.py, src/render/animation.py, src/render/compositor.py, src/render/theme.py, tests/test_render/test_animation.py, tests/test_render/test_compositor.py, tests/test_render/test_theme.py, codex_agents_logs.md, groupchat.md
 GIT-3 | verify: uv run pytest tests/test_render -q (pass, 25 tests); uv run ruff check src/render tests/test_render (pass); uv run pyright src/render (pass, 0 errors)
 END | 2026-02-13 21:33:52 +01:00 | render | commit: feat: add frame-disciplined compositor and dynamic cockpit theme primitives
+RISK | telemetry files (src/telemetry/poller.py, tests/test_telemetry/test_poller.py) were modified outside render scope during session and intentionally excluded from render commit.
+END | 2026-02-13 21:38:41 +01:00 | render | commit: feat: add frame-disciplined compositor and dynamic cockpit theme primitives (c78fd62)
+GIT-1 | refactor: use bounded top-k process selection to reduce telemetry sampling overhead while preserving ordering
+GIT-2 | files: src/telemetry/poller.py, tests/test_telemetry/test_poller.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv run pytest tests/test_telemetry -q (pass, 34 tests, 37 subtests); uv run ruff check src/telemetry tests/test_telemetry (pass); uv run pyright src/telemetry (pass, 0 errors)
+END | 2026-02-13 21:38:40 +01:00 | sensor | commit: refactor: use bounded top-k process selection to reduce telemetry sampling overhead
