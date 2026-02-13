@@ -7,9 +7,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(aura_telemetry_native SHARED
     src/aura_telemetry_native.cpp
+    src/telemetry_engine.cpp
 )
 
-target_include_directories(aura_telemetry_native PRIVATE include)
+target_include_directories(aura_telemetry_native PUBLIC include)
 target_link_libraries(aura_telemetry_native PRIVATE iphlpapi psapi)
 
 set_target_properties(aura_telemetry_native PROPERTIES

@@ -6,7 +6,10 @@ $ErrorActionPreference = "Stop"
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $includeDir = Join-Path $scriptRoot "include"
-$sourceFile = Join-Path $scriptRoot "src\\aura_telemetry_native.cpp"
+$sourceFiles = @(
+    (Join-Path $scriptRoot "src\\aura_telemetry_native.cpp"),
+    (Join-Path $scriptRoot "src\\telemetry_engine.cpp")
+)
 $outputDir = Join-Path $scriptRoot "bin"
 $outputDll = Join-Path $outputDir "aura_telemetry_native.dll"
 
@@ -26,7 +29,7 @@ $optFlags = if ($Configuration -eq "Debug") { "/Od /Zi" } else { "/O2" }
     /MD `
     $optFlags `
     /I"$includeDir" `
-    "$sourceFile" `
+    $sourceFiles `
     /link `
     /OUT:"$outputDll" `
     iphlpapi.lib `
