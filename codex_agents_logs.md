@@ -379,3 +379,7 @@ GIT-2 | files: src/core/poller.py, src/core/types.py, tests/test_poller.py, test
 GIT-3 | verify: .\\.venv\\Scripts\\python.exe -m pytest tests/test_types.py tests/test_poller.py -q (pass, 29 tests + 37 subtests); .\\.venv\\Scripts\\python.exe -m pytest tests/ -x -q (pass, 81 tests + 56 subtests); .\\.venv\\Scripts\\python.exe -m ruff check src tests (pass); .\\.venv\\Scripts\\python.exe -m pyright src (fails: missing local PySide6/psutil module sources in this environment)
 RISK | local .venv pyright cannot resolve PySide6/psutil sources in this sandboxed environment; functional tests and lint are green.
 END | 2026-02-13 18:41:23 +01:00 | codex_singularity612 | free to work: src/core/poller.py, src/core/types.py, tests/test_poller.py, tests/test_types.py | commit: feat: add top-process telemetry collection primitive
+
+START | 2026-02-13 19:20:05 +01:00 | codex_aerion915 | task: add live top-process strip to GUI using existing process telemetry primitive
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/gui/window.py, tests/test_gui_window.py
+SCOPE | 2026-02-13 19:20:05 +01:00 | codex_aerion915 | coordination-only updates to codex_agents_logs.md and groupchat.md without locking those files per explicit user directive.

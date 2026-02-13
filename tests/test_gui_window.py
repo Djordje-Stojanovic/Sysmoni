@@ -13,7 +13,7 @@ SRC_ROOT = PROJECT_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from core.types import SystemSnapshot  # noqa: E402
+from core.types import ProcessSample, SystemSnapshot  # noqa: E402
 from gui import window as gui_window  # noqa: E402
 
 
@@ -218,7 +218,16 @@ class GuiWindowTests(unittest.TestCase):
     @unittest.skipIf(gui_window._QT_IMPORT_ERROR is not None, "PySide6 is unavailable")
     def test_snapshot_worker_persists_in_worker_thread_and_emits_status(self) -> None:
         snapshot = SystemSnapshot(timestamp=1.0, cpu_percent=10.0, memory_percent=20.0)
-        emitted: list[tuple[float, float, float, str]] = []
+        process_samples = [
+            ProcessSample(
+                pid=9,
+                name="proc-a",
+                cpu_percent=40.0,
+                memory_rss_bytes=6 * 1024 * 1024,
+            )
+        ]
+        expected_rows = gui_window.format_process_rows(process_samples, row_count=5)
+        emitted: list[tuple[float, float, float, str, list[str]]] = []
         errors: list[str] = []
         finished: list[bool] = []
 
@@ -261,11 +270,13 @@ class GuiWindowTests(unittest.TestCase):
             worker = gui_window.SnapshotWorker(
                 interval_seconds=0.5,
                 collect=lambda: snapshot,
+                collect_processes=lambda: process_samples,
+                process_row_count=5,
                 recorder=recorder,
             )
             worker.snapshot_ready.connect(
-                lambda timestamp, cpu, memory, status: emitted.append(
-                    (timestamp, cpu, memory, status)
+                lambda timestamp, cpu, memory, status, process_rows: emitted.append(
+                    (timestamp, cpu, memory, status, process_rows)
                 )
             )
             worker.error.connect(errors.append)
@@ -283,6 +294,7 @@ class GuiWindowTests(unittest.TestCase):
                     10.0,
                     20.0,
                     "Streaming telemetry | DVR samples: 1",
+                    expected_rows,
                 )
             ],
         )
@@ -291,7 +303,7 @@ class GuiWindowTests(unittest.TestCase):
 
     @unittest.skipIf(gui_window._QT_IMPORT_ERROR is not None, "PySide6 is unavailable")
     def test_snapshot_worker_emits_error_and_continues_after_transient_failure(self) -> None:
-        emitted: list[tuple[float, float, float, str]] = []
+        emitted: list[tuple[float, float, float, str, list[str]]] = []
         errors: list[str] = []
         finished: list[bool] = []
 
@@ -337,11 +349,13 @@ class GuiWindowTests(unittest.TestCase):
             worker = gui_window.SnapshotWorker(
                 interval_seconds=0.5,
                 collect=_collect,
+                collect_processes=lambda: [],
+                process_row_count=5,
                 recorder=recorder,
             )
             worker.snapshot_ready.connect(
-                lambda timestamp, cpu, memory, status: emitted.append(
-                    (timestamp, cpu, memory, status)
+                lambda timestamp, cpu, memory, status, process_rows: emitted.append(
+                    (timestamp, cpu, memory, status, process_rows)
                 )
             )
             worker.error.connect(errors.append)
@@ -359,10 +373,120 @@ class GuiWindowTests(unittest.TestCase):
                     11.0,
                     21.0,
                     "Streaming telemetry | DVR samples: 1",
+                    gui_window.format_process_rows([], row_count=5),
                 )
             ],
         )
         self.assertEqual(errors, ["sensor glitch"])
+        self.assertEqual(finished, [True])
+
+    @unittest.skipIf(gui_window._QT_IMPORT_ERROR is not None, "PySide6 is unavailable")
+    def test_snapshot_worker_emits_process_error_and_continues_streaming(self) -> None:
+        snapshots = [
+            SystemSnapshot(timestamp=1.0, cpu_percent=10.0, memory_percent=20.0),
+            SystemSnapshot(timestamp=2.0, cpu_percent=20.0, memory_percent=30.0),
+        ]
+        emitted: list[tuple[float, float, float, str, list[str]]] = []
+        errors: list[str] = []
+        finished: list[bool] = []
+        process_attempts = 0
+
+        class _RecorderStub:
+            def __init__(self) -> None:
+                self.db_path = "telemetry.sqlite"
+                self.sample_count = 0
+                self.error: str | None = None
+
+            def append(self, value: SystemSnapshot) -> None:
+                del value
+                self.sample_count += 1
+
+            def get_status(self) -> tuple[str | None, int | None, str | None]:
+                return self.db_path, self.sample_count, self.error
+
+        def _collect() -> SystemSnapshot:
+            return snapshots.pop(0)
+
+        def _collect_processes() -> list[ProcessSample]:
+            nonlocal process_attempts
+            process_attempts += 1
+            if process_attempts == 1:
+                raise RuntimeError("process probe failed")
+            return [
+                ProcessSample(
+                    pid=20,
+                    name="proc-b",
+                    cpu_percent=15.0,
+                    memory_rss_bytes=5 * 1024 * 1024,
+                )
+            ]
+
+        def _run_polling_loop(
+            interval_seconds: float,
+            on_snapshot,
+            *,
+            stop_event,
+            collect,
+            on_error,
+            continue_on_error,
+        ) -> int:
+            self.assertEqual(interval_seconds, 0.5)
+            self.assertTrue(continue_on_error)
+            self.assertIsNotNone(on_error)
+            on_snapshot(collect())
+            on_snapshot(collect())
+            stop_event.set()
+            return 2
+
+        original_run_polling_loop = gui_window.run_polling_loop
+        gui_window.run_polling_loop = _run_polling_loop
+        try:
+            worker = gui_window.SnapshotWorker(
+                interval_seconds=0.5,
+                collect=_collect,
+                collect_processes=_collect_processes,
+                process_row_count=5,
+                recorder=_RecorderStub(),
+            )
+            worker.snapshot_ready.connect(
+                lambda timestamp, cpu, memory, status, process_rows: emitted.append(
+                    (timestamp, cpu, memory, status, process_rows)
+                )
+            )
+            worker.error.connect(errors.append)
+            worker.finished.connect(lambda: finished.append(True))
+            worker.run()
+        finally:
+            gui_window.run_polling_loop = original_run_polling_loop
+
+        self.assertEqual(len(emitted), 2)
+        self.assertEqual(
+            emitted[0][0:4],
+            (1.0, 10.0, 20.0, "Streaming telemetry | DVR samples: 1"),
+        )
+        self.assertEqual(
+            emitted[0][4],
+            gui_window.format_process_rows([], row_count=5),
+        )
+        self.assertEqual(
+            emitted[1][0:4],
+            (2.0, 20.0, 30.0, "Streaming telemetry | DVR samples: 2"),
+        )
+        self.assertEqual(
+            emitted[1][4],
+            gui_window.format_process_rows(
+                [
+                    ProcessSample(
+                        pid=20,
+                        name="proc-b",
+                        cpu_percent=15.0,
+                        memory_rss_bytes=5 * 1024 * 1024,
+                    )
+                ],
+                row_count=5,
+            ),
+        )
+        self.assertEqual(errors, ["Process telemetry error: process probe failed"])
         self.assertEqual(finished, [True])
 
     def test_format_status_functions_without_dvr_path(self) -> None:
@@ -383,6 +507,32 @@ class GuiWindowTests(unittest.TestCase):
         self.assertEqual(lines["cpu"], "CPU 12.3%")
         self.assertEqual(lines["memory"], "Memory 56.8%")
         self.assertEqual(lines["timestamp"], "Updated 00:00:00 UTC")
+
+    def test_format_process_rows_formats_samples_and_pads_placeholders(self) -> None:
+        rows = gui_window.format_process_rows(
+            [
+                ProcessSample(
+                    pid=101,
+                    name="very_long_process_name_for_truncation",
+                    cpu_percent=12.3,
+                    memory_rss_bytes=3 * 1024 * 1024,
+                ),
+                ProcessSample(
+                    pid=102,
+                    name="worker",
+                    cpu_percent=4.5,
+                    memory_rss_bytes=2 * 1024 * 1024,
+                ),
+            ],
+            row_count=3,
+        )
+
+        self.assertEqual(len(rows), 3)
+        self.assertIn(" 1. very_long_process...", rows[0])
+        self.assertIn("CPU  12.3%", rows[0])
+        self.assertIn("RAM     3.0 MB", rows[0])
+        self.assertIn(" 2. worker", rows[1])
+        self.assertEqual(rows[2], " 3. collecting process data...")
 
     def test_require_qt_raises_runtime_error_when_qt_is_missing(self) -> None:
         original_error = gui_window._QT_IMPORT_ERROR

@@ -12,9 +12,9 @@ SRC_ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from core.poller import collect_snapshot, run_polling_loop  # noqa: E402
+from core.poller import collect_snapshot, collect_top_processes, run_polling_loop  # noqa: E402
 from core.store import TelemetryStore  # noqa: E402
-from core.types import SystemSnapshot  # noqa: E402
+from core.types import ProcessSample, SystemSnapshot  # noqa: E402
 
 _QT_IMPORT_ERROR: ImportError | None = None
 
@@ -46,6 +46,44 @@ def resolve_gui_db_path(env: dict[str, str] | None = None) -> str | None:
 
     db_path = raw_value.strip()
     return db_path or None
+
+
+DEFAULT_PROCESS_ROW_COUNT = 5
+_PROCESS_NAME_MAX_CHARS = 20
+
+
+def _truncate_process_name(name: str, *, max_chars: int = _PROCESS_NAME_MAX_CHARS) -> str:
+    if len(name) <= max_chars:
+        return name
+    if max_chars <= 3:
+        return name[:max_chars]
+    return f"{name[: max_chars - 3]}..."
+
+
+def format_process_row(sample: ProcessSample, *, rank: int) -> str:
+    memory_mb = sample.memory_rss_bytes / (1024.0 * 1024.0)
+    name = _truncate_process_name(sample.name)
+    return (
+        f"{rank:>2}. {name:<20}  CPU {sample.cpu_percent:>5.1f}%  "
+        f"RAM {memory_mb:>7.1f} MB"
+    )
+
+
+def format_process_rows(
+    samples: list[ProcessSample],
+    *,
+    row_count: int = DEFAULT_PROCESS_ROW_COUNT,
+) -> list[str]:
+    if row_count <= 0:
+        return []
+
+    rows = [
+        format_process_row(sample, rank=index + 1)
+        for index, sample in enumerate(samples[:row_count])
+    ]
+    while len(rows) < row_count:
+        rows.append(f"{len(rows) + 1:>2}. collecting process data...")
+    return rows
 
 
 class DvrRecorder:
@@ -148,7 +186,7 @@ def require_qt() -> None:
 if _QT_IMPORT_ERROR is None:
 
     class SnapshotWorker(QObject):
-        snapshot_ready = Signal(float, float, float, str)
+        snapshot_ready = Signal(float, float, float, str, list)
         error = Signal(str)
         finished = Signal()
 
@@ -157,23 +195,38 @@ if _QT_IMPORT_ERROR is None:
             *,
             interval_seconds: float,
             collect: Callable[[], SystemSnapshot],
+            collect_processes: Callable[[], list[ProcessSample]],
+            process_row_count: int,
             recorder: DvrRecorder,
         ) -> None:
             super().__init__()
             self._interval_seconds = interval_seconds
             self._collect = collect
+            self._collect_processes = collect_processes
+            self._process_row_count = process_row_count
             self._recorder = recorder
             self._stop_event = threading.Event()
 
         @Slot()
         def run(self) -> None:
             def _on_snapshot(snapshot: SystemSnapshot) -> None:
+                process_rows: list[str]
+                try:
+                    process_rows = format_process_rows(
+                        self._collect_processes(),
+                        row_count=self._process_row_count,
+                    )
+                except Exception as exc:
+                    process_rows = format_process_rows([], row_count=self._process_row_count)
+                    if not self._stop_event.is_set():
+                        self.error.emit(f"Process telemetry error: {exc}")
                 self._recorder.append(snapshot)
                 self.snapshot_ready.emit(
                     snapshot.timestamp,
                     snapshot.cpu_percent,
                     snapshot.memory_percent,
                     format_stream_status(self._recorder),
+                    process_rows,
                 )
 
             def _on_error(exc: Exception) -> None:
@@ -206,11 +259,23 @@ if _QT_IMPORT_ERROR is None:
             *,
             interval_seconds: float = 1.0,
             collect: Callable[[], SystemSnapshot] = collect_snapshot,
+            collect_processes: Callable[[], list[ProcessSample]] | None = None,
+            process_row_count: int = DEFAULT_PROCESS_ROW_COUNT,
             db_path: str | None = None,
         ) -> None:
             super().__init__()
             self.setWindowTitle("Aura | Telemetry")
             self.setMinimumSize(540, 260)
+            self._process_row_count = (
+                process_row_count
+                if process_row_count > 0
+                else DEFAULT_PROCESS_ROW_COUNT
+            )
+            if collect_processes is None:
+                def _collect_processes() -> list[ProcessSample]:
+                    return collect_top_processes(limit=self._process_row_count)
+
+                collect_processes = _collect_processes
             self._recorder = DvrRecorder(db_path)
             self._build_layout()
             self._seed_latest_snapshot()
@@ -219,6 +284,8 @@ if _QT_IMPORT_ERROR is None:
             self._worker = SnapshotWorker(
                 interval_seconds=interval_seconds,
                 collect=collect,
+                collect_processes=collect_processes,
+                process_row_count=self._process_row_count,
                 recorder=self._recorder,
             )
             self._worker.moveToThread(self._worker_thread)
@@ -240,6 +307,14 @@ if _QT_IMPORT_ERROR is None:
             self._cpu_label.setText(lines["cpu"])
             self._memory_label.setText(lines["memory"])
             self._timestamp_label.setText(lines["timestamp"])
+
+        def _render_process_rows(self, rows: list[str]) -> None:
+            normalized_rows = format_process_rows([], row_count=self._process_row_count)
+            for index, row in enumerate(rows[: self._process_row_count]):
+                normalized_rows[index] = row
+
+            for label, row in zip(self._process_labels, normalized_rows):
+                label.setText(row)
 
         def _build_layout(self) -> None:
             self.setStyleSheet(
@@ -263,6 +338,17 @@ if _QT_IMPORT_ERROR is None:
                 QLabel#status {
                     font-size: 13px;
                     color: #75b8ff;
+                }
+                QLabel#section {
+                    font-size: 14px;
+                    font-weight: 600;
+                    color: #9dd9ff;
+                    margin-top: 8px;
+                }
+                QLabel#process {
+                    font-family: Consolas;
+                    font-size: 12px;
+                    color: #cfe8ff;
                 }
                 """
             )
@@ -291,15 +377,28 @@ if _QT_IMPORT_ERROR is None:
             self._status_label.setObjectName("status")
             self._status_label.setText(format_initial_status(self._recorder))
             layout.addWidget(self._status_label)
+
+            self._process_section_label = QLabel("Top Processes")
+            self._process_section_label.setObjectName("section")
+            layout.addWidget(self._process_section_label)
+
+            self._process_labels: list[QLabel] = []
+            for row in format_process_rows([], row_count=self._process_row_count):
+                row_label = QLabel(row)
+                row_label.setObjectName("process")
+                self._process_labels.append(row_label)
+                layout.addWidget(row_label)
+
             layout.addStretch(1)
 
-        @Slot(float, float, float, str)
+        @Slot(float, float, float, str, list)
         def _on_snapshot(
             self,
             timestamp: float,
             cpu_percent: float,
             memory_percent: float,
             status_text: str,
+            process_rows: list[str],
         ) -> None:
             snapshot = SystemSnapshot(
                 timestamp=timestamp,
@@ -307,6 +406,7 @@ if _QT_IMPORT_ERROR is None:
                 memory_percent=memory_percent,
             )
             self._render_snapshot(snapshot)
+            self._render_process_rows([str(row) for row in process_rows])
             self._status_label.setText(status_text)
 
         @Slot(str)
