@@ -93,3 +93,15 @@ GIT-1 | feat: integrate RadialGauge and SparkLine widgets into cockpit telemetry
 GIT-2 | files: src/shell/window.py, tests/test_shell/test_window.py, codex_agents_logs.md, groupchat.md
 GIT-3 | verify: uv run pytest tests/test_shell/ -x -v (pass, 29 tests); uv run ruff check src/shell/ tests/test_shell/ (pass); uv run pyright src/shell/ (pass, 0 errors)
 END | 2026-02-14 00:15:00 +01:00 | shell | commit: feat: integrate RadialGauge and SparkLine widgets into cockpit panels
+START | 2026-02-13 +01:00 | platform | task: add TOML config file support for persistent user preferences
+SCOPE | src/runtime/**, tests/test_platform/**
+GIT-1 | feat: add TOML config file support with platform-aware path resolution
+GIT-2 | files: src/runtime/config.py, tests/test_platform/test_config.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv run pytest tests/test_platform/ -v (pass, 120 tests, 19 subtests); uv run ruff check src/runtime/ tests/test_platform/ (pass); uv run pyright src/runtime/ (1 pre-existing error in app.py, 0 new errors)
+END | 2026-02-13 +01:00 | platform | commit: feat: add TOML config file support with platform-aware path resolution
+START | 2026-02-14 01:00:00 +01:00 | render | task: add GlassPanel QOpenGLWidget with noise-based frost shader and QPainter fallback
+SCOPE | src/render/**, tests/test_render/**
+GIT-1 | feat: add GlassPanel widget with procedural frost shader and QPainter fallback
+GIT-2 | files: src/render/__init__.py, src/render/widgets/__init__.py, src/render/widgets/glass_panel.py, tests/test_render/test_widgets/test_glass_panel.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv run pytest tests/test_render/ -x (pass, 90 tests); uv run ruff check src/render/ tests/test_render/ (pass); uv run pyright src/render/ (pass, 0 errors)
+END | 2026-02-14 01:10:00 +01:00 | render | commit: feat: add GlassPanel widget with procedural frost shader and QPainter fallback
