@@ -74,6 +74,18 @@ class RenderAnimationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             compute_accent_intensity(10.0, 20.0, phase=0.0, floor=0.8, ceiling=0.2)
 
+    def test_compute_accent_intensity_treats_non_finite_metrics_as_zero(self) -> None:
+        baseline = compute_accent_intensity(0.0, 0.0, phase=0.25)
+        non_finite = compute_accent_intensity(float("nan"), float("inf"), phase=0.25)
+
+        self.assertAlmostEqual(non_finite, baseline, places=6)
+
+    def test_compute_accent_intensity_treats_non_finite_phase_as_zero_phase(self) -> None:
+        baseline = compute_accent_intensity(40.0, 20.0, phase=0.0)
+        non_finite = compute_accent_intensity(40.0, 20.0, phase=float("inf"))
+
+        self.assertAlmostEqual(non_finite, baseline, places=6)
+
 
 if __name__ == "__main__":
     unittest.main()

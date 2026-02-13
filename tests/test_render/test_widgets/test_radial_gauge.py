@@ -88,6 +88,17 @@ class RadialGaugeWidgetTests(unittest.TestCase):
         gauge.set_value(200.0)
         self.assertAlmostEqual(gauge.value, 100.0)
 
+    def test_set_value_treats_non_finite_as_zero(self) -> None:
+        from render.widgets.radial_gauge import RadialGauge
+
+        gauge = RadialGauge()
+        gauge.set_value(float("nan"))
+        self.assertAlmostEqual(gauge.value, 0.0)
+        gauge.set_value(float("inf"))
+        self.assertAlmostEqual(gauge.value, 0.0)
+        gauge.set_value(float("-inf"))
+        self.assertAlmostEqual(gauge.value, 0.0)
+
     def test_set_accent_intensity_clamps(self) -> None:
         from render.widgets.radial_gauge import RadialGauge
 

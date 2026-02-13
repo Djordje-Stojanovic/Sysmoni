@@ -22,6 +22,7 @@ except ImportError:
     pass
 
 from contracts.types import SystemSnapshot  # noqa: E402
+from render._metrics import sanitize_percent  # noqa: E402
 from render.theme import _blend_hex_color, _parse_hex_color  # noqa: E402
 
 from ._base import AuraWidget, AuraWidgetConfig  # noqa: E402
@@ -164,7 +165,9 @@ if _QT_AVAILABLE:
             snap = self._snapshots[idx]
             now = self._snapshots[-1].timestamp
             ago = _format_ago(now - snap.timestamp)
-            text = f"{ago}  CPU: {snap.cpu_percent:.1f}%  MEM: {snap.memory_percent:.1f}%"
+            cpu_percent = sanitize_percent(snap.cpu_percent)
+            memory_percent = sanitize_percent(snap.memory_percent)
+            text = f"{ago}  CPU: {cpu_percent:.1f}%  MEM: {memory_percent:.1f}%"
             QToolTip.showText(event.globalPosition().toPoint(), text, self)
 
         def paintEvent(self, event: object) -> None:
@@ -215,7 +218,8 @@ if _QT_AVAILABLE:
             points: list[QPointF] = []
             for i, snap in enumerate(self._snapshots):
                 x = margin_x + (i / max(1, n - 1)) * pw
-                val = snap.cpu_percent if metric == "cpu" else snap.memory_percent
+                raw_value = snap.cpu_percent if metric == "cpu" else snap.memory_percent
+                val = sanitize_percent(raw_value)
                 y = margin_y + (1.0 - val / 100.0) * ph
                 points.append(QPointF(x, y))
 

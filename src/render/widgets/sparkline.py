@@ -14,6 +14,7 @@ try:
 except ImportError:
     pass
 
+from render._metrics import sanitize_percent  # noqa: E402
 from render.theme import _blend_hex_color, _parse_hex_color  # noqa: E402
 
 from ._base import AuraWidget, AuraWidgetConfig  # noqa: E402
@@ -65,12 +66,12 @@ if _QT_AVAILABLE:
             return len(self._buffer)
 
         def push(self, value: float) -> None:
-            self._buffer.append(max(0.0, min(100.0, float(value))))
+            self._buffer.append(sanitize_percent(value))
             self.update()
 
         def push_many(self, values: list[float]) -> None:
             for v in values:
-                self._buffer.append(max(0.0, min(100.0, float(v))))
+                self._buffer.append(sanitize_percent(v))
             self.update()
 
         def paintEvent(self, event: object) -> None:

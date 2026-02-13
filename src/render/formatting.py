@@ -4,6 +4,8 @@ import datetime as dt
 
 from contracts.types import ProcessSample, SystemSnapshot
 
+from ._metrics import sanitize_non_negative, sanitize_percent
+
 DEFAULT_PROCESS_ROW_COUNT = 5
 PROCESS_NAME_MAX_CHARS = 20
 _PLACEHOLDER_TEXT = "collecting process data..."
@@ -18,22 +20,26 @@ def _truncate_process_name(name: str, *, max_chars: int = PROCESS_NAME_MAX_CHARS
 
 
 def format_snapshot_lines(snapshot: SystemSnapshot) -> dict[str, str]:
+    cpu_percent = sanitize_percent(snapshot.cpu_percent)
+    memory_percent = sanitize_percent(snapshot.memory_percent)
     utc_timestamp = dt.datetime.fromtimestamp(
         snapshot.timestamp,
         tz=dt.timezone.utc,
     ).strftime("%H:%M:%S UTC")
     return {
-        "cpu": f"CPU {snapshot.cpu_percent:.1f}%",
-        "memory": f"Memory {snapshot.memory_percent:.1f}%",
+        "cpu": f"CPU {cpu_percent:.1f}%",
+        "memory": f"Memory {memory_percent:.1f}%",
         "timestamp": f"Updated {utc_timestamp}",
     }
 
 
 def format_process_row(sample: ProcessSample, *, rank: int) -> str:
-    memory_mb = sample.memory_rss_bytes / (1024.0 * 1024.0)
+    memory_bytes = sanitize_non_negative(sample.memory_rss_bytes)
+    memory_mb = memory_bytes / (1024.0 * 1024.0)
+    cpu_percent = sanitize_percent(sample.cpu_percent)
     name = _truncate_process_name(sample.name)
     return (
-        f"{rank:>2}. {name:<20}  CPU {sample.cpu_percent:>5.1f}%  "
+        f"{rank:>2}. {name:<20}  CPU {cpu_percent:>5.1f}%  "
         f"RAM {memory_mb:>7.1f} MB"
     )
 

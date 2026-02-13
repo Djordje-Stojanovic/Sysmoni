@@ -195,7 +195,7 @@ class ThermalSnapshotValidationTests(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# collect_thermal_snapshot — psutil path
+# collect_thermal_snapshot - psutil path
 # ---------------------------------------------------------------------------
 
 class CollectThermalSnapshotPsutilTests(unittest.TestCase):
@@ -304,7 +304,7 @@ class CollectThermalSnapshotPsutilTests(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# collect_thermal_snapshot — WMI path
+# collect_thermal_snapshot - WMI path
 # ---------------------------------------------------------------------------
 
 class _WmiZoneStub:
@@ -345,7 +345,7 @@ class CollectThermalSnapshotWmiTests(unittest.TestCase):
         sys.modules.pop("wmi", None)
 
     def test_wmi_decikelvin_conversion(self) -> None:
-        # 3232 tenths-of-Kelvin = 323.2K = 50.05°C
+        # 3232 tenths-of-Kelvin = 323.2K = 50.05 degC
         zones = [_WmiZoneStub(current_temperature=3232, instance_name="Zone0")]
         sys.modules["wmi"] = _make_wmi_module(zones)
         snap = collect_thermal_snapshot(now=lambda: 1.0)
@@ -364,7 +364,7 @@ class CollectThermalSnapshotWmiTests(unittest.TestCase):
         self.assertEqual(snap.hottest_celsius, max(r.current_celsius for r in snap.readings))
 
     def test_wmi_out_of_range_skipped(self) -> None:
-        # 5000 deciK = 226.85°C → above 150 range
+        # 5000 deciK = 226.85 degC -> above 150 range
         zones = [
             _WmiZoneStub(current_temperature=3232, instance_name="Good"),
             _WmiZoneStub(current_temperature=5000, instance_name="TooHot"),

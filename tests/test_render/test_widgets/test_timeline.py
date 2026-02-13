@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import pathlib
 import sys
+from typing import cast
 import unittest
 
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[3]
@@ -205,6 +206,45 @@ class TimelineWidgetTests(unittest.TestCase):
         widget = TimelineWidget(timeline_config=cfg)
         widget.resize(400, 100)
         widget.set_data(_make_snapshots(20))
+        pixmap = QPixmap(400, 100)
+        widget.render(pixmap)
+
+    def test_paint_with_non_finite_samples_does_not_raise(self) -> None:
+        from PySide6.QtGui import QPixmap
+
+        from render.widgets.timeline import TimelineWidget
+
+        class _SnapshotStub:
+            def __init__(
+                self,
+                *,
+                timestamp: float,
+                cpu_percent: float,
+                memory_percent: float,
+            ) -> None:
+                self.timestamp = timestamp
+                self.cpu_percent = cpu_percent
+                self.memory_percent = memory_percent
+
+        widget = TimelineWidget()
+        widget.resize(400, 100)
+        widget.set_data(
+            cast(
+                list[SystemSnapshot],
+                [
+                    _SnapshotStub(
+                        timestamp=100.0,
+                        cpu_percent=float("nan"),
+                        memory_percent=float("inf"),
+                    ),
+                    _SnapshotStub(
+                        timestamp=101.0,
+                        cpu_percent=float("-inf"),
+                        memory_percent=50.0,
+                    ),
+                ],
+            )
+        )
         pixmap = QPixmap(400, 100)
         widget.render(pixmap)
 

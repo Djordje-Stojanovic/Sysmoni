@@ -95,6 +95,17 @@ class SparkLineWidgetTests(unittest.TestCase):
         spark.push(200.0)
         self.assertAlmostEqual(spark.latest, 100.0)  # type: ignore[arg-type]
 
+    def test_push_non_finite_values_clamp_to_zero(self) -> None:
+        from render.widgets.sparkline import SparkLine
+
+        spark = SparkLine()
+        spark.push(float("nan"))
+        self.assertAlmostEqual(spark.latest, 0.0)  # type: ignore[arg-type]
+        spark.push(float("inf"))
+        self.assertAlmostEqual(spark.latest, 0.0)  # type: ignore[arg-type]
+        spark.push(float("-inf"))
+        self.assertAlmostEqual(spark.latest, 0.0)  # type: ignore[arg-type]
+
     def test_push_many(self) -> None:
         from render.widgets.sparkline import SparkLine
 
@@ -102,6 +113,14 @@ class SparkLineWidgetTests(unittest.TestCase):
         spark.push_many([10.0, 20.0, 30.0])
         self.assertEqual(spark.buffer_len, 3)
         self.assertAlmostEqual(spark.latest, 30.0)  # type: ignore[arg-type]
+
+    def test_push_many_sanitizes_non_finite_values(self) -> None:
+        from render.widgets.sparkline import SparkLine
+
+        spark = SparkLine()
+        spark.push_many([10.0, float("nan"), float("inf")])
+        self.assertEqual(spark.buffer_len, 3)
+        self.assertAlmostEqual(spark.latest, 0.0)  # type: ignore[arg-type]
 
     def test_buffer_eviction(self) -> None:
         from render.widgets.sparkline import SparkLine

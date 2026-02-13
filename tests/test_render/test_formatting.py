@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pathlib
 import sys
+from typing import cast
 import unittest
 
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -78,6 +79,33 @@ class RenderFormattingTests(unittest.TestCase):
         )
         self.assertEqual(format_process_rows([sample], row_count=0), [])
         self.assertEqual(format_process_rows([sample], row_count=-3), [])
+
+    def test_formatting_sanitizes_non_finite_cpu_memory_values(self) -> None:
+        class _SnapshotStub:
+            def __init__(self) -> None:
+                self.timestamp = 0.0
+                self.cpu_percent = float("nan")
+                self.memory_percent = float("inf")
+
+        class _ProcessStub:
+            def __init__(self) -> None:
+                self.pid = 101
+                self.name = "worker"
+                self.cpu_percent = float("nan")
+                self.memory_rss_bytes = float("inf")
+
+        snapshot = cast(SystemSnapshot, _SnapshotStub())
+        sample = cast(ProcessSample, _ProcessStub())
+
+        lines = format_snapshot_lines(snapshot)
+        row = format_process_row(sample, rank=1)
+
+        self.assertEqual(lines["cpu"], "CPU 0.0%")
+        self.assertEqual(lines["memory"], "Memory 0.0%")
+        self.assertEqual(
+            row,
+            " 1. worker                CPU   0.0%  RAM     0.0 MB",
+        )
 
 
 if __name__ == "__main__":

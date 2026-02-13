@@ -13,6 +13,7 @@ try:
 except ImportError:
     pass
 
+from render._metrics import sanitize_percent  # noqa: E402
 from render.theme import _blend_hex_color, _parse_hex_color  # noqa: E402
 
 from ._base import AuraWidget, AuraWidgetConfig  # noqa: E402
@@ -62,7 +63,7 @@ if _QT_AVAILABLE:
             return self._gauge_config
 
         def set_value(self, value: float) -> None:
-            clamped = max(0.0, min(100.0, float(value)))
+            clamped = sanitize_percent(value)
             if clamped != self._value:
                 self._value = clamped
                 self.update()

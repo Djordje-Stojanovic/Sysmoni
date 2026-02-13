@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 import math
 
+from ._metrics import sanitize_percent
+
 DEFAULT_TARGET_FPS = 60
 
 
@@ -76,10 +78,11 @@ def compute_accent_intensity(
         raise ValueError("ceiling must be greater than or equal to floor.")
 
     load_ratio = max(
-        _clamp_unit(cpu_percent / 100.0),
-        _clamp_unit(memory_percent / 100.0),
+        sanitize_percent(cpu_percent) / 100.0,
+        sanitize_percent(memory_percent) / 100.0,
     )
-    pulse_ratio = (math.sin((phase % 1.0) * (2.0 * math.pi)) + 1.0) * 0.5
+    normalized_phase = 0.0 if not math.isfinite(phase) else (phase % 1.0)
+    pulse_ratio = (math.sin(normalized_phase * (2.0 * math.pi)) + 1.0) * 0.5
     pulse_weight = _clamp_unit(pulse_strength)
     composite = _clamp_unit(load_ratio + ((pulse_ratio - 0.5) * pulse_weight))
     return floor + ((ceiling - floor) * composite)

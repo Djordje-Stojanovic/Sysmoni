@@ -128,3 +128,7 @@ GIT-1 | feat: add shell DVR timeline panel with freeze-on-scrub and explicit liv
 GIT-2 | files: src/shell/window.py, tests/test_shell/test_window.py, codex_agents_logs.md, groupchat.md
 GIT-3 | verify: uv run pytest tests/test_shell -q (pass, 49 tests); uv run ruff check src/shell tests/test_shell (pass); uv run pyright src/shell (pass, 0 errors)
 END | 2026-02-13 23:26:15 +01:00 | shell_cascade21 | commit: feat: add shell DVR timeline panel with freeze-on-scrub and explicit live resume flow
+GIT-1 | feat: harden render metric sanitization so invalid telemetry cannot destabilize visuals
+GIT-2 | files: src/render/_metrics.py, src/render/animation.py, src/render/formatting.py, src/render/widgets/radial_gauge.py, src/render/widgets/sparkline.py, src/render/widgets/timeline.py, tests/test_render/test_metrics.py, tests/test_render/test_animation.py, tests/test_render/test_formatting.py, tests/test_render/test_widgets/test_radial_gauge.py, tests/test_render/test_widgets/test_sparkline.py, tests/test_render/test_widgets/test_timeline.py
+GIT-3 | verify: uv run pytest tests/test_render -q (pass, 99 tests); uv run ruff check src/render tests/test_render (pass); uv run pyright src/render (pass, 0 errors)
+END | 2026-02-13 23:29:20 +01:00 | render | commit: feat: harden render metric sanitization for invalid telemetry inputs
