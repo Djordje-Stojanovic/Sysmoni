@@ -261,6 +261,48 @@ class CollectTopProcessesTests(unittest.TestCase):
             ],
         )
 
+    def test_collect_top_processes_breaks_cpu_and_memory_ties_by_lower_pid(self) -> None:
+        stub = _ProcessPsutilStub(
+            [
+                _ProcessStub(
+                    {
+                        "pid": 9,
+                        "name": "worker-9",
+                        "cpu_percent": 20.0,
+                        "memory_info": _ProcessMemoryInfoStub(300),
+                        "create_time": 90.0,
+                    }
+                ),
+                _ProcessStub(
+                    {
+                        "pid": 3,
+                        "name": "worker-3",
+                        "cpu_percent": 20.0,
+                        "memory_info": _ProcessMemoryInfoStub(300),
+                        "create_time": 30.0,
+                    }
+                ),
+                _ProcessStub(
+                    {
+                        "pid": 5,
+                        "name": "worker-5",
+                        "cpu_percent": 20.0,
+                        "memory_info": _ProcessMemoryInfoStub(300),
+                        "create_time": 50.0,
+                    }
+                ),
+            ]
+        )
+        original_psutil = poller.psutil
+        poller.psutil = stub
+        try:
+            samples = poller.collect_top_processes(limit=2)
+        finally:
+            poller.psutil = original_psutil
+
+        self.assertEqual([sample.pid for sample in samples], [3, 5])
+        self.assertEqual([sample.name for sample in samples], ["worker-3", "worker-5"])
+
     def test_collect_top_processes_reuses_cached_name_when_name_is_missing(self) -> None:
         seeded_stub = _ProcessPsutilStub(
             [

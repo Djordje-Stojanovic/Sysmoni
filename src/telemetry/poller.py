@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import heapq
 import math
 import threading
 import time
@@ -102,7 +103,8 @@ def collect_top_processes(*, limit: int = 20) -> list[ProcessSample]:
     )
     recoverable_errors = process_errors + (AttributeError, TypeError, ValueError)
 
-    samples: list[ProcessSample] = []
+    top_samples_heap: list[tuple[tuple[float, int, int], int, ProcessSample]] = []
+    sample_sequence = 0
     observed_pids: set[int] = set()
     for process in psutil.process_iter(
         attrs=["pid", "name", "cpu_percent", "memory_info", "create_time"],
@@ -142,7 +144,15 @@ def collect_top_processes(*, limit: int = 20) -> list[ProcessSample]:
                 cpu_percent=cpu_percent,
                 memory_rss_bytes=memory_rss_bytes,
             )
-            samples.append(sample)
+            rank = (sample.cpu_percent, sample.memory_rss_bytes, -sample.pid)
+            entry = (rank, sample_sequence, sample)
+            sample_sequence += 1
+
+            if len(top_samples_heap) < normalized_limit:
+                heapq.heappush(top_samples_heap, entry)
+            elif entry[0] > top_samples_heap[0][0]:
+                heapq.heapreplace(top_samples_heap, entry)
+
             observed_pids.add(sample.pid)
             if explicit_name:
                 with _process_name_cache_lock:
@@ -159,14 +169,8 @@ def collect_top_processes(*, limit: int = 20) -> list[ProcessSample]:
         for stale_pid in stale_pids:
             del _process_name_cache[stale_pid]
 
-    samples.sort(
-        key=lambda sample: (
-            -sample.cpu_percent,
-            -sample.memory_rss_bytes,
-            sample.pid,
-        )
-    )
-    return samples[:normalized_limit]
+    top_samples_heap.sort(key=lambda entry: entry[0], reverse=True)
+    return [entry[2] for entry in top_samples_heap]
 
 
 def run_polling_loop(
