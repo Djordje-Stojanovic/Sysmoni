@@ -29,6 +29,7 @@ from render import (  # noqa: E402
     format_stream_status,
 )
 from runtime.store import TelemetryStore  # noqa: E402
+from shell.titlebar import AuraTitleBar  # noqa: E402
 from telemetry.poller import collect_snapshot, collect_top_processes, run_polling_loop  # noqa: E402
 
 _QT_IMPORT_ERROR: ImportError | None = None
@@ -324,6 +325,44 @@ def build_window_stylesheet(accent_intensity: float = 0.0) -> str:
                     padding-bottom: 6px;
                     font-weight: 650;
                 }}
+                QWidget#auraTitleBar {{
+                    background: rgba(4, 12, 22, 0.95);
+                    border-bottom: 1px solid rgba(116, 172, 220, 0.30);
+                }}
+                QLabel#titlebarLabel {{
+                    font-size: 14px;
+                    font-weight: 600;
+                    color: {theme.title_color};
+                    background: transparent;
+                }}
+                QPushButton#titlebarMinBtn, QPushButton#titlebarMaxBtn {{
+                    background: transparent;
+                    border: none;
+                    color: {theme.text_primary};
+                    font-size: 14px;
+                    border-radius: 4px;
+                }}
+                QPushButton#titlebarMinBtn:hover, QPushButton#titlebarMaxBtn:hover {{
+                    background: rgba(80, 140, 200, 0.25);
+                }}
+                QPushButton#titlebarMinBtn:pressed, QPushButton#titlebarMaxBtn:pressed {{
+                    background: rgba(80, 140, 200, 0.40);
+                }}
+                QPushButton#titlebarCloseBtn {{
+                    background: transparent;
+                    border: none;
+                    color: {theme.text_primary};
+                    font-size: 14px;
+                    border-radius: 4px;
+                }}
+                QPushButton#titlebarCloseBtn:hover {{
+                    background: rgba(220, 50, 50, 0.75);
+                    color: #ffffff;
+                }}
+                QPushButton#titlebarCloseBtn:pressed {{
+                    background: rgba(200, 30, 30, 0.90);
+                    color: #ffffff;
+                }}
                 QFrame#slotFrame {{
                     background: rgba(8, 22, 36, 0.62);
                     border: 1px solid rgba(116, 172, 220, 0.45);
@@ -461,6 +500,11 @@ if _QT_IMPORT_ERROR is None:
             db_path: str | None = None,
         ) -> None:
             super().__init__()
+            self.setWindowFlags(
+                Qt.FramelessWindowHint
+                | Qt.WindowMinMaxButtonsHint
+                | Qt.Window
+            )
             self.setWindowTitle("Aura | Cockpit")
             self.setMinimumSize(980, 560)
             self._process_row_count = (
@@ -668,17 +712,20 @@ if _QT_IMPORT_ERROR is None:
         def _build_layout(self) -> None:
             self.setStyleSheet(build_window_stylesheet())
             root_layout = QVBoxLayout(self)
-            root_layout.setContentsMargins(20, 18, 20, 18)
-            root_layout.setSpacing(12)
+            root_layout.setContentsMargins(0, 0, 0, 0)
+            root_layout.setSpacing(0)
 
-            self._title_label = QLabel("Aura Cockpit")
-            self._title_label.setObjectName("title")
-            self._title_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            root_layout.addWidget(self._title_label)
+            self._titlebar = AuraTitleBar(self)
+            root_layout.addWidget(self._titlebar)
+
+            body_layout = QVBoxLayout()
+            body_layout.setContentsMargins(20, 12, 20, 18)
+            body_layout.setSpacing(12)
+            root_layout.addLayout(body_layout, 1)
 
             slots_layout = QHBoxLayout()
             slots_layout.setSpacing(12)
-            root_layout.addLayout(slots_layout, 1)
+            body_layout.addLayout(slots_layout, 1)
 
             for slot in DOCK_SLOTS:
                 slot_frame = QFrame()
@@ -817,6 +864,7 @@ if _QT_IMPORT_ERROR is None:
             self._cpu_sparkline.set_accent_intensity(frame.accent_intensity)
             self._mem_sparkline.set_accent_intensity(frame.accent_intensity)
             self._render_cpu_gauge.set_accent_intensity(frame.accent_intensity)
+            self._titlebar.set_accent_intensity(frame.accent_intensity)
 
             bucket = int(frame.accent_intensity * 100.0)
             if bucket != self._accent_bucket:
