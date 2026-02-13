@@ -8,6 +8,7 @@ import pathlib
 import sys
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from unittest.mock import patch
 
 
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -21,19 +22,65 @@ app_main = importlib.import_module("runtime.main")
 
 
 class MainCliTests(unittest.TestCase):
-    def test_main_since_or_until_requires_db_path(self) -> None:
-        for argv in (["--since", "1.0"], ["--until", "2.0"]):
-            stdout = io.StringIO()
-            stderr = io.StringIO()
+    def test_main_since_or_until_without_db_path_uses_auto_store(self) -> None:
+        range_snapshots = [
+            SystemSnapshot(timestamp=10.0, cpu_percent=1.0, memory_percent=2.0),
+            SystemSnapshot(timestamp=11.0, cpu_percent=3.0, memory_percent=4.0),
+        ]
+        created_stores: list[object] = []
 
-            with self.subTest(argv=argv):
-                with redirect_stdout(stdout), redirect_stderr(stderr):
-                    with self.assertRaises(SystemExit) as ctx:
-                        app_main.main(argv)
+        class _StoreStub:
+            def __init__(self, db_path: str, retention_seconds: float) -> None:
+                self.db_path = db_path
+                self.retention_seconds = retention_seconds
+                self.closed = False
+                created_stores.append(self)
 
-                self.assertEqual(ctx.exception.code, 2)
-                self.assertEqual(stdout.getvalue(), "")
-                self.assertIn("--since/--until require --db-path", stderr.getvalue())
+            def between(
+                self,
+                *,
+                start_timestamp: float | None = None,
+                end_timestamp: float | None = None,
+            ) -> list[SystemSnapshot]:
+                del start_timestamp, end_timestamp
+                return range_snapshots
+
+            def close(self) -> None:
+                self.closed = True
+
+        original_store = app_main.TelemetryStore
+        original_collect_snapshot = app_main.collect_snapshot
+        original_run_polling_loop = app_main.run_polling_loop
+        app_main.TelemetryStore = _StoreStub
+        app_main.collect_snapshot = lambda: (_ for _ in ()).throw(
+            AssertionError("collect_snapshot should not be called during range reads.")
+        )
+        app_main.run_polling_loop = lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("run_polling_loop should not be called during range reads.")
+        )
+
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        try:
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                code = app_main.main(["--since", "10.0", "--until", "11.0", "--json"])
+        finally:
+            app_main.TelemetryStore = original_store
+            app_main.collect_snapshot = original_collect_snapshot
+            app_main.run_polling_loop = original_run_polling_loop
+
+        self.assertEqual(code, 0)
+        self.assertEqual(stderr.getvalue(), "")
+        self.assertEqual(
+            stdout.getvalue().strip().splitlines(),
+            [
+                '{"cpu_percent": 1.0, "memory_percent": 2.0, "timestamp": 10.0}',
+                '{"cpu_percent": 3.0, "memory_percent": 4.0, "timestamp": 11.0}',
+            ],
+        )
+        self.assertEqual(len(created_stores), 1)
+        self.assertTrue(str(created_stores[0].db_path).endswith("telemetry.sqlite"))
+        self.assertTrue(created_stores[0].closed)
 
     def test_main_since_or_until_rejects_watch_or_latest(self) -> None:
         original_run_polling_loop = app_main.run_polling_loop
@@ -72,6 +119,28 @@ class MainCliTests(unittest.TestCase):
         finally:
             app_main.run_polling_loop = original_run_polling_loop
 
+    def test_main_latest_or_range_rejects_no_persist(self) -> None:
+        for argv, expected_error in (
+            (
+                ["--latest", "1", "--no-persist"],
+                "--latest cannot be used with --no-persist",
+            ),
+            (
+                ["--since", "1.0", "--no-persist"],
+                "--since/--until cannot be used with --no-persist",
+            ),
+        ):
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with self.subTest(argv=argv):
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    with self.assertRaises(SystemExit) as ctx:
+                        app_main.main(argv)
+
+                self.assertEqual(ctx.exception.code, 2)
+                self.assertEqual(stdout.getvalue(), "")
+                self.assertIn(expected_error, stderr.getvalue())
+
     def test_main_since_until_prints_requested_snapshots_from_store(self) -> None:
         range_snapshots = [
             SystemSnapshot(timestamp=10.0, cpu_percent=1.0, memory_percent=2.0),
@@ -80,7 +149,7 @@ class MainCliTests(unittest.TestCase):
         created_stores: list[object] = []
 
         class _StoreStub:
-            def __init__(self, db_path: str) -> None:
+            def __init__(self, db_path: str, retention_seconds: float) -> None:
                 self.db_path = db_path
                 self.closed = False
                 self.received_start: float | None = None
@@ -170,17 +239,45 @@ class MainCliTests(unittest.TestCase):
         self.assertEqual(stdout.getvalue(), "")
         self.assertIn("--since must be less than or equal to --until", stderr.getvalue())
 
-    def test_main_latest_requires_db_path(self) -> None:
+    def test_main_latest_without_db_path_uses_auto_store(self) -> None:
+        latest_snapshots = [
+            SystemSnapshot(timestamp=10.0, cpu_percent=1.0, memory_percent=2.0),
+        ]
+        created_stores: list[object] = []
+
+        class _StoreStub:
+            def __init__(self, db_path: str, retention_seconds: float) -> None:
+                self.db_path = db_path
+                self.retention_seconds = retention_seconds
+                self.closed = False
+                created_stores.append(self)
+
+            def latest(self, *, limit: int = 1) -> list[SystemSnapshot]:
+                self.received_limit = limit
+                return latest_snapshots
+
+            def close(self) -> None:
+                self.closed = True
+
+        original_store = app_main.TelemetryStore
+        app_main.TelemetryStore = _StoreStub
         stdout = io.StringIO()
         stderr = io.StringIO()
+        try:
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                code = app_main.main(["--latest", "1", "--json"])
+        finally:
+            app_main.TelemetryStore = original_store
 
-        with redirect_stdout(stdout), redirect_stderr(stderr):
-            with self.assertRaises(SystemExit) as ctx:
-                app_main.main(["--latest", "1"])
-
-        self.assertEqual(ctx.exception.code, 2)
-        self.assertEqual(stdout.getvalue(), "")
-        self.assertIn("--latest requires --db-path", stderr.getvalue())
+        self.assertEqual(code, 0)
+        self.assertEqual(stderr.getvalue(), "")
+        self.assertEqual(
+            stdout.getvalue().strip(),
+            '{"cpu_percent": 1.0, "memory_percent": 2.0, "timestamp": 10.0}',
+        )
+        self.assertEqual(len(created_stores), 1)
+        self.assertTrue(str(created_stores[0].db_path).endswith("telemetry.sqlite"))
+        self.assertTrue(created_stores[0].closed)
 
     def test_main_latest_rejects_watch_mode(self) -> None:
         original_run_polling_loop = app_main.run_polling_loop
@@ -209,7 +306,7 @@ class MainCliTests(unittest.TestCase):
         created_stores: list[object] = []
 
         class _StoreStub:
-            def __init__(self, db_path: str) -> None:
+            def __init__(self, db_path: str, retention_seconds: float) -> None:
                 self.db_path = db_path
                 self.closed = False
                 self.received_limit: int | None = None
@@ -306,7 +403,7 @@ class MainCliTests(unittest.TestCase):
         created_stores: list[object] = []
 
         class _StoreStub:
-            def __init__(self, db_path: str) -> None:
+            def __init__(self, db_path: str, retention_seconds: float) -> None:
                 self.db_path = db_path
                 self.appended: list[SystemSnapshot] = []
                 self.closed = False
@@ -343,6 +440,143 @@ class MainCliTests(unittest.TestCase):
         self.assertEqual(store.appended, [snapshot])
         self.assertTrue(store.closed)
 
+    def test_main_no_persist_skips_store_creation(self) -> None:
+        snapshot = SystemSnapshot(timestamp=10.5, cpu_percent=12.5, memory_percent=42.0)
+
+        original_collect_snapshot = app_main.collect_snapshot
+        original_telemetry_store = app_main.TelemetryStore
+        app_main.collect_snapshot = lambda: snapshot
+        app_main.TelemetryStore = lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("TelemetryStore should not be created with --no-persist.")
+        )
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        try:
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                code = app_main.main(["--json", "--no-persist"])
+        finally:
+            app_main.collect_snapshot = original_collect_snapshot
+            app_main.TelemetryStore = original_telemetry_store
+
+        self.assertEqual(code, 0)
+        self.assertEqual(stderr.getvalue(), "")
+        self.assertEqual(
+            stdout.getvalue().strip(),
+            '{"cpu_percent": 12.5, "memory_percent": 42.0, "timestamp": 10.5}',
+        )
+
+    def test_main_passes_cli_retention_seconds_to_store(self) -> None:
+        snapshot = SystemSnapshot(timestamp=10.5, cpu_percent=12.5, memory_percent=42.0)
+        created_stores: list[object] = []
+
+        class _StoreStub:
+            def __init__(self, db_path: str, retention_seconds: float) -> None:
+                self.db_path = db_path
+                self.retention_seconds = retention_seconds
+                self.closed = False
+                created_stores.append(self)
+
+            def append(self, _snapshot: SystemSnapshot) -> None:
+                pass
+
+            def close(self) -> None:
+                self.closed = True
+
+        original_collect_snapshot = app_main.collect_snapshot
+        original_telemetry_store = app_main.TelemetryStore
+        app_main.collect_snapshot = lambda: snapshot
+        app_main.TelemetryStore = _StoreStub
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        try:
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                code = app_main.main(
+                    [
+                        "--json",
+                        "--db-path",
+                        "telemetry.sqlite",
+                        "--retention-seconds",
+                        "30",
+                    ]
+                )
+        finally:
+            app_main.collect_snapshot = original_collect_snapshot
+            app_main.TelemetryStore = original_telemetry_store
+
+        self.assertEqual(code, 0)
+        self.assertEqual(stderr.getvalue(), "")
+        self.assertEqual(len(created_stores), 1)
+        self.assertEqual(created_stores[0].retention_seconds, 30.0)
+
+    def test_main_uses_env_retention_seconds_when_cli_not_set(self) -> None:
+        snapshot = SystemSnapshot(timestamp=10.5, cpu_percent=12.5, memory_percent=42.0)
+        created_stores: list[object] = []
+
+        class _StoreStub:
+            def __init__(self, db_path: str, retention_seconds: float) -> None:
+                self.db_path = db_path
+                self.retention_seconds = retention_seconds
+                self.closed = False
+                created_stores.append(self)
+
+            def append(self, _snapshot: SystemSnapshot) -> None:
+                pass
+
+            def close(self) -> None:
+                self.closed = True
+
+        original_collect_snapshot = app_main.collect_snapshot
+        original_telemetry_store = app_main.TelemetryStore
+        app_main.collect_snapshot = lambda: snapshot
+        app_main.TelemetryStore = _StoreStub
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        try:
+            with patch.dict("os.environ", {"AURA_RETENTION_SECONDS": "45"}, clear=False):
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    code = app_main.main(["--json", "--db-path", "telemetry.sqlite"])
+        finally:
+            app_main.collect_snapshot = original_collect_snapshot
+            app_main.TelemetryStore = original_telemetry_store
+
+        self.assertEqual(code, 0)
+        self.assertEqual(stderr.getvalue(), "")
+        self.assertEqual(len(created_stores), 1)
+        self.assertEqual(created_stores[0].retention_seconds, 45.0)
+
+    def test_main_auto_store_open_failure_degrades_to_live_mode(self) -> None:
+        snapshot = SystemSnapshot(timestamp=10.5, cpu_percent=12.5, memory_percent=42.0)
+
+        original_collect_snapshot = app_main.collect_snapshot
+        original_telemetry_store = app_main.TelemetryStore
+        app_main.collect_snapshot = lambda: snapshot
+        app_main.TelemetryStore = lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            OSError(errno.EINVAL, "Invalid argument")
+        )
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        try:
+            with patch.dict(
+                "os.environ",
+                {
+                    "AURA_DB_PATH": " ",
+                    "AURA_RETENTION_SECONDS": " ",
+                },
+                clear=False,
+            ):
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    code = app_main.main(["--json"])
+        finally:
+            app_main.collect_snapshot = original_collect_snapshot
+            app_main.TelemetryStore = original_telemetry_store
+
+        self.assertEqual(code, 0)
+        self.assertEqual(
+            stdout.getvalue().strip(),
+            '{"cpu_percent": 12.5, "memory_percent": 42.0, "timestamp": 10.5}',
+        )
+        self.assertIn("DVR persistence disabled: [Errno 22]", stderr.getvalue())
+
     def test_main_watch_mode_persists_each_snapshot_when_db_path_is_provided(self) -> None:
         produced = [
             SystemSnapshot(timestamp=10.0, cpu_percent=1.0, memory_percent=2.0),
@@ -351,7 +585,7 @@ class MainCliTests(unittest.TestCase):
         created_stores: list[object] = []
 
         class _StoreStub:
-            def __init__(self, db_path: str) -> None:
+            def __init__(self, db_path: str, retention_seconds: float) -> None:
                 self.db_path = db_path
                 self.appended: list[SystemSnapshot] = []
                 self.closed = False
@@ -411,7 +645,7 @@ class MainCliTests(unittest.TestCase):
         created_stores: list[object] = []
 
         class _StoreStub:
-            def __init__(self, db_path: str) -> None:
+            def __init__(self, db_path: str, retention_seconds: float) -> None:
                 self.db_path = db_path
                 self.append_attempts = 0
                 self.closed = False
@@ -499,7 +733,7 @@ class MainCliTests(unittest.TestCase):
         try:
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 code = app_main.main(
-                    ["--watch", "--json", "--interval", "0.5", "--count", "2"]
+                    ["--watch", "--json", "--interval", "0.5", "--count", "2", "--no-persist"]
                 )
         finally:
             app_main.run_polling_loop = original_run_polling_loop
@@ -618,7 +852,9 @@ class MainCliTests(unittest.TestCase):
         stderr = io.StringIO()
         try:
             with redirect_stdout(stdout), redirect_stderr(stderr):
-                code = app_main.main(["--watch", "--json", "--interval", "0.5"])
+                code = app_main.main(
+                    ["--watch", "--json", "--interval", "0.5", "--no-persist"]
+                )
         finally:
             app_main.run_polling_loop = original_run_polling_loop
             app_main.collect_snapshot = original_collect_snapshot
@@ -654,7 +890,7 @@ class MainCliTests(unittest.TestCase):
         app_main.run_polling_loop = _run_polling_loop
         builtins.print = _capture_print
         try:
-            code = app_main.main(["--watch"])
+            code = app_main.main(["--watch", "--no-persist"])
         finally:
             app_main.run_polling_loop = original_run_polling_loop
             builtins.print = original_print
@@ -683,7 +919,7 @@ class MainCliTests(unittest.TestCase):
         stderr = io.StringIO()
         try:
             with redirect_stdout(stdout), redirect_stderr(stderr):
-                code = app_main.main(["--watch"])
+                code = app_main.main(["--watch", "--no-persist"])
         finally:
             app_main.run_polling_loop = original_run_polling_loop
             builtins.print = original_print
@@ -713,7 +949,7 @@ class MainCliTests(unittest.TestCase):
         stderr = io.StringIO()
         try:
             with redirect_stdout(stdout), redirect_stderr(stderr):
-                code = app_main.main(["--watch"])
+                code = app_main.main(["--watch", "--no-persist"])
         finally:
             app_main.run_polling_loop = original_run_polling_loop
             builtins.print = original_print
@@ -723,7 +959,8 @@ class MainCliTests(unittest.TestCase):
         self.assertEqual(stderr.getvalue(), "")
 
     def test_main_returns_error_when_store_open_raises_oserror_einval(self) -> None:
-        def _raise_einval(_db_path: str) -> object:
+        def _raise_einval(_db_path: str, retention_seconds: float) -> object:
+            del retention_seconds
             raise OSError(errno.EINVAL, "Invalid argument")
 
         original_store = app_main.TelemetryStore
@@ -755,7 +992,7 @@ class MainCliTests(unittest.TestCase):
         stderr = io.StringIO()
         try:
             with redirect_stdout(stdout), redirect_stderr(stderr):
-                code = app_main.main(["--watch"])
+                code = app_main.main(["--watch", "--no-persist"])
         finally:
             app_main.run_polling_loop = original
 
@@ -773,7 +1010,7 @@ class MainCliTests(unittest.TestCase):
         stderr = io.StringIO()
         try:
             with redirect_stdout(stdout), redirect_stderr(stderr):
-                code = app_main.main([])
+                code = app_main.main(["--no-persist"])
         finally:
             app_main.collect_snapshot = original
 
@@ -791,7 +1028,7 @@ class MainCliTests(unittest.TestCase):
         stderr = io.StringIO()
         try:
             with redirect_stdout(stdout), redirect_stderr(stderr):
-                code = app_main.main([])
+                code = app_main.main(["--no-persist"])
         finally:
             app_main.collect_snapshot = original
 
@@ -810,7 +1047,7 @@ class MainCliTests(unittest.TestCase):
         stderr = io.StringIO()
         try:
             with redirect_stdout(stdout), redirect_stderr(stderr):
-                code = app_main.main(["--json"])
+                code = app_main.main(["--json", "--no-persist"])
         finally:
             app_main.collect_snapshot = original
 
@@ -824,3 +1061,4 @@ class MainCliTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

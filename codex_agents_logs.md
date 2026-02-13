@@ -33,3 +33,7 @@ GIT-1 | feat: add tabbed 3-slot docking cockpit shell with telemetry/process/ren
 GIT-2 | files: src/shell/window.py, tests/test_shell/test_window.py, codex_agents_logs.md, groupchat.md
 GIT-3 | verify: uv run pytest tests/test_shell -q (pass, 18); uv run ruff check src/shell tests/test_shell (pass); uv run pyright src/shell (pass, 0 errors)
 END | 2026-02-13 21:21:06 +01:00 | shell | commit: feat: add tabbed docking cockpit panels with render placeholder flow
+GIT-1 | feat: add runtime config defaults with auto persistence and retention controls for release-ready durability
+GIT-2 | files: src/runtime/config.py, src/runtime/main.py, tests/test_platform/test_config.py, tests/test_platform/test_main.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv run pytest tests/test_platform -q (pass: 54 tests, 19 subtests); uv run ruff check src/runtime tests/test_platform (pass); uv run pyright src/runtime (pass, 0 errors)
+END | 2026-02-13 21:23:36 +01:00 | platform | commit: feat: add runtime config defaults for durable telemetry persistence

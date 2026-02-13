@@ -9,6 +9,7 @@ import sys
 import threading
 
 from contracts.types import SystemSnapshot
+from runtime.config import resolve_runtime_config
 from runtime.store import TelemetryStore
 from telemetry.poller import collect_snapshot, run_polling_loop
 
@@ -36,6 +37,20 @@ def _positive_interval_seconds(value: str) -> float:
             "interval must be a finite number greater than 0"
         )
     return interval
+
+
+def _positive_retention_seconds(value: str) -> float:
+    try:
+        retention_seconds = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            "retention must be a finite number greater than 0"
+        ) from exc
+    if not math.isfinite(retention_seconds) or retention_seconds <= 0:
+        raise argparse.ArgumentTypeError(
+            "retention must be a finite number greater than 0"
+        )
+    return retention_seconds
 
 
 def _finite_timestamp_seconds(value: str) -> float:
@@ -87,27 +102,44 @@ def build_parser() -> argparse.ArgumentParser:
         help="Number of snapshots to emit before exiting in --watch mode.",
     )
     parser.add_argument(
+        "--retention-seconds",
+        type=_positive_retention_seconds,
+        default=None,
+        help=(
+            "Optional retention horizon in seconds for persisted telemetry. "
+            "Defaults to AURA_RETENTION_SECONDS or store default."
+        ),
+    )
+    parser.add_argument(
+        "--no-persist",
+        action="store_true",
+        help="Disable persistence and run telemetry without opening a local store.",
+    )
+    parser.add_argument(
         "--latest",
         type=_positive_sample_count,
         default=None,
-        help="Emit the latest N persisted snapshots from --db-path, then exit.",
+        help="Emit the latest N persisted snapshots, then exit.",
     )
     parser.add_argument(
         "--since",
         type=_finite_timestamp_seconds,
         default=None,
-        help="Emit persisted snapshots with timestamp >= this value; requires --db-path.",
+        help="Emit persisted snapshots with timestamp >= this value.",
     )
     parser.add_argument(
         "--until",
         type=_finite_timestamp_seconds,
         default=None,
-        help="Emit persisted snapshots with timestamp <= this value; requires --db-path.",
+        help="Emit persisted snapshots with timestamp <= this value.",
     )
     parser.add_argument(
         "--db-path",
         default=None,
-        help="Optional SQLite DB path for persisting emitted snapshots.",
+        help=(
+            "Optional SQLite DB path override. "
+            "Defaults to AURA_DB_PATH or platform app-data location."
+        ),
     )
     return parser
 
@@ -158,26 +190,44 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--count requires --watch")
     if args.latest is not None and args.watch:
         parser.error("--latest cannot be used with --watch")
-    if args.latest is not None and not args.db_path:
-        parser.error("--latest requires --db-path")
     has_range_read = args.since is not None or args.until is not None
     if has_range_read and args.watch:
         parser.error("--since/--until cannot be used with --watch")
     if has_range_read and args.latest is not None:
         parser.error("--since/--until cannot be used with --latest")
-    if has_range_read and not args.db_path:
-        parser.error("--since/--until require --db-path")
+    if args.latest is not None and args.no_persist:
+        parser.error("--latest cannot be used with --no-persist")
+    if has_range_read and args.no_persist:
+        parser.error("--since/--until cannot be used with --no-persist")
     if args.since is not None and args.until is not None and args.since > args.until:
         parser.error("--since must be less than or equal to --until")
 
     store: TelemetryStore | None = None
     try:
-        if args.db_path:
-            store = TelemetryStore(args.db_path)
+        config = resolve_runtime_config(args)
+
+        if config.persistence_enabled:
+            db_path = config.db_path
+            if db_path is None:
+                raise RuntimeError("Persistence enabled without a resolved db path.")
+            try:
+                store = TelemetryStore(
+                    db_path,
+                    retention_seconds=config.retention_seconds,
+                )
+            except Exception as exc:
+                if config.db_source == "auto":
+                    print(
+                        f"DVR persistence disabled: {exc}",
+                        file=sys.stderr,
+                    )
+                    store = None
+                else:
+                    raise
 
         if args.latest is not None:
             if store is None:
-                parser.error("--latest requires --db-path")
+                raise RuntimeError("Unable to open telemetry store for --latest.")
 
             for snapshot in store.latest(limit=args.latest):
                 _print_snapshot(snapshot, output_json=args.json)
@@ -185,7 +235,7 @@ def main(argv: list[str] | None = None) -> int:
 
         if has_range_read:
             if store is None:
-                parser.error("--since/--until require --db-path")
+                raise RuntimeError("Unable to open telemetry store for --since/--until.")
 
             for snapshot in store.between(
                 start_timestamp=args.since,
