@@ -1,7 +1,6 @@
 from __future__ import annotations
 # pyright: reportAttributeAccessIssue=false, reportPossiblyUnboundVariable=false, reportRedeclaration=false
 
-import datetime as dt
 import os
 import pathlib
 import sys
@@ -14,6 +13,15 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from contracts.types import ProcessSample, SystemSnapshot  # noqa: E402
+from render import (  # noqa: E402
+    DEFAULT_PROCESS_ROW_COUNT,
+    DEFAULT_THEME,
+    build_shell_stylesheet,
+    format_initial_status,
+    format_process_rows,
+    format_snapshot_lines,
+    format_stream_status,
+)
 from runtime.store import TelemetryStore  # noqa: E402
 from telemetry.poller import collect_snapshot, collect_top_processes, run_polling_loop  # noqa: E402
 
@@ -36,18 +44,6 @@ except ImportError as exc:  # pragma: no cover - exercised in tests by monkeypat
     _QT_IMPORT_ERROR = exc
 
 
-def format_snapshot_lines(snapshot: SystemSnapshot) -> dict[str, str]:
-    utc_timestamp = dt.datetime.fromtimestamp(
-        snapshot.timestamp,
-        tz=dt.timezone.utc,
-    ).strftime("%H:%M:%S UTC")
-    return {
-        "cpu": f"CPU {snapshot.cpu_percent:.1f}%",
-        "memory": f"Memory {snapshot.memory_percent:.1f}%",
-        "timestamp": f"Updated {utc_timestamp}",
-    }
-
-
 def resolve_gui_db_path(env: dict[str, str] | None = None) -> str | None:
     source = os.environ if env is None else env
     raw_value = source.get("AURA_DB_PATH")
@@ -56,10 +52,6 @@ def resolve_gui_db_path(env: dict[str, str] | None = None) -> str | None:
 
     db_path = raw_value.strip()
     return db_path or None
-
-
-DEFAULT_PROCESS_ROW_COUNT = 5
-_PROCESS_NAME_MAX_CHARS = 20
 
 DockSlot = Literal["left", "center", "right"]
 PanelId = Literal["telemetry_overview", "top_processes", "render_surface"]
@@ -232,40 +224,6 @@ def get_active_panel(state: DockState, slot: DockSlot) -> PanelId | None:
     return tabs[active_index]
 
 
-def _truncate_process_name(name: str, *, max_chars: int = _PROCESS_NAME_MAX_CHARS) -> str:
-    if len(name) <= max_chars:
-        return name
-    if max_chars <= 3:
-        return name[:max_chars]
-    return f"{name[: max_chars - 3]}..."
-
-
-def format_process_row(sample: ProcessSample, *, rank: int) -> str:
-    memory_mb = sample.memory_rss_bytes / (1024.0 * 1024.0)
-    name = _truncate_process_name(sample.name)
-    return (
-        f"{rank:>2}. {name:<20}  CPU {sample.cpu_percent:>5.1f}%  "
-        f"RAM {memory_mb:>7.1f} MB"
-    )
-
-
-def format_process_rows(
-    samples: list[ProcessSample],
-    *,
-    row_count: int = DEFAULT_PROCESS_ROW_COUNT,
-) -> list[str]:
-    if row_count <= 0:
-        return []
-
-    rows = [
-        format_process_row(sample, rank=index + 1)
-        for index, sample in enumerate(samples[:row_count])
-    ]
-    while len(rows) < row_count:
-        rows.append(f"{len(rows) + 1:>2}. collecting process data...")
-    return rows
-
-
 class DvrRecorder:
     """Persists GUI snapshots into the local telemetry store when configured."""
 
@@ -336,24 +294,77 @@ class DvrRecorder:
             self._close_locked()
 
 
-def format_initial_status(recorder: DvrRecorder) -> str:
-    db_path, sample_count, error = recorder.get_status()
-    if db_path is None:
-        return "Collecting telemetry..."
-    if error is not None:
-        return f"Collecting telemetry... | DVR unavailable: {error}"
-    sample_count = 0 if sample_count is None else sample_count
-    return f"Collecting telemetry... | DVR samples: {sample_count}"
+def format_render_panel_status(snapshot: SystemSnapshot, stream_status: str) -> str:
+    return (
+        "Render bridge live | "
+        f"CPU {snapshot.cpu_percent:.1f}% | "
+        f"Memory {snapshot.memory_percent:.1f}% | "
+        f"{stream_status}"
+    )
 
 
-def format_stream_status(recorder: DvrRecorder) -> str:
-    db_path, sample_count, error = recorder.get_status()
-    if db_path is None:
-        return "Streaming telemetry"
-    if error is not None:
-        return f"Streaming telemetry | DVR unavailable: {error}"
-    sample_count = 0 if sample_count is None else sample_count
-    return f"Streaming telemetry | DVR samples: {sample_count}"
+def format_render_panel_hint(process_rows: list[str]) -> str:
+    if not process_rows:
+        return "Top process feed waiting for telemetry rows."
+    return f"Top process | {str(process_rows[0]).strip()}"
+
+
+def build_window_stylesheet() -> str:
+    theme = DEFAULT_THEME
+    return (
+        build_shell_stylesheet(theme)
+        + f"""
+                QLabel#title {{
+                    padding-bottom: 6px;
+                    font-weight: 650;
+                }}
+                QFrame#slotFrame {{
+                    background: rgba(8, 22, 36, 0.62);
+                    border: 1px solid rgba(116, 172, 220, 0.45);
+                    border-radius: 8px;
+                }}
+                QLabel#slotTitle {{
+                    font-size: 12px;
+                    font-weight: 600;
+                    letter-spacing: 1px;
+                    color: {theme.section_color};
+                }}
+                QPushButton#tabButton {{
+                    font-size: 12px;
+                    border: 1px solid rgba(99, 154, 200, 0.5);
+                    border-radius: 6px;
+                    background: rgba(6, 20, 33, 0.8);
+                    color: #9ec9ee;
+                    padding: 4px 8px;
+                }}
+                QPushButton#tabButton:checked {{
+                    background: rgba(32, 91, 142, 0.95);
+                    color: #ecf5ff;
+                }}
+                QFrame#panelFrame {{
+                    background: rgba(5, 14, 24, 0.72);
+                    border: 1px solid rgba(98, 149, 192, 0.35);
+                    border-radius: 6px;
+                }}
+                QLabel#panelTitle {{
+                    font-size: 14px;
+                    font-weight: 620;
+                    color: {theme.title_color};
+                }}
+                QPushButton#moveButton {{
+                    min-width: 24px;
+                    max-width: 24px;
+                    min-height: 20px;
+                    max-height: 20px;
+                    font-size: 11px;
+                    font-weight: 600;
+                    border: 1px solid rgba(89, 142, 190, 0.7);
+                    border-radius: 4px;
+                    background: rgba(18, 45, 70, 0.8);
+                    color: #cbe7ff;
+                }}
+                """
+    )
 
 
 def require_qt() -> None:
@@ -587,7 +598,7 @@ if _QT_IMPORT_ERROR is None:
                 self._panel_specs["render_surface"].title,
             )
 
-            self._render_status_label = QLabel("Render module integration pending.")
+            self._render_status_label = QLabel("Render bridge waiting for telemetry frame.")
             self._render_status_label.setObjectName("status")
             body_layout.addWidget(self._render_status_label)
 
@@ -595,88 +606,14 @@ if _QT_IMPORT_ERROR is None:
             self._render_timestamp_label.setObjectName("status")
             body_layout.addWidget(self._render_timestamp_label)
 
-            self._render_hint_label = QLabel("Telemetry flow is active while render adapter is pending.")
+            self._render_hint_label = QLabel("Top process feed waiting for telemetry rows.")
             self._render_hint_label.setObjectName("status")
             body_layout.addWidget(self._render_hint_label)
             body_layout.addStretch(1)
             return panel
 
         def _build_layout(self) -> None:
-            self.setStyleSheet(
-                """
-                QWidget {
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                        stop:0 #071320, stop:1 #0d2033);
-                    color: #d6ebff;
-                    font-family: Segoe UI;
-                }
-                QLabel#title {
-                    font-size: 28px;
-                    font-weight: 650;
-                    color: #f7fbff;
-                    padding-bottom: 6px;
-                }
-                QFrame#slotFrame {
-                    background: rgba(8, 22, 36, 0.62);
-                    border: 1px solid rgba(116, 172, 220, 0.45);
-                    border-radius: 8px;
-                }
-                QLabel#slotTitle {
-                    font-size: 12px;
-                    font-weight: 600;
-                    letter-spacing: 1px;
-                    color: #9dd9ff;
-                }
-                QPushButton#tabButton {
-                    font-size: 12px;
-                    border: 1px solid rgba(99, 154, 200, 0.5);
-                    border-radius: 6px;
-                    background: rgba(6, 20, 33, 0.8);
-                    color: #9ec9ee;
-                    padding: 4px 8px;
-                }
-                QPushButton#tabButton:checked {
-                    background: rgba(32, 91, 142, 0.95);
-                    color: #ecf5ff;
-                }
-                QFrame#panelFrame {
-                    background: rgba(5, 14, 24, 0.72);
-                    border: 1px solid rgba(98, 149, 192, 0.35);
-                    border-radius: 6px;
-                }
-                QLabel#panelTitle {
-                    font-size: 14px;
-                    font-weight: 620;
-                    color: #f5fbff;
-                }
-                QLabel#metric {
-                    font-size: 20px;
-                    font-weight: 500;
-                    color: #9dd9ff;
-                }
-                QLabel#status {
-                    font-size: 13px;
-                    color: #75b8ff;
-                }
-                QLabel#process {
-                    font-family: Consolas;
-                    font-size: 12px;
-                    color: #cfe8ff;
-                }
-                QPushButton#moveButton {
-                    min-width: 24px;
-                    max-width: 24px;
-                    min-height: 20px;
-                    max-height: 20px;
-                    font-size: 11px;
-                    font-weight: 600;
-                    border: 1px solid rgba(89, 142, 190, 0.7);
-                    border-radius: 4px;
-                    background: rgba(18, 45, 70, 0.8);
-                    color: #cbe7ff;
-                }
-                """
-            )
+            self.setStyleSheet(build_window_stylesheet())
             root_layout = QVBoxLayout(self)
             root_layout.setContentsMargins(20, 18, 20, 18)
             root_layout.setSpacing(12)
@@ -783,6 +720,12 @@ if _QT_IMPORT_ERROR is None:
             if latest_snapshot is None:
                 return
             self._render_snapshot(latest_snapshot)
+            self._render_status_label.setText(
+                format_render_panel_status(
+                    latest_snapshot,
+                    format_initial_status(self._recorder),
+                )
+            )
 
         def _render_snapshot(self, snapshot: SystemSnapshot) -> None:
             lines = format_snapshot_lines(snapshot)
@@ -814,12 +757,19 @@ if _QT_IMPORT_ERROR is None:
                 memory_percent=memory_percent,
             )
             self._render_snapshot(snapshot)
-            self._render_process_rows([str(row) for row in process_rows])
+            normalized_rows = [str(row) for row in process_rows]
+            self._render_process_rows(normalized_rows)
             self._status_label.setText(status_text)
+            self._render_status_label.setText(
+                format_render_panel_status(snapshot, status_text)
+            )
+            self._render_hint_label.setText(format_render_panel_hint(normalized_rows))
 
         @Slot(str)
         def _on_worker_error(self, message: str) -> None:
-            self._status_label.setText(f"Telemetry error: {message}")
+            error_text = f"Telemetry error: {message}"
+            self._status_label.setText(error_text)
+            self._render_status_label.setText(f"Render bridge paused | {error_text}")
 
         def closeEvent(self, event: QCloseEvent) -> None:
             self._worker.stop()

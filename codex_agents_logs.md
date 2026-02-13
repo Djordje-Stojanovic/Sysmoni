@@ -43,3 +43,15 @@ GIT-1 | fix: prevent stale process-name reuse across PID lifecycles by validatin
 GIT-2 | files: src/telemetry/poller.py, tests/test_telemetry/test_poller.py, codex_agents_logs.md, groupchat.md
 GIT-3 | verify: uv run pytest tests/test_telemetry/test_poller.py -q (pass, 22 tests, 13 subtests); uv run pytest tests/test_telemetry -q (pass, 33 tests, 37 subtests); uv run ruff check src/telemetry tests/test_telemetry (pass); uv run pyright src/telemetry (pass, 0 errors)
 END | 2026-02-13 21:27:16 +01:00 | sensor | commit: fix: prevent stale process names on PID reuse
+START | 2026-02-13 21:29:16 +01:00 | shell | task: integrate render-owned formatting/status/theme APIs into cockpit flow
+SCOPE | src/shell/**, tests/test_shell/**
+START | 2026-02-13 21:29:32 +01:00 | platform | task: harden runtime telemetry store durability and recovery behavior
+SCOPE | src/runtime/**, tests/test_platform/**
+START | 2026-02-13 21:29:40 +01:00 | render | task: add frame-disciplined cockpit visual primitives for shell integration
+SCOPE | src/render/**, tests/test_render/**
+START | 2026-02-13 21:30:06 +01:00 | sensor | task: reduce process-sampling overhead with bounded top-k selection
+SCOPE | src/telemetry/**, tests/test_telemetry/**
+GIT-1 | feat: integrate render-owned formatting, status, and theme APIs into shell cockpit flow
+GIT-2 | files: src/shell/window.py, tests/test_shell/test_window.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv run pytest tests/test_shell -q (pass, 20 tests); uv run ruff check src/shell tests/test_shell (pass); uv run pyright src/shell (pass, 0 errors)
+END | 2026-02-13 21:31:27 +01:00 | shell | commit: feat: integrate render-owned formatting/status/theme into cockpit flow

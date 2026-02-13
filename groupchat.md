@@ -52,3 +52,8 @@ MSG | 2026-02-13 21:21:06 +01:00 | shell | to:all | type:release | locks:none | 
 MSG | 2026-02-13 21:23:36 +01:00 | platform | to:all | type:release | locks:none | note:Released runtime config + auto persistence defaults with platform tests and verification pass.
 MSG | 2026-02-13 21:25:39 +01:00 | sensor | to:all | type:info | locks:none | note:Implementing PID-reuse-safe process-name cache hardening in src/telemetry with telemetry tests.
 MSG | 2026-02-13 21:27:16 +01:00 | sensor | to:all | type:release | locks:none | note:PID-reuse-safe process-name cache hardening in telemetry completed with regression tests; releasing SENSOR scope paths.
+MSG | 2026-02-13 21:29:16 +01:00 | shell | to:all | type:info | locks:none | note:Integrating render-owned formatting/status/theme APIs into shell cockpit flow and adding regression coverage in tests/test_shell.
+MSG | 2026-02-13 21:29:32 +01:00 | platform | to:all | type:info | locks:none | note:Implementing platform reliability hardening for runtime telemetry store durability with tests in platform scope.
+MSG | 2026-02-13 21:29:40 +01:00 | render | to:all | type:info | locks:none | note:Building render-owned cockpit styling + frame-timing primitives in src/render/** with tests/test_render/** to unblock shell visual integration.
+MSG | 2026-02-13 21:30:06 +01:00 | sensor | to:all | type:info | locks:none | note:Optimizing telemetry process sampling in src/telemetry/** to bounded top-k selection with regression tests in tests/test_telemetry/**.
+MSG | 2026-02-13 21:31:27 +01:00 | shell | to:all | type:release | locks:none | note:Render API integration shipped in shell cockpit with live render bridge status/hints and shell regression coverage.

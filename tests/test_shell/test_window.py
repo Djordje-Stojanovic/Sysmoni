@@ -534,6 +534,30 @@ class GuiWindowTests(unittest.TestCase):
         self.assertIn(" 2. worker", rows[1])
         self.assertEqual(rows[2], " 3. collecting process data...")
 
+    def test_render_panel_helpers_format_stream_bridge_text(self) -> None:
+        snapshot = SystemSnapshot(timestamp=0.0, cpu_percent=42.5, memory_percent=58.0)
+
+        self.assertEqual(
+            gui_window.format_render_panel_status(snapshot, "Streaming telemetry"),
+            "Render bridge live | CPU 42.5% | Memory 58.0% | Streaming telemetry",
+        )
+        self.assertEqual(
+            gui_window.format_render_panel_hint([]),
+            "Top process feed waiting for telemetry rows.",
+        )
+        self.assertEqual(
+            gui_window.format_render_panel_hint([" 1. worker  CPU   4.5%  RAM    2.0 MB"]),
+            "Top process | 1. worker  CPU   4.5%  RAM    2.0 MB",
+        )
+
+    def test_build_window_stylesheet_uses_render_theme_base_and_shell_controls(self) -> None:
+        stylesheet = gui_window.build_window_stylesheet()
+
+        self.assertIn(gui_window.DEFAULT_THEME.background_start, stylesheet)
+        self.assertIn(gui_window.DEFAULT_THEME.background_end, stylesheet)
+        self.assertIn("QPushButton#tabButton", stylesheet)
+        self.assertIn("QPushButton#moveButton", stylesheet)
+
     def test_build_default_dock_state_assigns_unique_panel_ids(self) -> None:
         panel_specs = gui_window.build_default_panel_specs()
         dock_state = gui_window.build_default_dock_state(panel_specs)
@@ -631,6 +655,14 @@ class GuiWindowTests(unittest.TestCase):
                 gui_window.format_process_rows([], row_count=3),
             )
             self.assertEqual(window._render_timestamp_label.text(), "Updated 00:00:00 UTC")
+            self.assertEqual(
+                window._render_status_label.text(),
+                "Render bridge live | CPU 12.5% | Memory 47.5% | Streaming telemetry",
+            )
+            self.assertEqual(
+                window._render_hint_label.text(),
+                "Top process | 1. collecting process data...",
+            )
         finally:
             window.close()
 
