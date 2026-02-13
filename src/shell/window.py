@@ -6,7 +6,8 @@ import os
 import pathlib
 import sys
 import threading
-from typing import Callable
+from dataclasses import dataclass
+from typing import Callable, Literal, cast
 
 SRC_ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(SRC_ROOT) not in sys.path:
@@ -21,7 +22,16 @@ _QT_IMPORT_ERROR: ImportError | None = None
 try:
     from PySide6.QtCore import QObject, Qt, QThread, Signal, Slot
     from PySide6.QtGui import QCloseEvent
-    from PySide6.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget
+    from PySide6.QtWidgets import (
+        QApplication,
+        QFrame,
+        QHBoxLayout,
+        QLabel,
+        QLayout,
+        QPushButton,
+        QVBoxLayout,
+        QWidget,
+    )
 except ImportError as exc:  # pragma: no cover - exercised in tests by monkeypatching
     _QT_IMPORT_ERROR = exc
 
@@ -50,6 +60,176 @@ def resolve_gui_db_path(env: dict[str, str] | None = None) -> str | None:
 
 DEFAULT_PROCESS_ROW_COUNT = 5
 _PROCESS_NAME_MAX_CHARS = 20
+
+DockSlot = Literal["left", "center", "right"]
+PanelId = Literal["telemetry_overview", "top_processes", "render_surface"]
+DOCK_SLOTS: tuple[DockSlot, ...] = ("left", "center", "right")
+PANEL_IDS: tuple[PanelId, ...] = (
+    "telemetry_overview",
+    "top_processes",
+    "render_surface",
+)
+
+
+@dataclass(slots=True)
+class PanelSpec:
+    panel_id: PanelId
+    title: str
+    slot: DockSlot
+
+
+@dataclass(slots=True)
+class DockState:
+    slot_tabs: dict[DockSlot, list[PanelId]]
+    active_tab: dict[DockSlot, int]
+
+
+def _validate_slot(slot: DockSlot | str) -> DockSlot:
+    if slot not in DOCK_SLOTS:
+        raise ValueError(f"Invalid dock slot: {slot}")
+    return cast(DockSlot, slot)
+
+
+def _validate_panel_id(panel_id: PanelId | str) -> PanelId:
+    if panel_id not in PANEL_IDS:
+        raise ValueError(f"Unknown panel: {panel_id}")
+    return cast(PanelId, panel_id)
+
+
+def _clone_dock_state(state: DockState) -> DockState:
+    return DockState(
+        slot_tabs={slot: list(state.slot_tabs.get(slot, [])) for slot in DOCK_SLOTS},
+        active_tab={slot: int(state.active_tab.get(slot, 0)) for slot in DOCK_SLOTS},
+    )
+
+
+def _clamp_active_index(active_index: int, tab_count: int) -> int:
+    if tab_count <= 0:
+        return 0
+    return max(0, min(active_index, tab_count - 1))
+
+
+def build_default_panel_specs() -> dict[PanelId, PanelSpec]:
+    return {
+        "telemetry_overview": PanelSpec(
+            panel_id="telemetry_overview",
+            title="Telemetry Overview",
+            slot="left",
+        ),
+        "top_processes": PanelSpec(
+            panel_id="top_processes",
+            title="Top Processes",
+            slot="center",
+        ),
+        "render_surface": PanelSpec(
+            panel_id="render_surface",
+            title="Render Surface",
+            slot="right",
+        ),
+    }
+
+
+def build_default_dock_state(
+    panel_specs: dict[PanelId, PanelSpec] | None = None,
+) -> DockState:
+    specs = build_default_panel_specs() if panel_specs is None else panel_specs
+    slot_tabs: dict[DockSlot, list[PanelId]] = {slot: [] for slot in DOCK_SLOTS}
+    for panel_id in PANEL_IDS:
+        panel_spec = specs[panel_id]
+        slot_tabs[panel_spec.slot].append(panel_id)
+    return DockState(
+        slot_tabs=slot_tabs,
+        active_tab={slot: 0 for slot in DOCK_SLOTS},
+    )
+
+
+def _find_panel_slot(
+    slot_tabs: dict[DockSlot, list[PanelId]],
+    panel_id: PanelId,
+) -> DockSlot | None:
+    for slot in DOCK_SLOTS:
+        if panel_id in slot_tabs.get(slot, []):
+            return slot
+    return None
+
+
+def move_panel(
+    state: DockState,
+    panel_id: PanelId,
+    to_slot: DockSlot,
+    to_index: int | None = None,
+) -> DockState:
+    if panel_id not in PANEL_IDS:
+        raise ValueError(f"Unknown panel: {panel_id}")
+
+    destination_slot = _validate_slot(to_slot)
+    next_state = _clone_dock_state(state)
+    source_slot = _find_panel_slot(next_state.slot_tabs, panel_id)
+    if source_slot is None:
+        raise ValueError(f"Panel is not docked: {panel_id}")
+
+    source_tabs = next_state.slot_tabs[source_slot]
+    source_tabs.remove(panel_id)
+    destination_tabs = next_state.slot_tabs[destination_slot]
+
+    if to_index is None:
+        insert_index = len(destination_tabs)
+    else:
+        if isinstance(to_index, bool):
+            raise ValueError("to_index must be an integer.")
+        insert_index = int(to_index)
+        if insert_index < 0 or insert_index > len(destination_tabs):
+            raise ValueError("to_index is outside the destination slot tab range.")
+
+    destination_tabs.insert(insert_index, panel_id)
+
+    for slot in DOCK_SLOTS:
+        next_state.active_tab[slot] = _clamp_active_index(
+            next_state.active_tab[slot],
+            len(next_state.slot_tabs[slot]),
+        )
+    next_state.active_tab[destination_slot] = _clamp_active_index(
+        insert_index,
+        len(destination_tabs),
+    )
+    return next_state
+
+
+def set_active_tab(
+    state: DockState,
+    slot: DockSlot,
+    tab_index: int,
+) -> DockState:
+    target_slot = _validate_slot(slot)
+    if isinstance(tab_index, bool):
+        raise ValueError("tab_index must be an integer.")
+
+    next_state = _clone_dock_state(state)
+    tabs = next_state.slot_tabs[target_slot]
+    index = int(tab_index)
+    if not tabs:
+        if index != 0:
+            raise ValueError("tab_index must be 0 for an empty slot.")
+        next_state.active_tab[target_slot] = 0
+        return next_state
+    if index < 0 or index >= len(tabs):
+        raise ValueError("tab_index is outside the slot tab range.")
+
+    next_state.active_tab[target_slot] = index
+    return next_state
+
+
+def get_active_panel(state: DockState, slot: DockSlot) -> PanelId | None:
+    target_slot = _validate_slot(slot)
+    tabs = state.slot_tabs.get(target_slot, [])
+    if not tabs:
+        return None
+
+    active_index = _clamp_active_index(
+        int(state.active_tab.get(target_slot, 0)),
+        len(tabs),
+    )
+    return tabs[active_index]
 
 
 def _truncate_process_name(name: str, *, max_chars: int = _PROCESS_NAME_MAX_CHARS) -> str:
@@ -264,19 +444,25 @@ if _QT_IMPORT_ERROR is None:
             db_path: str | None = None,
         ) -> None:
             super().__init__()
-            self.setWindowTitle("Aura | Telemetry")
-            self.setMinimumSize(540, 260)
+            self.setWindowTitle("Aura | Cockpit")
+            self.setMinimumSize(980, 560)
             self._process_row_count = (
                 process_row_count
                 if process_row_count > 0
                 else DEFAULT_PROCESS_ROW_COUNT
             )
             if collect_processes is None:
+
                 def _collect_processes() -> list[ProcessSample]:
                     return collect_top_processes(limit=self._process_row_count)
 
                 collect_processes = _collect_processes
             self._recorder = DvrRecorder(db_path)
+            self._panel_specs = build_default_panel_specs()
+            self._dock_state = build_default_dock_state(self._panel_specs)
+            self._panel_widgets: dict[PanelId, QWidget] = {}
+            self._slot_tab_layouts: dict[DockSlot, QHBoxLayout] = {}
+            self._slot_content_layouts: dict[DockSlot, QVBoxLayout] = {}
             self._build_layout()
             self._seed_latest_snapshot()
 
@@ -296,25 +482,124 @@ if _QT_IMPORT_ERROR is None:
             self._worker_thread.finished.connect(self._worker.deleteLater)
             self._worker_thread.start()
 
-        def _seed_latest_snapshot(self) -> None:
-            latest_snapshot = self._recorder.get_latest_snapshot()
-            if latest_snapshot is None:
-                return
-            self._render_snapshot(latest_snapshot)
+        @staticmethod
+        def _clear_layout(layout: QLayout, *, delete_widgets: bool) -> None:
+            while layout.count() > 0:
+                item = layout.takeAt(0)
+                if item is None:
+                    continue
+                child_layout = item.layout()
+                if child_layout is not None:
+                    AuraWindow._clear_layout(child_layout, delete_widgets=delete_widgets)
+                    continue
 
-        def _render_snapshot(self, snapshot: SystemSnapshot) -> None:
-            lines = format_snapshot_lines(snapshot)
-            self._cpu_label.setText(lines["cpu"])
-            self._memory_label.setText(lines["memory"])
-            self._timestamp_label.setText(lines["timestamp"])
+                widget = item.widget()
+                if widget is None:
+                    continue
+                if delete_widgets:
+                    widget.deleteLater()
+                else:
+                    widget.setParent(None)
 
-        def _render_process_rows(self, rows: list[str]) -> None:
-            normalized_rows = format_process_rows([], row_count=self._process_row_count)
-            for index, row in enumerate(rows[: self._process_row_count]):
-                normalized_rows[index] = row
+        def _build_panel(
+            self,
+            panel_id: PanelId,
+            title: str,
+        ) -> tuple[QFrame, QVBoxLayout]:
+            panel = QFrame()
+            panel.setObjectName("panelFrame")
+            panel_layout = QVBoxLayout(panel)
+            panel_layout.setContentsMargins(10, 10, 10, 10)
+            panel_layout.setSpacing(8)
 
-            for label, row in zip(self._process_labels, normalized_rows):
-                label.setText(row)
+            header_layout = QHBoxLayout()
+            header_layout.setSpacing(6)
+
+            title_label = QLabel(title)
+            title_label.setObjectName("panelTitle")
+            header_layout.addWidget(title_label)
+            header_layout.addStretch(1)
+
+            for slot in DOCK_SLOTS:
+                move_button = QPushButton(slot[0].upper())
+                move_button.setObjectName("moveButton")
+                move_button.setToolTip(f"Move panel to {slot.title()} slot")
+                move_button.clicked.connect(
+                    lambda _checked=False, pid=panel_id, destination=slot: self._move_panel(
+                        pid,
+                        destination,
+                    )
+                )
+                header_layout.addWidget(move_button)
+
+            panel_layout.addLayout(header_layout)
+
+            body_layout = QVBoxLayout()
+            body_layout.setContentsMargins(0, 0, 0, 0)
+            body_layout.setSpacing(6)
+            panel_layout.addLayout(body_layout)
+            panel_layout.addStretch(1)
+            return panel, body_layout
+
+        def _build_telemetry_panel(self) -> QWidget:
+            panel, body_layout = self._build_panel(
+                "telemetry_overview",
+                self._panel_specs["telemetry_overview"].title,
+            )
+
+            self._cpu_label = QLabel("CPU --.-%")
+            self._cpu_label.setObjectName("metric")
+            body_layout.addWidget(self._cpu_label)
+
+            self._memory_label = QLabel("Memory --.-%")
+            self._memory_label.setObjectName("metric")
+            body_layout.addWidget(self._memory_label)
+
+            self._timestamp_label = QLabel("Updated --:--:-- UTC")
+            self._timestamp_label.setObjectName("status")
+            body_layout.addWidget(self._timestamp_label)
+
+            self._status_label = QLabel(format_initial_status(self._recorder))
+            self._status_label.setObjectName("status")
+            body_layout.addWidget(self._status_label)
+            body_layout.addStretch(1)
+            return panel
+
+        def _build_processes_panel(self) -> QWidget:
+            panel, body_layout = self._build_panel(
+                "top_processes",
+                self._panel_specs["top_processes"].title,
+            )
+
+            self._process_labels = []
+            for row in format_process_rows([], row_count=self._process_row_count):
+                row_label = QLabel(row)
+                row_label.setObjectName("process")
+                self._process_labels.append(row_label)
+                body_layout.addWidget(row_label)
+
+            body_layout.addStretch(1)
+            return panel
+
+        def _build_render_panel(self) -> QWidget:
+            panel, body_layout = self._build_panel(
+                "render_surface",
+                self._panel_specs["render_surface"].title,
+            )
+
+            self._render_status_label = QLabel("Render module integration pending.")
+            self._render_status_label.setObjectName("status")
+            body_layout.addWidget(self._render_status_label)
+
+            self._render_timestamp_label = QLabel("Updated --:--:-- UTC")
+            self._render_timestamp_label.setObjectName("status")
+            body_layout.addWidget(self._render_timestamp_label)
+
+            self._render_hint_label = QLabel("Telemetry flow is active while render adapter is pending.")
+            self._render_hint_label.setObjectName("status")
+            body_layout.addWidget(self._render_hint_label)
+            body_layout.addStretch(1)
+            return panel
 
         def _build_layout(self) -> None:
             self.setStyleSheet(
@@ -326,12 +611,46 @@ if _QT_IMPORT_ERROR is None:
                     font-family: Segoe UI;
                 }
                 QLabel#title {
-                    font-size: 26px;
-                    font-weight: 600;
+                    font-size: 28px;
+                    font-weight: 650;
                     color: #f7fbff;
+                    padding-bottom: 6px;
+                }
+                QFrame#slotFrame {
+                    background: rgba(8, 22, 36, 0.62);
+                    border: 1px solid rgba(116, 172, 220, 0.45);
+                    border-radius: 8px;
+                }
+                QLabel#slotTitle {
+                    font-size: 12px;
+                    font-weight: 600;
+                    letter-spacing: 1px;
+                    color: #9dd9ff;
+                }
+                QPushButton#tabButton {
+                    font-size: 12px;
+                    border: 1px solid rgba(99, 154, 200, 0.5);
+                    border-radius: 6px;
+                    background: rgba(6, 20, 33, 0.8);
+                    color: #9ec9ee;
+                    padding: 4px 8px;
+                }
+                QPushButton#tabButton:checked {
+                    background: rgba(32, 91, 142, 0.95);
+                    color: #ecf5ff;
+                }
+                QFrame#panelFrame {
+                    background: rgba(5, 14, 24, 0.72);
+                    border: 1px solid rgba(98, 149, 192, 0.35);
+                    border-radius: 6px;
+                }
+                QLabel#panelTitle {
+                    font-size: 14px;
+                    font-weight: 620;
+                    color: #f5fbff;
                 }
                 QLabel#metric {
-                    font-size: 22px;
+                    font-size: 20px;
                     font-weight: 500;
                     color: #9dd9ff;
                 }
@@ -339,57 +658,146 @@ if _QT_IMPORT_ERROR is None:
                     font-size: 13px;
                     color: #75b8ff;
                 }
-                QLabel#section {
-                    font-size: 14px;
-                    font-weight: 600;
-                    color: #9dd9ff;
-                    margin-top: 8px;
-                }
                 QLabel#process {
                     font-family: Consolas;
                     font-size: 12px;
                     color: #cfe8ff;
                 }
+                QPushButton#moveButton {
+                    min-width: 24px;
+                    max-width: 24px;
+                    min-height: 20px;
+                    max-height: 20px;
+                    font-size: 11px;
+                    font-weight: 600;
+                    border: 1px solid rgba(89, 142, 190, 0.7);
+                    border-radius: 4px;
+                    background: rgba(18, 45, 70, 0.8);
+                    color: #cbe7ff;
+                }
                 """
             )
-            layout = QVBoxLayout(self)
-            layout.setContentsMargins(28, 24, 28, 24)
-            layout.setSpacing(10)
+            root_layout = QVBoxLayout(self)
+            root_layout.setContentsMargins(20, 18, 20, 18)
+            root_layout.setSpacing(12)
 
-            self._title_label = QLabel("Aura Live Telemetry")
+            self._title_label = QLabel("Aura Cockpit")
             self._title_label.setObjectName("title")
             self._title_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            layout.addWidget(self._title_label)
+            root_layout.addWidget(self._title_label)
 
-            self._cpu_label = QLabel("CPU --.-%")
-            self._cpu_label.setObjectName("metric")
-            layout.addWidget(self._cpu_label)
+            slots_layout = QHBoxLayout()
+            slots_layout.setSpacing(12)
+            root_layout.addLayout(slots_layout, 1)
 
-            self._memory_label = QLabel("Memory --.-%")
-            self._memory_label.setObjectName("metric")
-            layout.addWidget(self._memory_label)
+            for slot in DOCK_SLOTS:
+                slot_frame = QFrame()
+                slot_frame.setObjectName("slotFrame")
+                slot_layout = QVBoxLayout(slot_frame)
+                slot_layout.setContentsMargins(10, 10, 10, 10)
+                slot_layout.setSpacing(8)
 
-            self._timestamp_label = QLabel("Updated --:--:-- UTC")
-            self._timestamp_label.setObjectName("status")
-            layout.addWidget(self._timestamp_label)
+                slot_label = QLabel(slot.upper())
+                slot_label.setObjectName("slotTitle")
+                slot_layout.addWidget(slot_label)
 
-            self._status_label = QLabel("Collecting telemetry...")
-            self._status_label.setObjectName("status")
-            self._status_label.setText(format_initial_status(self._recorder))
-            layout.addWidget(self._status_label)
+                tab_layout = QHBoxLayout()
+                tab_layout.setSpacing(4)
+                slot_layout.addLayout(tab_layout)
+                self._slot_tab_layouts[slot] = tab_layout
 
-            self._process_section_label = QLabel("Top Processes")
-            self._process_section_label.setObjectName("section")
-            layout.addWidget(self._process_section_label)
+                content_layout = QVBoxLayout()
+                content_layout.setContentsMargins(0, 0, 0, 0)
+                content_layout.setSpacing(6)
+                slot_layout.addLayout(content_layout, 1)
+                self._slot_content_layouts[slot] = content_layout
 
-            self._process_labels: list[QLabel] = []
-            for row in format_process_rows([], row_count=self._process_row_count):
-                row_label = QLabel(row)
-                row_label.setObjectName("process")
-                self._process_labels.append(row_label)
-                layout.addWidget(row_label)
+                slots_layout.addWidget(slot_frame, 1)
 
-            layout.addStretch(1)
+            self._panel_widgets = {
+                "telemetry_overview": self._build_telemetry_panel(),
+                "top_processes": self._build_processes_panel(),
+                "render_surface": self._build_render_panel(),
+            }
+            self._render_dock_layout()
+
+        def _render_dock_layout(self) -> None:
+            for slot in DOCK_SLOTS:
+                tab_layout = self._slot_tab_layouts[slot]
+                content_layout = self._slot_content_layouts[slot]
+                self._clear_layout(tab_layout, delete_widgets=True)
+                self._clear_layout(content_layout, delete_widgets=False)
+
+                tabs = self._dock_state.slot_tabs.get(slot, [])
+                active_panel = get_active_panel(self._dock_state, slot)
+                if not tabs or active_panel is None:
+                    empty_label = QLabel("No panels docked")
+                    empty_label.setObjectName("status")
+                    content_layout.addWidget(empty_label)
+                    content_layout.addStretch(1)
+                    continue
+
+                active_index = _clamp_active_index(
+                    self._dock_state.active_tab.get(slot, 0),
+                    len(tabs),
+                )
+                for index, panel_id in enumerate(tabs):
+                    tab_button = QPushButton(self._panel_specs[panel_id].title)
+                    tab_button.setObjectName("tabButton")
+                    tab_button.setCheckable(True)
+                    tab_button.setChecked(index == active_index)
+                    tab_button.clicked.connect(
+                        lambda _checked=False, current_slot=slot, tab_index=index: self._activate_tab(
+                            current_slot,
+                            tab_index,
+                        )
+                    )
+                    tab_layout.addWidget(tab_button)
+                tab_layout.addStretch(1)
+
+                content_layout.addWidget(self._panel_widgets[active_panel], 1)
+
+        def _activate_tab(self, slot: str, tab_index: int) -> None:
+            try:
+                target_slot = _validate_slot(slot)
+                self._dock_state = set_active_tab(self._dock_state, target_slot, tab_index)
+            except ValueError:
+                return
+            self._render_dock_layout()
+
+        def _move_panel(self, panel_id: str, destination_slot: str) -> None:
+            try:
+                target_panel = _validate_panel_id(panel_id)
+                target_slot = _validate_slot(destination_slot)
+                self._dock_state = move_panel(
+                    self._dock_state,
+                    target_panel,
+                    target_slot,
+                )
+            except ValueError:
+                return
+            self._render_dock_layout()
+
+        def _seed_latest_snapshot(self) -> None:
+            latest_snapshot = self._recorder.get_latest_snapshot()
+            if latest_snapshot is None:
+                return
+            self._render_snapshot(latest_snapshot)
+
+        def _render_snapshot(self, snapshot: SystemSnapshot) -> None:
+            lines = format_snapshot_lines(snapshot)
+            self._cpu_label.setText(lines["cpu"])
+            self._memory_label.setText(lines["memory"])
+            self._timestamp_label.setText(lines["timestamp"])
+            self._render_timestamp_label.setText(lines["timestamp"])
+
+        def _render_process_rows(self, rows: list[str]) -> None:
+            normalized_rows = format_process_rows([], row_count=self._process_row_count)
+            for index, row in enumerate(rows[: self._process_row_count]):
+                normalized_rows[index] = row
+
+            for label, row in zip(self._process_labels, normalized_rows):
+                label.setText(row)
 
         @Slot(float, float, float, str, list)
         def _on_snapshot(

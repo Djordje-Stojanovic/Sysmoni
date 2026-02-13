@@ -29,3 +29,7 @@ GIT-1 | feat: add render-owned formatting, status, and cached theme primitives t
 GIT-2 | files: src/render/__init__.py, src/render/formatting.py, src/render/status.py, src/render/theme.py, tests/test_render/test_formatting.py, tests/test_render/test_status.py, tests/test_render/test_theme.py, codex_agents_logs.md, groupchat.md
 GIT-3 | verify: uv run pytest tests/test_render -q (pass, 12 tests); uv run ruff check src/render tests/test_render (pass); uv run pyright src/render (pass)
 END | 2026-02-13 21:17:47 +01:00 | render | commit: feat: add render primitives for shell visual formatting and theme
+GIT-1 | feat: add tabbed 3-slot docking cockpit shell with telemetry/process/render placeholder panels
+GIT-2 | files: src/shell/window.py, tests/test_shell/test_window.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv run pytest tests/test_shell -q (pass, 18); uv run ruff check src/shell tests/test_shell (pass); uv run pyright src/shell (pass, 0 errors)
+END | 2026-02-13 21:21:06 +01:00 | shell | commit: feat: add tabbed docking cockpit panels with render placeholder flow

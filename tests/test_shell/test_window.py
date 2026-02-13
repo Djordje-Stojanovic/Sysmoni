@@ -534,6 +534,106 @@ class GuiWindowTests(unittest.TestCase):
         self.assertIn(" 2. worker", rows[1])
         self.assertEqual(rows[2], " 3. collecting process data...")
 
+    def test_build_default_dock_state_assigns_unique_panel_ids(self) -> None:
+        panel_specs = gui_window.build_default_panel_specs()
+        dock_state = gui_window.build_default_dock_state(panel_specs)
+
+        assigned_panels = [
+            panel_id
+            for slot in gui_window.DOCK_SLOTS
+            for panel_id in dock_state.slot_tabs[slot]
+        ]
+        self.assertCountEqual(assigned_panels, list(gui_window.PANEL_IDS))
+        self.assertEqual(len(assigned_panels), len(set(assigned_panels)))
+        self.assertEqual(gui_window.get_active_panel(dock_state, "left"), "telemetry_overview")
+        self.assertEqual(gui_window.get_active_panel(dock_state, "center"), "top_processes")
+        self.assertEqual(gui_window.get_active_panel(dock_state, "right"), "render_surface")
+
+    def test_move_panel_relocates_panel_and_updates_active_tab(self) -> None:
+        state = gui_window.DockState(
+            slot_tabs={
+                "left": ["telemetry_overview", "top_processes"],
+                "center": [],
+                "right": ["render_surface"],
+            },
+            active_tab={"left": 1, "center": 0, "right": 0},
+        )
+
+        moved = gui_window.move_panel(
+            state,
+            "top_processes",
+            "right",
+            to_index=0,
+        )
+
+        self.assertEqual(moved.slot_tabs["left"], ["telemetry_overview"])
+        self.assertEqual(moved.slot_tabs["right"], ["top_processes", "render_surface"])
+        self.assertEqual(moved.active_tab["left"], 0)
+        self.assertEqual(moved.active_tab["right"], 0)
+        self.assertEqual(gui_window.get_active_panel(moved, "right"), "top_processes")
+
+    def test_move_panel_rejects_unknown_inputs(self) -> None:
+        state = gui_window.build_default_dock_state()
+
+        with self.assertRaises(ValueError):
+            gui_window.move_panel(state, "unknown_panel", "left")
+        with self.assertRaises(ValueError):
+            gui_window.move_panel(state, "telemetry_overview", "invalid_slot")
+        with self.assertRaises(ValueError):
+            gui_window.move_panel(state, "telemetry_overview", "left", to_index=99)
+
+    def test_set_active_tab_and_get_active_panel_validate_range(self) -> None:
+        state = gui_window.DockState(
+            slot_tabs={
+                "left": ["telemetry_overview", "top_processes"],
+                "center": [],
+                "right": ["render_surface"],
+            },
+            active_tab={"left": 0, "center": 0, "right": 0},
+        )
+
+        updated = gui_window.set_active_tab(state, "left", 1)
+        self.assertEqual(gui_window.get_active_panel(updated, "left"), "top_processes")
+
+        with self.assertRaises(ValueError):
+            gui_window.set_active_tab(updated, "left", 2)
+        with self.assertRaises(ValueError):
+            gui_window.set_active_tab(updated, "center", 1)
+
+    @unittest.skipIf(gui_window._QT_IMPORT_ERROR is not None, "PySide6 is unavailable")
+    def test_aura_window_move_panel_and_snapshot_updates_render_timestamp(self) -> None:
+        app = gui_window.QApplication.instance()
+        if app is None:
+            app = gui_window.QApplication([])
+        self.assertIsNotNone(app)
+
+        window = gui_window.AuraWindow(
+            interval_seconds=60.0,
+            collect=lambda: SystemSnapshot(timestamp=1.0, cpu_percent=10.0, memory_percent=20.0),
+            collect_processes=lambda: [],
+            process_row_count=3,
+            db_path=None,
+        )
+        try:
+            self.assertIn("telemetry_overview", window._dock_state.slot_tabs["left"])
+            self.assertIn("render_surface", window._dock_state.slot_tabs["right"])
+
+            window._move_panel("telemetry_overview", "right")
+
+            self.assertNotIn("telemetry_overview", window._dock_state.slot_tabs["left"])
+            self.assertIn("telemetry_overview", window._dock_state.slot_tabs["right"])
+
+            window._on_snapshot(
+                0.0,
+                12.5,
+                47.5,
+                "Streaming telemetry",
+                gui_window.format_process_rows([], row_count=3),
+            )
+            self.assertEqual(window._render_timestamp_label.text(), "Updated 00:00:00 UTC")
+        finally:
+            window.close()
+
     def test_require_qt_raises_runtime_error_when_qt_is_missing(self) -> None:
         original_error = gui_window._QT_IMPORT_ERROR
         gui_window._QT_IMPORT_ERROR = ImportError("No module named PySide6")
