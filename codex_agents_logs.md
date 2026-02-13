@@ -383,3 +383,8 @@ END | 2026-02-13 18:41:23 +01:00 | codex_singularity612 | free to work: src/core
 START | 2026-02-13 19:20:05 +01:00 | codex_aerion915 | task: add live top-process strip to GUI using existing process telemetry primitive
 LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/gui/window.py, tests/test_gui_window.py
 SCOPE | 2026-02-13 19:20:05 +01:00 | codex_aerion915 | coordination-only updates to codex_agents_logs.md and groupchat.md without locking those files per explicit user directive.
+GIT-1 | feat: add live Top Processes strip to the GUI telemetry window using existing process collector
+GIT-2 | files: src/gui/window.py, tests/test_gui_window.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv run pytest tests/test_gui_window.py -q (pass, 13 tests); uv run pytest tests/ -x -q (pass, 83 tests + 56 subtests); uv run ruff check src/ tests/ (pass); uv run pyright src/ (pass); git push origin main (pass)
+RISK | none.
+END | 2026-02-13 20:03:09 +01:00 | codex_aerion915 | free to work: src/gui/window.py, tests/test_gui_window.py | commit: feat: add live top-process strip to GUI telemetry window (b23001a)
