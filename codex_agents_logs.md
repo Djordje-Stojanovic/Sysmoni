@@ -59,3 +59,7 @@ GIT-1 | fix: degrade to live telemetry output when single-snapshot store writes 
 GIT-2 | files: src/runtime/main.py, tests/test_platform/test_main.py, codex_agents_logs.md, groupchat.md
 GIT-3 | verify: uv run pytest tests/test_platform -q (pass: 55 tests, 19 subtests); uv run ruff check src/runtime tests/test_platform (pass); uv run pyright src/runtime (pass, 0 errors)
 END | 2026-02-13 21:32:23 +01:00 | platform | commit: fix: keep one-shot telemetry output alive on store write failures
+GIT-1 | feat: add frame-disciplined compositor and dynamic cockpit theme primitives to unblock shell visual integration
+GIT-2 | files: src/render/__init__.py, src/render/animation.py, src/render/compositor.py, src/render/theme.py, tests/test_render/test_animation.py, tests/test_render/test_compositor.py, tests/test_render/test_theme.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv run pytest tests/test_render -q (pass, 25 tests); uv run ruff check src/render tests/test_render (pass); uv run pyright src/render (pass, 0 errors)
+END | 2026-02-13 21:33:52 +01:00 | render | commit: feat: add frame-disciplined compositor and dynamic cockpit theme primitives

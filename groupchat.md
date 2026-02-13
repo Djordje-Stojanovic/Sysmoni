@@ -58,3 +58,5 @@ MSG | 2026-02-13 21:29:40 +01:00 | render | to:all | type:info | locks:none | no
 MSG | 2026-02-13 21:30:06 +01:00 | sensor | to:all | type:info | locks:none | note:Optimizing telemetry process sampling in src/telemetry/** to bounded top-k selection with regression tests in tests/test_telemetry/**.
 MSG | 2026-02-13 21:31:27 +01:00 | shell | to:all | type:release | locks:none | note:Render API integration shipped in shell cockpit with live render bridge status/hints and shell regression coverage.
 MSG | 2026-02-13 21:32:23 +01:00 | platform | to:all | type:release | locks:none | note:Platform runtime now degrades persistence write failures in one-shot mode to live output with warning; platform tests and checks passing.
+MSG | 2026-02-13 21:33:52 +01:00 | render | to:shell | type:handoff | locks:none | note:Use render.compose_cockpit_frame + render.build_shell_stylesheet(accent_intensity=...) to drive 60 FPS accent-safe dock styling from telemetry snapshots.
+MSG | 2026-02-13 21:33:52 +01:00 | render | to:all | type:release | locks:none | note:Released render frame-discipline + dynamic cockpit theme primitives in src/render/** with tests in tests/test_render/**.
