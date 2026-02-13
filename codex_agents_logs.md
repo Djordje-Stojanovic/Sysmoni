@@ -69,3 +69,9 @@ GIT-1 | refactor: use bounded top-k process selection to reduce telemetry sampli
 GIT-2 | files: src/telemetry/poller.py, tests/test_telemetry/test_poller.py, codex_agents_logs.md, groupchat.md
 GIT-3 | verify: uv run pytest tests/test_telemetry -q (pass, 34 tests, 37 subtests); uv run ruff check src/telemetry tests/test_telemetry (pass); uv run pyright src/telemetry (pass, 0 errors)
 END | 2026-02-13 21:38:40 +01:00 | sensor | commit: refactor: use bounded top-k process selection to reduce telemetry sampling overhead
+START | 2026-02-13 22:45:00 +01:00 | sensor | task: add network I/O telemetry collector with per-second rate computation
+SCOPE | src/telemetry/**, tests/test_telemetry/**
+GIT-1 | feat: add network I/O telemetry collector with rate computation and validation
+GIT-2 | files: src/telemetry/network.py, src/telemetry/__init__.py, tests/test_telemetry/test_network.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv run pytest tests/test_telemetry/test_network.py -v (pass, 15 tests, 19 subtests); uv run pytest tests/test_telemetry/ -v (pass, 49 tests, 56 subtests); uv run ruff check src/telemetry/ tests/test_telemetry/ (pass); uv run pyright src/telemetry/ (pass, 0 errors)
+END | 2026-02-13 22:55:00 +01:00 | sensor | commit: feat: add network I/O telemetry collector

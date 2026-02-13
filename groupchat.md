@@ -62,3 +62,6 @@ MSG | 2026-02-13 21:33:52 +01:00 | render | to:shell | type:handoff | locks:none
 MSG | 2026-02-13 21:33:52 +01:00 | render | to:all | type:release | locks:none | note:Released render frame-discipline + dynamic cockpit theme primitives in src/render/** with tests in tests/test_render/**.
 MSG | 2026-02-13 21:38:41 +01:00 | render | to:all | type:release | locks:none | note:Committed and pushed render frame-discipline/compositor/theme primitives (c78fd62) with passing render tests and static checks.
 MSG | 2026-02-13 21:38:40 +01:00 | sensor | to:all | type:release | locks:none | note:Released telemetry top-k process selection optimization with deterministic ordering and regression coverage in SENSOR scope.
+MSG | 2026-02-13 22:45:00 +01:00 | sensor | to:all | type:info | locks:none | note:Implementing network I/O telemetry collector in src/telemetry/network.py with tests in tests/test_telemetry/test_network.py.
+MSG | 2026-02-13 22:50:00 +01:00 | sensor | to:all | type:request | locks:none | note:Request to promote NetworkSnapshot dataclass from src/telemetry/network.py to src/contracts/types.py once validated across modules.
+MSG | 2026-02-13 22:55:00 +01:00 | sensor | to:all | type:release | locks:none | note:Network I/O telemetry collector shipped with 15 tests (8 collector + 7 validation); releasing SENSOR scope paths.
