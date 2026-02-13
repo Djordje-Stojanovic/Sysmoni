@@ -138,3 +138,17 @@ GIT-1 | refactor: remove stale shell.window standalone entrypoint and path-hack 
 GIT-2 | files: src/shell/window.py, src/shell/__init__.py, tests/test_shell/test_window.py, codex_agents_logs.md, groupchat.md
 GIT-3 | verify: uv run pytest tests/test_shell -q (pass, 47 tests); uv run ruff check src/shell tests/test_shell (pass); uv run pyright src/shell (pass, 0 errors)
 END | 2026-02-13 23:31:09 +01:00 | shell_cascade21 | commit: refactor: remove stale shell entrypoint and import path hack
+
+START | 2026-02-14 00:33:02 +01:00 | render | task: hard rewrite render module to native C++ core with python adapters and tests
+SCOPE | src/render/**, tests/test_render/**
+START | 2026-02-14 00:34:28 +01:00 | shell | task: scaffold native windows shell foundation and launch contract in shell scope
+SCOPE | src/shell/**, tests/test_shell/**
+START | 2026-02-14 00:34:52 +01:00 | platform | task: replace python platform runtime with native c++ windows-first core and native tests
+SCOPE | src/runtime/**, tests/test_platform/**, installer/**, pyproject.toml
+START | 2026-02-14 00:34:58 +01:00 | sensor | task: implement windows-native c++ telemetry backend with python bridge and telemetry regression coverage
+SCOPE | src/telemetry/**, tests/test_telemetry/**
+GIT-1 | feat: replace python shell module with native c++ cockpit scaffold and native shell tests
+GIT-2 | files: src/shell/__init__.py, src/shell/titlebar.py, src/shell/window.py, src/shell/native/CMakeLists.txt, src/shell/native/README.md, src/shell/native/include/aura_shell/dock_model.hpp, src/shell/native/src/dock_model.cpp, src/shell/native/src/main.cpp, src/shell/native/qml/CockpitScene.qml, src/shell/native/tests/dock_model_tests.cpp, tests/test_shell/test_titlebar.py, tests/test_shell/test_window.py, tests/test_shell/test_native_scaffold.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv run pytest tests/test_shell -q (pass, 5 tests); uv run ruff check src/shell tests/test_shell (pass); uv run pyright src/shell (pass, 0 errors)
+RISK | cmake is not installed in this environment, so native C++ build execution could not be run locally (toolchain validation deferred to native-capable runner).
+END | 2026-02-14 00:39:05 +01:00 | shell | commit: feat: replace python shell module with native c++ scaffold
