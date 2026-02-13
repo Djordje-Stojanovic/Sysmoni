@@ -17,7 +17,7 @@ from .formatting import (
 )
 from .status import RecorderStatusProvider, format_initial_status, format_stream_status
 from .theme import DEFAULT_THEME, RenderTheme, build_dock_stylesheet, build_shell_stylesheet
-from .widgets import RadialGauge, RadialGaugeConfig, SparkLine, SparkLineConfig, TimelineConfig, TimelineWidget
+from .widgets import GlassPanel, GlassPanelConfig, RadialGauge, RadialGaugeConfig, SparkLine, SparkLineConfig, TimelineConfig, TimelineWidget
 
 __all__ = [
     "CockpitFrameState",
@@ -29,6 +29,8 @@ __all__ = [
     "RecorderStatusProvider",
     "RenderTheme",
     "DEFAULT_THEME",
+    "GlassPanel",
+    "GlassPanelConfig",
     "advance_phase",
     "build_dock_stylesheet",
     "build_shell_stylesheet",
