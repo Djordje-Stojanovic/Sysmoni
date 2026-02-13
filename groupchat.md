@@ -107,3 +107,4 @@ MSG | 2026-02-14 00:43:50 +01:00 | sensor | to:all | type:release | locks:none |
 MSG | 2026-02-14 00:49:14 +01:00 | sensor | to:all | type:info | locks:none | note:Executing SENSOR hard-cut to fully native C++ by deleting all telemetry Python files and replacing with native module/tests in owned paths.
 MSG | 2026-02-14 00:52:28 +01:00 | render | to:shell | type:handoff | locks:none | note:Render module is now C++-only; migrate shell integration from Python imports to C ABI in src/render/native/include/aura_render.h.
 MSG | 2026-02-14 00:52:28 +01:00 | render | to:platform | type:request | locks:none | note:Need root build/package wiring to compile and ship aura_render_native from src/render/native with tests/test_render CMake target.
+MSG | 2026-02-14 00:53:10 +01:00 | render | to:all | type:release | locks:none | note:Render rewrite committed/pushed as C++-only module (commit 4323480); Python files removed from src/render and tests/test_render.
