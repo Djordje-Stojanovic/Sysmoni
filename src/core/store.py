@@ -92,6 +92,8 @@ class TelemetryStore:
 
         try:
             self._initialize_schema()
+            with self._lock, self._connection:
+                self._prune_expired_locked()
         except Exception:
             self._connection.close()
             raise
@@ -145,6 +147,13 @@ class TelemetryStore:
         )
         self._connection.execute("DROP TABLE snapshots_legacy")
 
+    def _prune_expired_locked(self) -> None:
+        cutoff = float(self._now()) - self._retention_seconds
+        self._connection.execute(
+            "DELETE FROM snapshots WHERE timestamp < ?",
+            (cutoff,),
+        )
+
     def append(self, snapshot: SystemSnapshot) -> None:
         with self._lock, self._connection:
             self._connection.execute(
@@ -158,16 +167,13 @@ class TelemetryStore:
                 """,
                 (snapshot.timestamp, snapshot.cpu_percent, snapshot.memory_percent),
             )
-            cutoff = float(self._now()) - self._retention_seconds
-            self._connection.execute(
-                "DELETE FROM snapshots WHERE timestamp < ?",
-                (cutoff,),
-            )
+            self._prune_expired_locked()
 
     def latest(self, *, limit: int = 1) -> list[SystemSnapshot]:
         normalized_limit = _require_positive_limit(limit)
 
-        with self._lock:
+        with self._lock, self._connection:
+            self._prune_expired_locked()
             rows = self._connection.execute(
                 """
                 SELECT timestamp, cpu_percent, memory_percent
@@ -225,7 +231,8 @@ class TelemetryStore:
         if filters:
             where_clause = "WHERE " + " AND ".join(filters)
 
-        with self._lock:
+        with self._lock, self._connection:
+            self._prune_expired_locked()
             rows = self._connection.execute(
                 f"""
                 SELECT timestamp, cpu_percent, memory_percent
@@ -246,7 +253,8 @@ class TelemetryStore:
         ]
 
     def count(self) -> int:
-        with self._lock:
+        with self._lock, self._connection:
+            self._prune_expired_locked()
             row = self._connection.execute("SELECT COUNT(*) AS total FROM snapshots").fetchone()
 
         if row is None:

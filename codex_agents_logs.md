@@ -297,3 +297,8 @@ END | 2026-02-13 17:41:29 +01:00 | codex_forge329 | free to work: pyproject.toml
 
 START | 2026-02-13 17:41:32 +01:00 | codex_fluxhaven27 | task: enforce retention-window reads so stale snapshots are pruned before query use
 LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/core/store.py, tests/test_store.py
+GIT-1 | fix: enforce retention pruning on startup and read paths so stale telemetry cannot leak into DVR queries
+GIT-2 | files: src/core/store.py, tests/test_store.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: python -m unittest tests/test_store.py -v (pass, 13 tests); python -m unittest discover -s tests -v (pass, 58 tests)
+END | 2026-02-13 17:42:52 +01:00 | free to work: src/core/store.py, tests/test_store.py | commit: fix: enforce retention pruning for startup and read paths
+RISK | none.

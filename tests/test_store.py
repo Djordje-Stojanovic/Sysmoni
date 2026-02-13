@@ -222,6 +222,52 @@ class TelemetryStoreTests(unittest.TestCase):
 
         self.assertEqual([snapshot.timestamp for snapshot in snapshots], [106.0])
 
+    def test_latest_prunes_expired_rows_even_without_new_append(self) -> None:
+        current_time = 100.0
+
+        def _now() -> float:
+            return current_time
+
+        with TelemetryStore(":memory:", retention_seconds=5.0, now=_now) as store:
+            store.append(
+                SystemSnapshot(timestamp=100.0, cpu_percent=10.0, memory_percent=20.0)
+            )
+            self.assertEqual(store.count(), 1)
+
+            current_time = 106.0
+            snapshots = store.latest(limit=10)
+            self.assertEqual(snapshots, [])
+            self.assertEqual(store.count(), 0)
+
+    def test_store_prunes_expired_rows_during_startup(self) -> None:
+        tmpdir = PROJECT_ROOT / f"__store_startup_prune_{uuid.uuid4().hex}"
+        tmpdir.mkdir()
+        self.addCleanup(shutil.rmtree, tmpdir, True)
+
+        db_path = tmpdir / "telemetry.sqlite"
+        with TelemetryStore(
+            db_path,
+            retention_seconds=20.0,
+            now=lambda: 100.0,
+        ) as writer:
+            writer.append(
+                SystemSnapshot(timestamp=95.0, cpu_percent=10.0, memory_percent=20.0)
+            )
+            self.assertEqual(writer.count(), 1)
+
+        with TelemetryStore(
+            db_path,
+            retention_seconds=20.0,
+            now=lambda: 200.0,
+        ):
+            pass
+
+        with closing(sqlite3.connect(db_path)) as connection:
+            row = connection.execute("SELECT COUNT(*) FROM snapshots").fetchone()
+
+        self.assertIsNotNone(row)
+        self.assertEqual(row[0], 0)
+
 
 if __name__ == "__main__":
     unittest.main()
