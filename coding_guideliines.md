@@ -5,7 +5,7 @@ Mandatory execution checklist for every Codex session.
 ## Read Order
 
 1. `ai.md`
-2. `AGENTS_NEW.md`
+2. `AGENTS.MD`
 3. `ARCHITECTURE.md`
 4. `DISPATCH.md`
 5. `PARALLEL_OPS.md`
