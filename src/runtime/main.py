@@ -141,6 +141,11 @@ def build_parser() -> argparse.ArgumentParser:
             "Defaults to AURA_DB_PATH or platform app-data location."
         ),
     )
+    parser.add_argument(
+        "--gui",
+        action="store_true",
+        help="Launch the Aura GUI window instead of the CLI.",
+    )
     return parser
 
 
@@ -206,6 +211,25 @@ def _disable_store_after_write_failure(
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    if args.gui:
+        _GUI_CONFLICTS = ("watch", "latest", "since", "until", "json", "count")
+        for flag in _GUI_CONFLICTS:
+            if getattr(args, flag, None) not in (None, False):
+                parser.error(f"--gui cannot be used with --{flag.replace('_', '-')}")
+
+        from runtime.app import launch_gui
+
+        gui_argv: list[str] = []
+        if args.interval != 1.0:
+            gui_argv.extend(["--interval", str(args.interval)])
+        if args.no_persist:
+            gui_argv.append("--no-persist")
+        if args.retention_seconds is not None:
+            gui_argv.extend(["--retention-seconds", str(args.retention_seconds)])
+        if args.db_path is not None:
+            gui_argv.extend(["--db-path", args.db_path])
+        return launch_gui(gui_argv)
 
     if args.count is not None and not args.watch:
         parser.error("--count requires --watch")

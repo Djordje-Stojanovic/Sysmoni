@@ -1104,6 +1104,107 @@ class MainCliTests(unittest.TestCase):
         )
 
 
+class GuiFlagTests(unittest.TestCase):
+    def test_gui_with_watch_is_rejected(self) -> None:
+        stderr = io.StringIO()
+        with redirect_stdout(io.StringIO()), redirect_stderr(stderr):
+            with self.assertRaises(SystemExit) as ctx:
+                app_main.main(["--gui", "--watch"])
+        self.assertEqual(ctx.exception.code, 2)
+        self.assertIn("--gui cannot be used with --watch", stderr.getvalue())
+
+    def test_gui_with_latest_is_rejected(self) -> None:
+        stderr = io.StringIO()
+        with redirect_stdout(io.StringIO()), redirect_stderr(stderr):
+            with self.assertRaises(SystemExit) as ctx:
+                app_main.main(["--gui", "--latest", "5"])
+        self.assertEqual(ctx.exception.code, 2)
+        self.assertIn("--gui cannot be used with --latest", stderr.getvalue())
+
+    def test_gui_with_json_is_rejected(self) -> None:
+        stderr = io.StringIO()
+        with redirect_stdout(io.StringIO()), redirect_stderr(stderr):
+            with self.assertRaises(SystemExit) as ctx:
+                app_main.main(["--gui", "--json"])
+        self.assertEqual(ctx.exception.code, 2)
+        self.assertIn("--gui cannot be used with --json", stderr.getvalue())
+
+    def test_gui_with_since_is_rejected(self) -> None:
+        stderr = io.StringIO()
+        with redirect_stdout(io.StringIO()), redirect_stderr(stderr):
+            with self.assertRaises(SystemExit) as ctx:
+                app_main.main(["--gui", "--since", "100"])
+        self.assertEqual(ctx.exception.code, 2)
+        self.assertIn("--gui cannot be used with --since", stderr.getvalue())
+
+    def test_gui_with_until_is_rejected(self) -> None:
+        stderr = io.StringIO()
+        with redirect_stdout(io.StringIO()), redirect_stderr(stderr):
+            with self.assertRaises(SystemExit) as ctx:
+                app_main.main(["--gui", "--until", "200"])
+        self.assertEqual(ctx.exception.code, 2)
+        self.assertIn("--gui cannot be used with --until", stderr.getvalue())
+
+    def test_gui_with_count_is_rejected(self) -> None:
+        stderr = io.StringIO()
+        with redirect_stdout(io.StringIO()), redirect_stderr(stderr):
+            with self.assertRaises(SystemExit) as ctx:
+                app_main.main(["--gui", "--count", "5"])
+        self.assertEqual(ctx.exception.code, 2)
+        self.assertIn("--gui cannot be used with --count", stderr.getvalue())
+
+    def test_gui_dispatches_to_launch_gui(self) -> None:
+        captured_argv: list[list[str]] = []
+
+        def _mock_launch_gui(argv: list[str] | None = None) -> int:
+            captured_argv.append(list(argv) if argv is not None else [])
+            return 0
+
+        with patch("runtime.app.launch_gui", _mock_launch_gui):
+            code = app_main.main(["--gui"])
+        self.assertEqual(code, 0)
+        self.assertEqual(len(captured_argv), 1)
+        self.assertEqual(captured_argv[0], [])
+
+    def test_gui_forwards_interval(self) -> None:
+        captured_argv: list[list[str]] = []
+
+        def _mock_launch_gui(argv: list[str] | None = None) -> int:
+            captured_argv.append(list(argv) if argv is not None else [])
+            return 0
+
+        with patch("runtime.app.launch_gui", _mock_launch_gui):
+            code = app_main.main(["--gui", "--interval", "0.5"])
+        self.assertEqual(code, 0)
+        self.assertIn("--interval", captured_argv[0])
+        self.assertIn("0.5", captured_argv[0])
+
+    def test_gui_forwards_no_persist(self) -> None:
+        captured_argv: list[list[str]] = []
+
+        def _mock_launch_gui(argv: list[str] | None = None) -> int:
+            captured_argv.append(list(argv) if argv is not None else [])
+            return 0
+
+        with patch("runtime.app.launch_gui", _mock_launch_gui):
+            code = app_main.main(["--gui", "--no-persist"])
+        self.assertEqual(code, 0)
+        self.assertIn("--no-persist", captured_argv[0])
+
+    def test_gui_forwards_db_path(self) -> None:
+        captured_argv: list[list[str]] = []
+
+        def _mock_launch_gui(argv: list[str] | None = None) -> int:
+            captured_argv.append(list(argv) if argv is not None else [])
+            return 0
+
+        with patch("runtime.app.launch_gui", _mock_launch_gui):
+            code = app_main.main(["--gui", "--db-path", "/custom/db.sqlite"])
+        self.assertEqual(code, 0)
+        self.assertIn("--db-path", captured_argv[0])
+        self.assertIn("/custom/db.sqlite", captured_argv[0])
+
+
 if __name__ == "__main__":
     unittest.main()
 
