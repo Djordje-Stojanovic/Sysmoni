@@ -335,3 +335,12 @@ GIT-2 | files: src/gui/window.py, tests/test_gui_window.py, codex_agents_logs.md
 GIT-3 | verify: uv run pytest tests/test_gui_window.py -q (pass, 7 tests); uv run pytest tests/ -x (pass, 66 tests); uv run ruff check src/ tests/ (pass); uv run pyright src/ (pass); uv run python -c smoke preload check (pass, loaded=True)
 RISK | none.
 END | 2026-02-13 18:19:02 +01:00 | codex_vanta528 | free to work: src/gui/window.py, tests/test_gui_window.py | commit: feat: preload GUI labels from latest persisted DVR snapshot (53be867)
+
+START | 2026-02-13 18:23:14 +01:00 | codex_vectorpulse641 | task: move GUI DVR writes off UI thread into SnapshotWorker to preserve render-thread responsiveness
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/gui/window.py, tests/test_gui_window.py
+SCOPE | 2026-02-13 18:23:14 +01:00 | codex_vectorpulse641 | coordination-only updates to codex_agents_logs.md and groupchat.md without locking those files per explicit user directive.
+GIT-1 | fix: move GUI DVR writes to worker thread for non-blocking UI updates
+GIT-2 | files: src/gui/window.py, tests/test_gui_window.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv run pytest tests/test_gui_window.py -q (pass, 8 tests); uv run pytest tests/ -x -q (pass, 67 tests + 42 subtests); uv run ruff check src/ tests/ (pass); uv run pyright src/ (pass)
+RISK | none.
+END | 2026-02-13 18:24:51 +01:00 | codex_vectorpulse641 | free to work: src/gui/window.py, tests/test_gui_window.py | commit: fix: move GUI DVR writes to worker thread for non-blocking UI updates

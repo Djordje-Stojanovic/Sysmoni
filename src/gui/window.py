@@ -118,7 +118,7 @@ def require_qt() -> None:
 if _QT_IMPORT_ERROR is None:
 
     class SnapshotWorker(QObject):
-        snapshot_ready = Signal(float, float, float)
+        snapshot_ready = Signal(float, float, float, str)
         error = Signal(str)
         finished = Signal()
 
@@ -127,19 +127,23 @@ if _QT_IMPORT_ERROR is None:
             *,
             interval_seconds: float,
             collect: Callable[[], SystemSnapshot],
+            recorder: DvrRecorder,
         ) -> None:
             super().__init__()
             self._interval_seconds = interval_seconds
             self._collect = collect
+            self._recorder = recorder
             self._stop_event = threading.Event()
 
         @Slot()
         def run(self) -> None:
             def _on_snapshot(snapshot: SystemSnapshot) -> None:
+                self._recorder.append(snapshot)
                 self.snapshot_ready.emit(
                     snapshot.timestamp,
                     snapshot.cpu_percent,
                     snapshot.memory_percent,
+                    format_stream_status(self._recorder),
                 )
 
             try:
@@ -178,6 +182,7 @@ if _QT_IMPORT_ERROR is None:
             self._worker = SnapshotWorker(
                 interval_seconds=interval_seconds,
                 collect=collect,
+                recorder=self._recorder,
             )
             self._worker.moveToThread(self._worker_thread)
             self._worker_thread.started.connect(self._worker.run)
@@ -251,16 +256,21 @@ if _QT_IMPORT_ERROR is None:
             layout.addWidget(self._status_label)
             layout.addStretch(1)
 
-        @Slot(float, float, float)
-        def _on_snapshot(self, timestamp: float, cpu_percent: float, memory_percent: float) -> None:
+        @Slot(float, float, float, str)
+        def _on_snapshot(
+            self,
+            timestamp: float,
+            cpu_percent: float,
+            memory_percent: float,
+            status_text: str,
+        ) -> None:
             snapshot = SystemSnapshot(
                 timestamp=timestamp,
                 cpu_percent=cpu_percent,
                 memory_percent=memory_percent,
             )
             self._render_snapshot(snapshot)
-            self._recorder.append(snapshot)
-            self._status_label.setText(format_stream_status(self._recorder))
+            self._status_label.setText(status_text)
 
         @Slot(str)
         def _on_worker_error(self, message: str) -> None:

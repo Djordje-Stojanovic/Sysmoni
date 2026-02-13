@@ -120,6 +120,73 @@ class GuiWindowTests(unittest.TestCase):
         self.assertIn("disk full", recorder.error or "")
         self.assertIn("DVR unavailable", status)
 
+    @unittest.skipIf(gui_window._QT_IMPORT_ERROR is not None, "PySide6 is unavailable")
+    def test_snapshot_worker_persists_in_worker_thread_and_emits_status(self) -> None:
+        snapshot = SystemSnapshot(timestamp=1.0, cpu_percent=10.0, memory_percent=20.0)
+        emitted: list[tuple[float, float, float, str]] = []
+        errors: list[str] = []
+        finished: list[bool] = []
+
+        class _RecorderStub:
+            def __init__(self) -> None:
+                self.db_path = "telemetry.sqlite"
+                self.sample_count = 0
+                self.error: str | None = None
+                self.appended: list[SystemSnapshot] = []
+
+            def append(self, value: SystemSnapshot) -> None:
+                self.appended.append(value)
+                self.sample_count += 1
+
+        recorder = _RecorderStub()
+
+        def _run_polling_loop(
+            interval_seconds: float,
+            on_snapshot,
+            *,
+            stop_event,
+            collect,
+        ) -> int:
+            self.assertEqual(interval_seconds, 0.5)
+            self.assertFalse(stop_event.is_set())
+            on_snapshot(collect())
+            stop_event.set()
+            return 1
+
+        original_run_polling_loop = gui_window.run_polling_loop
+        gui_window.run_polling_loop = _run_polling_loop
+        try:
+            worker = gui_window.SnapshotWorker(
+                interval_seconds=0.5,
+                collect=lambda: snapshot,
+                recorder=recorder,
+            )
+            worker.snapshot_ready.connect(
+                lambda timestamp, cpu, memory, status: emitted.append(
+                    (timestamp, cpu, memory, status)
+                )
+            )
+            worker.error.connect(errors.append)
+            worker.finished.connect(lambda: finished.append(True))
+            worker.run()
+        finally:
+            gui_window.run_polling_loop = original_run_polling_loop
+
+        self.assertEqual(recorder.appended, [snapshot])
+        self.assertEqual(
+            emitted,
+            [
+                (
+                    1.0,
+                    10.0,
+                    20.0,
+                    "Streaming telemetry | DVR samples: 1",
+                )
+            ],
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(finished, [True])
+
     def test_format_status_functions_without_dvr_path(self) -> None:
         recorder = gui_window.DvrRecorder(None)
 
