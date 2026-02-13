@@ -182,6 +182,27 @@ def _redirect_stdout_to_devnull() -> None:
         os.close(devnull_fd)
 
 
+def _disable_store_after_write_failure(
+    store: TelemetryStore | None,
+    *,
+    error: Exception,
+    warning_emitted: bool,
+) -> tuple[TelemetryStore | None, bool]:
+    if store is None:
+        return None, warning_emitted
+
+    if not warning_emitted:
+        print(f"DVR persistence disabled: {error}", file=sys.stderr)
+        warning_emitted = True
+
+    try:
+        store.close()
+    except Exception:
+        pass
+
+    return None, warning_emitted
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -255,18 +276,11 @@ def main(argv: list[str] | None = None) -> int:
                     try:
                         store.append(snapshot)
                     except Exception as exc:
-                        if not store_warning_emitted:
-                            print(
-                                f"DVR persistence disabled: {exc}",
-                                file=sys.stderr,
-                            )
-                            store_warning_emitted = True
-                        try:
-                            store.close()
-                        except Exception:
-                            pass
-                        finally:
-                            store = None
+                        store, store_warning_emitted = _disable_store_after_write_failure(
+                            store,
+                            error=exc,
+                            warning_emitted=store_warning_emitted,
+                        )
                 _print_snapshot(
                     snapshot,
                     output_json=args.json,
@@ -288,7 +302,14 @@ def main(argv: list[str] | None = None) -> int:
 
         snapshot = collect_snapshot()
         if store is not None:
-            store.append(snapshot)
+            try:
+                store.append(snapshot)
+            except Exception as exc:
+                store, _ = _disable_store_after_write_failure(
+                    store,
+                    error=exc,
+                    warning_emitted=False,
+                )
         _print_snapshot(snapshot, output_json=args.json)
         return 0
     except _ClosedOutputStreamError:

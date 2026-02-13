@@ -440,6 +440,51 @@ class MainCliTests(unittest.TestCase):
         self.assertEqual(store.appended, [snapshot])
         self.assertTrue(store.closed)
 
+    def test_main_continues_when_single_snapshot_store_write_fails(self) -> None:
+        snapshot = SystemSnapshot(timestamp=10.5, cpu_percent=12.5, memory_percent=42.0)
+        created_stores: list[object] = []
+
+        class _StoreStub:
+            def __init__(self, db_path: str, retention_seconds: float) -> None:
+                self.db_path = db_path
+                self.retention_seconds = retention_seconds
+                self.append_attempts = 0
+                self.closed = False
+                created_stores.append(self)
+
+            def append(self, _snapshot: SystemSnapshot) -> None:
+                self.append_attempts += 1
+                raise OSError("disk full")
+
+            def close(self) -> None:
+                self.closed = True
+
+        original_collect_snapshot = app_main.collect_snapshot
+        original_telemetry_store = app_main.TelemetryStore
+        app_main.collect_snapshot = lambda: snapshot
+        app_main.TelemetryStore = _StoreStub
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        try:
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                code = app_main.main(["--json", "--db-path", "telemetry.sqlite"])
+        finally:
+            app_main.collect_snapshot = original_collect_snapshot
+            app_main.TelemetryStore = original_telemetry_store
+
+        self.assertEqual(code, 0)
+        self.assertEqual(
+            stdout.getvalue().strip(),
+            '{"cpu_percent": 12.5, "memory_percent": 42.0, "timestamp": 10.5}',
+        )
+        self.assertIn("DVR persistence disabled: disk full", stderr.getvalue())
+        self.assertEqual(len(created_stores), 1)
+        store = created_stores[0]
+        self.assertEqual(store.db_path, "telemetry.sqlite")
+        self.assertEqual(store.retention_seconds, 86400.0)
+        self.assertEqual(store.append_attempts, 1)
+        self.assertTrue(store.closed)
+
     def test_main_no_persist_skips_store_creation(self) -> None:
         snapshot = SystemSnapshot(timestamp=10.5, cpu_percent=12.5, memory_percent=42.0)
 

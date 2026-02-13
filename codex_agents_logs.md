@@ -55,3 +55,7 @@ GIT-1 | feat: integrate render-owned formatting, status, and theme APIs into she
 GIT-2 | files: src/shell/window.py, tests/test_shell/test_window.py, codex_agents_logs.md, groupchat.md
 GIT-3 | verify: uv run pytest tests/test_shell -q (pass, 20 tests); uv run ruff check src/shell tests/test_shell (pass); uv run pyright src/shell (pass, 0 errors)
 END | 2026-02-13 21:31:27 +01:00 | shell | commit: feat: integrate render-owned formatting/status/theme into cockpit flow
+GIT-1 | fix: degrade to live telemetry output when single-snapshot store writes fail to improve runtime durability
+GIT-2 | files: src/runtime/main.py, tests/test_platform/test_main.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv run pytest tests/test_platform -q (pass: 55 tests, 19 subtests); uv run ruff check src/runtime tests/test_platform (pass); uv run pyright src/runtime (pass, 0 errors)
+END | 2026-02-13 21:32:23 +01:00 | platform | commit: fix: keep one-shot telemetry output alive on store write failures
