@@ -10,12 +10,6 @@ dependencies = [
     "wmi>=1.5.1; sys_platform == 'win32'",
 ]
 
-[project.scripts]
-aura = "runtime.main:main"
-
-[project.gui-scripts]
-aura-gui = "runtime.app:launch_gui"
-
 [dependency-groups]
 dev = [
     "pyright>=1.1.406",
@@ -36,7 +30,6 @@ packages = [
     "src/core",
     "src/gui",
     "src/render",
-    "src/runtime",
     "src/shell",
     "src/telemetry",
 ]

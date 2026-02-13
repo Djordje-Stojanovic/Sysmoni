@@ -152,3 +152,12 @@ GIT-2 | files: src/shell/__init__.py, src/shell/titlebar.py, src/shell/window.py
 GIT-3 | verify: uv run pytest tests/test_shell -q (pass, 5 tests); uv run ruff check src/shell tests/test_shell (pass); uv run pyright src/shell (pass, 0 errors)
 RISK | cmake is not installed in this environment, so native C++ build execution could not be run locally (toolchain validation deferred to native-capable runner).
 END | 2026-02-14 00:39:05 +01:00 | shell | commit: feat: replace python shell module with native c++ scaffold
+GIT-1 | feat: replace platform module with 100% native c++ runtime and native tests
+GIT-2 | files: src/runtime/** (python removed, native c++ added), tests/test_platform/** (python tests removed, native tests added), installer/windows/build_platform_native.ps1, pyproject.toml, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: Get-ChildItem runtime -Recurse -Filter *.py (no output); uv run ruff check runtime tests/test_platform (pass, no python files); powershell -File tests/test_platform/run_native_tests.ps1 (fail: cmake not installed)
+RISK | Native C++ compile/test could not be executed locally because cmake is unavailable in this environment.
+END | 2026-02-14 00:43:50 +01:00 | platform | commit: feat: replace platform module with 100% native c++ runtime and tests
+GIT-2 | files: src/telemetry/poller.py, src/telemetry/disk.py, src/telemetry/network.py, src/telemetry/thermal.py, src/telemetry/native_backend.py, src/telemetry/native/include/telemetry_abi.h, src/telemetry/native/src/aura_telemetry_native.cpp, src/telemetry/native/build.ps1, src/telemetry/native/CMakeLists.txt, tests/test_telemetry/test_poller.py, tests/test_telemetry/test_disk.py, tests/test_telemetry/test_network.py, tests/test_telemetry/test_thermal.py, tests/test_telemetry/test_native_backend.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv run pytest tests/test_telemetry -q (pass, 131 tests, 77 subtests); uv run ruff check src/telemetry tests/test_telemetry (pass); uv run pyright src/telemetry (pass, 0 errors)
+RISK | native binary build currently blocked in this shell because cl.exe is unavailable; src/telemetry/native/build.ps1 fails until Visual Studio Build Tools are installed and Developer PowerShell is used.
+END | 2026-02-14 00:43:50 +01:00 | sensor | commit: feat: add windows native telemetry backend and native-first bridge
