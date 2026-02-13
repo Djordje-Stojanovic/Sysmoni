@@ -136,6 +136,41 @@ class CollectNetworkSnapshotTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             collect_network_snapshot(now=lambda: 1.0)
 
+    def test_collect_network_snapshot_prefers_native_backend_when_available(self) -> None:
+        original_native_collect = network.native_backend.collect_network_counters
+        original_psutil = network.psutil
+        network.psutil = None
+        native_values = iter(
+            [
+                network.native_backend.NativeNetworkCounters(
+                    bytes_sent=1000,
+                    bytes_recv=2000,
+                    packets_sent=10,
+                    packets_recv=20,
+                ),
+                network.native_backend.NativeNetworkCounters(
+                    bytes_sent=4000,
+                    bytes_recv=5000,
+                    packets_sent=40,
+                    packets_recv=60,
+                ),
+            ]
+        )
+        network.native_backend.collect_network_counters = lambda: next(native_values)
+        times = iter([100.0, 103.0])
+        try:
+            first = collect_network_snapshot(now=lambda: next(times))
+            second = collect_network_snapshot(now=lambda: next(times))
+        finally:
+            network.native_backend.collect_network_counters = original_native_collect
+            network.psutil = original_psutil
+
+        self.assertEqual(first.bytes_sent_per_sec, 0.0)
+        self.assertEqual(second.bytes_sent_per_sec, 1000.0)
+        self.assertEqual(second.bytes_recv_per_sec, 1000.0)
+        self.assertEqual(second.packets_sent_per_sec, 10.0)
+        self.assertAlmostEqual(second.packets_recv_per_sec, 13.3333333333, places=6)
+
     def test_custom_now_callable_used_for_timestamp(self) -> None:
         stub = _PsutilNetStub([
             _NetIOStub(bytes_sent=0, bytes_recv=0, packets_sent=0, packets_recv=0),

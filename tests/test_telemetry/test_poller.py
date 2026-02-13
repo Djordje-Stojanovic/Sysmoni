@@ -161,6 +161,29 @@ class CollectSnapshotTests(unittest.TestCase):
         self.assertEqual(stub.cpu_intervals.count(0.1), 1)
         self.assertEqual(stub.cpu_intervals.count(None), worker_count - 1)
 
+    def test_collect_snapshot_prefers_native_backend_when_available(self) -> None:
+        original_native_collect = poller.native_backend.collect_system_snapshot
+        original_psutil = poller.psutil
+        original_primed = poller._cpu_percent_primed
+        poller.psutil = None
+        poller._cpu_percent_primed = False
+        poller.native_backend.collect_system_snapshot = (
+            lambda: poller.native_backend.NativeSystemSnapshot(
+                cpu_percent=12.5,
+                memory_percent=43.0,
+            )
+        )
+        try:
+            snapshot = poller.collect_snapshot(now=lambda: 50.0)
+        finally:
+            poller.native_backend.collect_system_snapshot = original_native_collect
+            poller.psutil = original_psutil
+            poller._cpu_percent_primed = original_primed
+
+        self.assertEqual(snapshot.timestamp, 50.0)
+        self.assertEqual(snapshot.cpu_percent, 12.5)
+        self.assertEqual(snapshot.memory_percent, 43.0)
+
 
 class CollectTopProcessesTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -505,6 +528,43 @@ class CollectTopProcessesTests(unittest.TestCase):
                 )
             ],
         )
+
+    def test_collect_top_processes_prefers_native_backend_when_available(self) -> None:
+        original_native_collect = poller.native_backend.collect_process_samples
+        original_psutil = poller.psutil
+        poller.psutil = None
+
+        def _collect_native(*, limit: int = 20) -> list[poller.native_backend.NativeProcessSample]:
+            self.assertEqual(limit, 2)
+            return [
+                poller.native_backend.NativeProcessSample(
+                    pid=30,
+                    name="gamma",
+                    cpu_percent=20.0,
+                    memory_rss_bytes=300,
+                ),
+                poller.native_backend.NativeProcessSample(
+                    pid=10,
+                    name="alpha",
+                    cpu_percent=20.0,
+                    memory_rss_bytes=300,
+                ),
+                poller.native_backend.NativeProcessSample(
+                    pid=20,
+                    name="beta",
+                    cpu_percent=30.0,
+                    memory_rss_bytes=200,
+                ),
+            ]
+
+        poller.native_backend.collect_process_samples = _collect_native
+        try:
+            samples = poller.collect_top_processes(limit=2)
+        finally:
+            poller.native_backend.collect_process_samples = original_native_collect
+            poller.psutil = original_psutil
+
+        self.assertEqual([sample.pid for sample in samples], [20, 10])
 
 
 class RunPollingLoopTests(unittest.TestCase):

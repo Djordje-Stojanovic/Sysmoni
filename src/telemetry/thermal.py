@@ -6,6 +6,8 @@ import time
 from dataclasses import asdict, dataclass
 from typing import Callable
 
+from . import native_backend
+
 try:
     import psutil
 except ImportError:
@@ -46,7 +48,6 @@ class ThermalReading:
     critical_celsius: float | None
 
     def __post_init__(self) -> None:
-        # label
         if not isinstance(self.label, str):
             raise TypeError("label must be a string.")
         label = self.label.strip()
@@ -54,7 +55,6 @@ class ThermalReading:
             raise ValueError("label must not be empty.")
         object.__setattr__(self, "label", label)
 
-        # current_celsius
         current = _validate_finite_float(self.current_celsius, "current_celsius")
         if current < _CELSIUS_MIN or current > _CELSIUS_MAX:
             raise ValueError(
@@ -62,7 +62,6 @@ class ThermalReading:
             )
         object.__setattr__(self, "current_celsius", current)
 
-        # high / critical
         high = _normalize_optional_celsius(self.high_celsius, "high_celsius")
         object.__setattr__(self, "high_celsius", high)
 
@@ -90,11 +89,33 @@ class ThermalSnapshot:
         return asdict(self)
 
 
-# ---------------------------------------------------------------------------
-# Collection
-# ---------------------------------------------------------------------------
-
 _thermal_collection_lock = threading.Lock()
+
+
+def _try_collect_native() -> list[ThermalReading]:
+    """Attempt to collect thermal readings via native backend."""
+    try:
+        native_readings = native_backend.collect_thermal_readings()
+    except RuntimeError:
+        return []
+
+    if native_readings is None:
+        return []
+
+    readings: list[ThermalReading] = []
+    for native_reading in native_readings:
+        try:
+            readings.append(
+                ThermalReading(
+                    label=native_reading.label,
+                    current_celsius=native_reading.current_celsius,
+                    high_celsius=native_reading.high_celsius,
+                    critical_celsius=native_reading.critical_celsius,
+                )
+            )
+        except (TypeError, ValueError):
+            continue
+    return readings
 
 
 def _try_collect_psutil() -> list[ThermalReading]:
@@ -116,7 +137,6 @@ def _try_collect_psutil() -> list[ThermalReading]:
         for entry in entries:
             label = entry.label or group_name
             current = entry.current
-            # skip bad values
             if not isinstance(current, (int, float)) or isinstance(current, bool):
                 continue
             if not math.isfinite(current):
@@ -128,14 +148,22 @@ def _try_collect_psutil() -> list[ThermalReading]:
             if high is not None:
                 if isinstance(high, bool) or not isinstance(high, (int, float)):
                     high = None
-                elif not math.isfinite(high) or high < _CELSIUS_MIN or high > _CELSIUS_OPTIONAL_MAX:
+                elif (
+                    not math.isfinite(high)
+                    or high < _CELSIUS_MIN
+                    or high > _CELSIUS_OPTIONAL_MAX
+                ):
                     high = None
 
             critical: float | None = getattr(entry, "critical", None)
             if critical is not None:
                 if isinstance(critical, bool) or not isinstance(critical, (int, float)):
                     critical = None
-                elif not math.isfinite(critical) or critical < _CELSIUS_MIN or critical > _CELSIUS_OPTIONAL_MAX:
+                elif (
+                    not math.isfinite(critical)
+                    or critical < _CELSIUS_MIN
+                    or critical > _CELSIUS_OPTIONAL_MAX
+                ):
                     critical = None
 
             readings.append(
@@ -193,13 +221,15 @@ def collect_thermal_snapshot(
 ) -> ThermalSnapshot:
     """Collect thermal readings from all available sources.
 
-    Never raises — degrades gracefully to an empty snapshot.
+    Never raises and degrades gracefully to an empty snapshot.
     """
     current_time = time.time if now is None else now
     ts = float(current_time())
 
     with _thermal_collection_lock:
-        readings = _try_collect_psutil()
+        readings = _try_collect_native()
+        if not readings:
+            readings = _try_collect_psutil()
         if not readings:
             readings = _try_collect_wmi()
 

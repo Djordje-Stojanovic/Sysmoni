@@ -6,6 +6,8 @@ import time
 from dataclasses import asdict, dataclass
 from typing import Callable
 
+from . import native_backend
+
 try:
     import psutil
 except ImportError:
@@ -98,30 +100,46 @@ def _reset_network_state() -> None:
 def collect_network_snapshot(
     now: Callable[[], float] | None = None,
 ) -> NetworkSnapshot:
-    """Collect a single network telemetry snapshot using psutil."""
-    if psutil is None:
-        raise RuntimeError(
-            "psutil is required to collect telemetry. Install dependencies first."
-        )
-
+    """Collect a single network telemetry snapshot using native or psutil collectors."""
     global _prev_counters
     current_time = time.time if now is None else now
     ts = float(current_time())
 
-    counters = psutil.net_io_counters(pernic=False)
-    if counters is None:
-        raise RuntimeError(
-            "net_io_counters() returned None. Network I/O stats may not be "
-            "available on this platform."
-        )
+    raw: _RawCounters
+    try:
+        native_counters = native_backend.collect_network_counters()
+    except RuntimeError:
+        native_counters = None
 
-    raw = _RawCounters(
-        timestamp=ts,
-        bytes_sent=counters.bytes_sent,
-        bytes_recv=counters.bytes_recv,
-        packets_sent=counters.packets_sent,
-        packets_recv=counters.packets_recv,
-    )
+    if native_counters is not None:
+        raw = _RawCounters(
+            timestamp=ts,
+            bytes_sent=native_counters.bytes_sent,
+            bytes_recv=native_counters.bytes_recv,
+            packets_sent=native_counters.packets_sent,
+            packets_recv=native_counters.packets_recv,
+        )
+    else:
+        if psutil is None:
+            raise RuntimeError(
+                "native telemetry unavailable and psutil is missing; install dependencies "
+                "or build src/telemetry/native/bin/aura_telemetry_native.dll."
+            )
+
+        counters = psutil.net_io_counters(pernic=False)
+        if counters is None:
+            raise RuntimeError(
+                "net_io_counters() returned None. Network I/O stats may not be "
+                "available on this platform."
+            )
+
+        raw = _RawCounters(
+            timestamp=ts,
+            bytes_sent=counters.bytes_sent,
+            bytes_recv=counters.bytes_recv,
+            packets_sent=counters.packets_sent,
+            packets_recv=counters.packets_recv,
+        )
 
     with _prev_counters_lock:
         prev = _prev_counters
@@ -140,7 +158,12 @@ def collect_network_snapshot(
             d_packets_sent = raw.packets_sent - prev.packets_sent
             d_packets_recv = raw.packets_recv - prev.packets_recv
 
-            if d_bytes_sent >= 0 and d_bytes_recv >= 0 and d_packets_sent >= 0 and d_packets_recv >= 0:
+            if (
+                d_bytes_sent >= 0
+                and d_bytes_recv >= 0
+                and d_packets_sent >= 0
+                and d_packets_recv >= 0
+            ):
                 bytes_sent_per_sec = d_bytes_sent / elapsed
                 bytes_recv_per_sec = d_bytes_recv / elapsed
                 packets_sent_per_sec = d_packets_sent / elapsed

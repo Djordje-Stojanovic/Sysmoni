@@ -201,9 +201,28 @@ class ThermalSnapshotValidationTests(unittest.TestCase):
 class CollectThermalSnapshotPsutilTests(unittest.TestCase):
     def setUp(self) -> None:
         self._original_psutil = thermal.psutil
+        self._original_native_collect = thermal.native_backend.collect_thermal_readings
 
     def tearDown(self) -> None:
         thermal.psutil = self._original_psutil
+        thermal.native_backend.collect_thermal_readings = self._original_native_collect
+
+    def test_native_backend_preferred_when_available(self) -> None:
+        thermal.psutil = None
+        thermal.native_backend.collect_thermal_readings = lambda: [
+            thermal.native_backend.NativeThermalReading(
+                label="CPU",
+                current_celsius=66.0,
+                high_celsius=90.0,
+                critical_celsius=100.0,
+            )
+        ]
+
+        snap = collect_thermal_snapshot(now=lambda: 9.0)
+        self.assertEqual(snap.timestamp, 9.0)
+        self.assertEqual(len(snap.readings), 1)
+        self.assertEqual(snap.readings[0].label, "CPU")
+        self.assertEqual(snap.hottest_celsius, 66.0)
 
     def test_single_sensor_group(self) -> None:
         stub = _PsutilThermalStub({

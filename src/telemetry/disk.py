@@ -6,6 +6,8 @@ import time
 from dataclasses import asdict, dataclass
 from typing import Callable
 
+from . import native_backend
+
 try:
     import psutil
 except ImportError:
@@ -98,30 +100,46 @@ def _reset_disk_state() -> None:
 def collect_disk_snapshot(
     now: Callable[[], float] | None = None,
 ) -> DiskSnapshot:
-    """Collect a single disk I/O telemetry snapshot using psutil."""
-    if psutil is None:
-        raise RuntimeError(
-            "psutil is required to collect telemetry. Install dependencies first."
-        )
-
+    """Collect a single disk I/O telemetry snapshot using native or psutil collectors."""
     global _prev_disk_counters
     current_time = time.time if now is None else now
     ts = float(current_time())
 
-    counters = psutil.disk_io_counters(perdisk=False)
-    if counters is None:
-        raise RuntimeError(
-            "disk_io_counters() returned None. Disk I/O stats may not be "
-            "available on this platform."
-        )
+    raw: _RawDiskCounters
+    try:
+        native_counters = native_backend.collect_disk_counters()
+    except RuntimeError:
+        native_counters = None
 
-    raw = _RawDiskCounters(
-        timestamp=ts,
-        read_bytes=counters.read_bytes,
-        write_bytes=counters.write_bytes,
-        read_count=counters.read_count,
-        write_count=counters.write_count,
-    )
+    if native_counters is not None:
+        raw = _RawDiskCounters(
+            timestamp=ts,
+            read_bytes=native_counters.read_bytes,
+            write_bytes=native_counters.write_bytes,
+            read_count=native_counters.read_count,
+            write_count=native_counters.write_count,
+        )
+    else:
+        if psutil is None:
+            raise RuntimeError(
+                "native telemetry unavailable and psutil is missing; install dependencies "
+                "or build src/telemetry/native/bin/aura_telemetry_native.dll."
+            )
+
+        counters = psutil.disk_io_counters(perdisk=False)
+        if counters is None:
+            raise RuntimeError(
+                "disk_io_counters() returned None. Disk I/O stats may not be "
+                "available on this platform."
+            )
+
+        raw = _RawDiskCounters(
+            timestamp=ts,
+            read_bytes=counters.read_bytes,
+            write_bytes=counters.write_bytes,
+            read_count=counters.read_count,
+            write_count=counters.write_count,
+        )
 
     with _prev_disk_counters_lock:
         prev = _prev_disk_counters
@@ -140,7 +158,12 @@ def collect_disk_snapshot(
             d_read_count = raw.read_count - prev.read_count
             d_write_count = raw.write_count - prev.write_count
 
-            if d_read_bytes >= 0 and d_write_bytes >= 0 and d_read_count >= 0 and d_write_count >= 0:
+            if (
+                d_read_bytes >= 0
+                and d_write_bytes >= 0
+                and d_read_count >= 0
+                and d_write_count >= 0
+            ):
                 read_bytes_per_sec = d_read_bytes / elapsed
                 write_bytes_per_sec = d_write_bytes / elapsed
                 read_ops_per_sec = d_read_count / elapsed

@@ -153,6 +153,41 @@ class CollectDiskSnapshotTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             collect_disk_snapshot(now=lambda: 1.0)
 
+    def test_collect_disk_snapshot_prefers_native_backend_when_available(self) -> None:
+        original_native_collect = disk.native_backend.collect_disk_counters
+        original_psutil = disk.psutil
+        disk.psutil = None
+        native_values = iter(
+            [
+                disk.native_backend.NativeDiskCounters(
+                    read_bytes=1000,
+                    write_bytes=2000,
+                    read_count=10,
+                    write_count=20,
+                ),
+                disk.native_backend.NativeDiskCounters(
+                    read_bytes=3000,
+                    write_bytes=5000,
+                    read_count=30,
+                    write_count=50,
+                ),
+            ]
+        )
+        disk.native_backend.collect_disk_counters = lambda: next(native_values)
+        times = iter([100.0, 102.0])
+        try:
+            first = collect_disk_snapshot(now=lambda: next(times))
+            second = collect_disk_snapshot(now=lambda: next(times))
+        finally:
+            disk.native_backend.collect_disk_counters = original_native_collect
+            disk.psutil = original_psutil
+
+        self.assertEqual(first.read_bytes_per_sec, 0.0)
+        self.assertEqual(second.read_bytes_per_sec, 1000.0)
+        self.assertEqual(second.write_bytes_per_sec, 1500.0)
+        self.assertEqual(second.read_ops_per_sec, 10.0)
+        self.assertEqual(second.write_ops_per_sec, 15.0)
+
     def test_custom_now_callable_used_for_timestamp(self) -> None:
         stub = _PsutilDiskStub([
             _DiskIOStub(read_bytes=0, write_bytes=0, read_count=0, write_count=0),

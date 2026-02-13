@@ -8,6 +8,8 @@ from typing import Callable
 
 from contracts.types import ProcessSample, SystemSnapshot
 
+from . import native_backend
+
 try:
     import psutil
 except ImportError:
@@ -57,15 +59,28 @@ def _normalize_optional_create_time(raw_create_time: object) -> float | None:
 
 
 def collect_snapshot(now: Callable[[], float] | None = None) -> SystemSnapshot:
-    """Collect a single telemetry snapshot using psutil."""
+    """Collect a single telemetry snapshot using native or psutil collectors."""
+    current_time = time.time if now is None else now
+
+    try:
+        native_snapshot = native_backend.collect_system_snapshot()
+    except RuntimeError:
+        native_snapshot = None
+
+    if native_snapshot is not None:
+        return SystemSnapshot(
+            timestamp=float(current_time()),
+            cpu_percent=native_snapshot.cpu_percent,
+            memory_percent=native_snapshot.memory_percent,
+        )
+
     if psutil is None:
         raise RuntimeError(
-            "psutil is required to collect telemetry. Install dependencies first."
+            "native telemetry unavailable and psutil is missing; install dependencies "
+            "or build src/telemetry/native/bin/aura_telemetry_native.dll."
         )
 
     global _cpu_percent_primed
-    current_time = time.time if now is None else now
-
     if _cpu_percent_primed:
         cpu_percent = float(psutil.cpu_percent(interval=None))
     else:
@@ -87,9 +102,35 @@ def collect_top_processes(*, limit: int = 20) -> list[ProcessSample]:
     """Collect top process snapshots sorted by CPU and RSS memory usage."""
     normalized_limit = _require_positive_process_limit(limit)
 
+    try:
+        native_samples = native_backend.collect_process_samples(limit=normalized_limit)
+    except RuntimeError:
+        native_samples = None
+
+    if native_samples is not None:
+        process_samples: list[ProcessSample] = []
+        for native_sample in native_samples:
+            try:
+                process_samples.append(
+                    ProcessSample(
+                        pid=native_sample.pid,
+                        name=native_sample.name,
+                        cpu_percent=native_sample.cpu_percent,
+                        memory_rss_bytes=native_sample.memory_rss_bytes,
+                    )
+                )
+            except (ValueError, TypeError):
+                continue
+        process_samples.sort(
+            key=lambda sample: (sample.cpu_percent, sample.memory_rss_bytes, -sample.pid),
+            reverse=True,
+        )
+        return process_samples[:normalized_limit]
+
     if psutil is None:
         raise RuntimeError(
-            "psutil is required to collect telemetry. Install dependencies first."
+            "native telemetry unavailable and psutil is missing; install dependencies "
+            "or build src/telemetry/native/bin/aura_telemetry_native.dll."
         )
 
     process_errors: tuple[type[BaseException], ...] = tuple(
