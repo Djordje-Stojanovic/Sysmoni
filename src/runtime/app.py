@@ -14,7 +14,7 @@ import argparse
 import signal
 import sys
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Any, Sequence, cast
 
 
 @dataclass(frozen=True)
@@ -146,9 +146,12 @@ def launch_gui(argv: Sequence[str] | None = None) -> int:
 
     # 6. Create and show the window
     db_path = ctx.db_path if ctx.persistence_enabled else None
-    window = AuraWindow(
-        interval_seconds=ctx.interval_seconds,
-        db_path=db_path,
+    window = cast(
+        Any,
+        AuraWindow(
+            interval_seconds=ctx.interval_seconds,
+            db_path=db_path,
+        ),
     )
     window.show()
     return int(app.exec())

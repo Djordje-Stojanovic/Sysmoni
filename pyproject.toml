@@ -10,6 +10,12 @@ dependencies = [
     "wmi>=1.5.1; sys_platform == 'win32'",
 ]
 
+[project.scripts]
+aura = "runtime.main:main"
+
+[project.gui-scripts]
+aura-gui = "runtime.app:launch_gui"
+
 [dependency-groups]
 dev = [
     "pyright>=1.1.406",
@@ -22,4 +28,15 @@ requires = ["hatchling>=1.25.0"]
 build-backend = "hatchling.build"
 
 [tool.uv]
-package = false
+package = true
+
+[tool.hatch.build.targets.wheel]
+packages = [
+    "src/contracts",
+    "src/core",
+    "src/gui",
+    "src/render",
+    "src/runtime",
+    "src/shell",
+    "src/telemetry",
+]
