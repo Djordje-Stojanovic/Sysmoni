@@ -1,4 +1,4 @@
-# AGENTS.md — First-Principles Parallel Delivery
+# AGENTS.md - First-Principles Parallel Delivery
 
 > Keep what works. Delete what does not move the product.
 
@@ -110,13 +110,13 @@ Current structure:
 
 ```
 src/
-├── contracts/
-├── telemetry/
-├── runtime/
-├── shell/
-├── core/   (compatibility shims)
-├── gui/    (compatibility shims)
-└── main.py (compatibility entrypoint)
+|-- contracts/
+|-- telemetry/
+|-- runtime/
+|-- shell/
+|-- core/   (compatibility shims)
+|-- gui/    (compatibility shims)
+`-- main.py (compatibility entrypoint)
 ```
 
 ## COMMANDS

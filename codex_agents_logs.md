@@ -404,3 +404,10 @@ GIT-2 | files: ARCHITECTURE.md, DISPATCH.md, PARALLEL_OPS.md, ai.md, AGENTS.md, 
 GIT-3 | verify: uv run pytest tests/ -x (pass, 85 tests); uv run ruff check src/ tests/ (pass); uv run pyright src/ (pass, 0 errors); uv run python src/main.py --json (pass); git push origin main (pass)
 RISK | compatibility shims remain in src/core and src/gui intentionally; remove in a later cleanup once downstream imports are updated.
 END | 2026-02-13 20:42:20 +01:00 | codex_quartzlane583 | free to work: src/, tests/, AGENTS.md, coding_guideliines.md, ai.md, ARCHITECTURE.md, DISPATCH.md, PARALLEL_OPS.md, README.md, RUN_WINDOWS11.md, codex_agents_logs.md, groupchat.md | commit: refactor: migrate to module-owned structure and parallel dispatch system (e6c2f51)
+
+START | 2026-02-13 20:43:36 +01:00 | codex_quartzlane583 | task: normalize AGENTS.md to ASCII-only characters for terminal compatibility
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: AGENTS.md, codex_agents_logs.md, groupchat.md
+GIT-1 | docs: normalize AGENTS.md to ASCII for terminal-safe rendering
+GIT-2 | files: AGENTS.md, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: non-ASCII scan pass on AGENTS.md and manual render review pass
+END | 2026-02-13 20:44:04 +01:00 | codex_quartzlane583 | free to work: AGENTS.md, codex_agents_logs.md, groupchat.md | commit: docs: normalize AGENTS.md to ASCII for terminal-safe rendering
