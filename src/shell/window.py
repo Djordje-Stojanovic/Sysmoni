@@ -21,6 +21,8 @@ from render import (  # noqa: E402
     RadialGaugeConfig,
     SparkLine,
     SparkLineConfig,
+    TimelineConfig,
+    TimelineWidget,
     build_shell_stylesheet,
     compose_cockpit_frame,
     format_initial_status,
@@ -28,6 +30,7 @@ from render import (  # noqa: E402
     format_snapshot_lines,
     format_stream_status,
 )
+from runtime.dvr import query_timeline  # noqa: E402
 from runtime.store import TelemetryStore  # noqa: E402
 from shell.titlebar import AuraTitleBar  # noqa: E402
 from telemetry.poller import collect_snapshot, collect_top_processes, run_polling_loop  # noqa: E402
@@ -61,11 +64,17 @@ def resolve_gui_db_path(env: dict[str, str] | None = None) -> str | None:
     return db_path or None
 
 DockSlot = Literal["left", "center", "right"]
-PanelId = Literal["telemetry_overview", "top_processes", "render_surface"]
+PanelId = Literal[
+    "telemetry_overview",
+    "top_processes",
+    "dvr_timeline",
+    "render_surface",
+]
 DOCK_SLOTS: tuple[DockSlot, ...] = ("left", "center", "right")
 PANEL_IDS: tuple[PanelId, ...] = (
     "telemetry_overview",
     "top_processes",
+    "dvr_timeline",
     "render_surface",
 )
 
@@ -118,6 +127,11 @@ def build_default_panel_specs() -> dict[PanelId, PanelSpec]:
         "top_processes": PanelSpec(
             panel_id="top_processes",
             title="Top Processes",
+            slot="center",
+        ),
+        "dvr_timeline": PanelSpec(
+            panel_id="dvr_timeline",
+            title="DVR Timeline",
             slot="center",
         ),
         "render_surface": PanelSpec(
@@ -521,11 +535,24 @@ if _QT_IMPORT_ERROR is None:
             self._recorder = DvrRecorder(db_path)
             self._panel_specs = build_default_panel_specs()
             self._dock_state = build_default_dock_state(self._panel_specs)
+            self._is_live_mode = True
+            self._frozen_snapshot: SystemSnapshot | None = None
+            self._latest_live_snapshot: SystemSnapshot | None = None
+            self._latest_live_status_text = format_initial_status(self._recorder)
+            self._latest_live_process_rows = format_process_rows(
+                [],
+                row_count=self._process_row_count,
+            )
+            self._timeline_resolution = 500
+            self._timeline_refresh_interval_seconds = 1.0
+            self._timeline_last_refresh_monotonic = 0.0
+            self._timeline_snapshots: list[SystemSnapshot] = []
             self._panel_widgets: dict[PanelId, QWidget] = {}
             self._slot_tab_layouts: dict[DockSlot, QHBoxLayout] = {}
             self._slot_content_layouts: dict[DockSlot, QVBoxLayout] = {}
             self._build_layout()
             self._seed_latest_snapshot()
+            self._refresh_timeline_data(force=True)
 
             self._phase: float = 0.0
             self._last_frame_time: float = time.monotonic()
@@ -666,13 +693,43 @@ if _QT_IMPORT_ERROR is None:
             )
 
             self._process_labels = []
-            for row in format_process_rows([], row_count=self._process_row_count):
+            for row in self._latest_live_process_rows:
                 row_label = QLabel(row)
                 row_label.setObjectName("process")
                 self._process_labels.append(row_label)
                 body_layout.addWidget(row_label)
 
             body_layout.addStretch(1)
+            return panel
+
+        def _build_timeline_panel(self) -> QWidget:
+            panel, body_layout = self._build_panel(
+                "dvr_timeline",
+                self._panel_specs["dvr_timeline"].title,
+            )
+
+            self._timeline_widget = TimelineWidget(
+                TimelineConfig(show_memory=True),
+            )
+            self._timeline_widget.scrub_position_changed.connect(self._on_timeline_scrub)
+            body_layout.addWidget(self._timeline_widget, 1)
+
+            controls_layout = QHBoxLayout()
+            controls_layout.setSpacing(8)
+
+            self._timeline_live_btn = QPushButton("Live")
+            self._timeline_live_btn.setObjectName("tabButton")
+            self._timeline_live_btn.clicked.connect(lambda: self._set_live_mode(True))
+            self._timeline_live_btn.setEnabled(False)
+            controls_layout.addWidget(self._timeline_live_btn)
+
+            self._timeline_mode_label = QLabel(
+                "Timeline live | drag scrubber to inspect history."
+            )
+            self._timeline_mode_label.setObjectName("status")
+            controls_layout.addWidget(self._timeline_mode_label, 1)
+
+            body_layout.addLayout(controls_layout)
             return panel
 
         def _build_render_panel(self) -> QWidget:
@@ -754,6 +811,7 @@ if _QT_IMPORT_ERROR is None:
             self._panel_widgets = {
                 "telemetry_overview": self._build_telemetry_panel(),
                 "top_processes": self._build_processes_panel(),
+                "dvr_timeline": self._build_timeline_panel(),
                 "render_surface": self._build_render_panel(),
             }
             self._render_dock_layout()
@@ -815,16 +873,126 @@ if _QT_IMPORT_ERROR is None:
                 return
             self._render_dock_layout()
 
+        def _refresh_timeline_data(self, *, force: bool = False) -> None:
+            if self._recorder.db_path is None:
+                self._timeline_snapshots = []
+                self._timeline_widget.set_data([])
+                self._timeline_mode_label.setText(
+                    "Timeline unavailable | DVR persistence disabled."
+                )
+                self._timeline_live_btn.setEnabled(False)
+                return
+
+            now = time.monotonic()
+            if (
+                not force
+                and now - self._timeline_last_refresh_monotonic
+                < self._timeline_refresh_interval_seconds
+            ):
+                return
+            self._timeline_last_refresh_monotonic = now
+
+            try:
+                with TelemetryStore(self._recorder.db_path) as timeline_store:
+                    snapshots = query_timeline(
+                        timeline_store,
+                        resolution=self._timeline_resolution,
+                    )
+            except Exception as exc:
+                self._timeline_mode_label.setText(f"Timeline unavailable | {exc}")
+                return
+
+            self._timeline_snapshots = snapshots
+            self._timeline_widget.set_data(snapshots)
+
+            if not snapshots:
+                self._timeline_mode_label.setText("No DVR samples yet.")
+                self._timeline_live_btn.setEnabled(False)
+                return
+
+            if self._is_live_mode:
+                self._timeline_mode_label.setText(
+                    "Timeline live | drag scrubber to inspect history."
+                )
+                self._timeline_live_btn.setEnabled(False)
+            else:
+                self._timeline_mode_label.setText(
+                    "Timeline scrub | click Live to resume stream."
+                )
+                self._timeline_live_btn.setEnabled(True)
+
+        def _find_snapshot_at_or_before(self, timestamp: float) -> SystemSnapshot | None:
+            if not self._timeline_snapshots:
+                return None
+
+            for snapshot in reversed(self._timeline_snapshots):
+                if snapshot.timestamp <= timestamp:
+                    return snapshot
+            return self._timeline_snapshots[0]
+
+        def _apply_snapshot_to_ui(
+            self,
+            snapshot: SystemSnapshot,
+            status_text: str,
+            process_rows: list[str],
+        ) -> None:
+            self._last_cpu = snapshot.cpu_percent
+            self._last_mem = snapshot.memory_percent
+            self._render_snapshot(snapshot)
+            self._render_process_rows(process_rows)
+            self._status_label.setText(status_text)
+            self._render_status_label.setText(
+                format_render_panel_status(snapshot, status_text)
+            )
+            self._render_hint_label.setText(format_render_panel_hint(process_rows))
+
+        @Slot(float)
+        def _on_timeline_scrub(self, timestamp: float) -> None:
+            snapshot = self._find_snapshot_at_or_before(timestamp)
+            if snapshot is None:
+                return
+
+            self._set_live_mode(False)
+            self._frozen_snapshot = snapshot
+            self._apply_snapshot_to_ui(
+                snapshot,
+                "Scrubbing DVR timeline",
+                self._latest_live_process_rows,
+            )
+
+        def _set_live_mode(self, enabled: bool) -> None:
+            target_live_mode = bool(enabled)
+            if target_live_mode == self._is_live_mode:
+                return
+
+            self._is_live_mode = target_live_mode
+            if target_live_mode:
+                self._frozen_snapshot = None
+                if self._latest_live_snapshot is not None:
+                    self._apply_snapshot_to_ui(
+                        self._latest_live_snapshot,
+                        self._latest_live_status_text,
+                        self._latest_live_process_rows,
+                    )
+                self._timeline_live_btn.setEnabled(False)
+                self._refresh_timeline_data(force=True)
+            else:
+                self._timeline_mode_label.setText(
+                    "Timeline scrub | click Live to resume stream."
+                )
+                self._timeline_live_btn.setEnabled(True)
+
         def _seed_latest_snapshot(self) -> None:
             latest_snapshot = self._recorder.get_latest_snapshot()
             if latest_snapshot is None:
                 return
-            self._render_snapshot(latest_snapshot)
-            self._render_status_label.setText(
-                format_render_panel_status(
-                    latest_snapshot,
-                    format_initial_status(self._recorder),
-                )
+            seeded_status = format_initial_status(self._recorder)
+            self._latest_live_snapshot = latest_snapshot
+            self._latest_live_status_text = seeded_status
+            self._apply_snapshot_to_ui(
+                latest_snapshot,
+                seeded_status,
+                self._latest_live_process_rows,
             )
 
         def _render_snapshot(self, snapshot: SystemSnapshot) -> None:
@@ -880,27 +1048,27 @@ if _QT_IMPORT_ERROR is None:
             status_text: str,
             process_rows: list[str],
         ) -> None:
-            self._last_cpu = cpu_percent
-            self._last_mem = memory_percent
             snapshot = SystemSnapshot(
                 timestamp=timestamp,
                 cpu_percent=cpu_percent,
                 memory_percent=memory_percent,
             )
-            self._render_snapshot(snapshot)
             normalized_rows = [str(row) for row in process_rows]
-            self._render_process_rows(normalized_rows)
-            self._status_label.setText(status_text)
-            self._render_status_label.setText(
-                format_render_panel_status(snapshot, status_text)
-            )
-            self._render_hint_label.setText(format_render_panel_hint(normalized_rows))
+            self._latest_live_snapshot = snapshot
+            self._latest_live_status_text = status_text
+            self._latest_live_process_rows = normalized_rows
+
+            if self._is_live_mode:
+                self._apply_snapshot_to_ui(snapshot, status_text, normalized_rows)
+            self._refresh_timeline_data()
 
         @Slot(str)
         def _on_worker_error(self, message: str) -> None:
             error_text = f"Telemetry error: {message}"
-            self._status_label.setText(error_text)
-            self._render_status_label.setText(f"Render bridge paused | {error_text}")
+            self._latest_live_status_text = error_text
+            if self._is_live_mode:
+                self._status_label.setText(error_text)
+                self._render_status_label.setText(f"Render bridge paused | {error_text}")
 
         def closeEvent(self, event: QCloseEvent) -> None:
             self._frame_timer.stop()

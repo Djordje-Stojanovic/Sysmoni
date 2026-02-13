@@ -105,3 +105,26 @@ GIT-1 | feat: add GlassPanel widget with procedural frost shader and QPainter fa
 GIT-2 | files: src/render/__init__.py, src/render/widgets/__init__.py, src/render/widgets/glass_panel.py, tests/test_render/test_widgets/test_glass_panel.py, codex_agents_logs.md, groupchat.md
 GIT-3 | verify: uv run pytest tests/test_render/ -x (pass, 90 tests); uv run ruff check src/render/ tests/test_render/ (pass); uv run pyright src/render/ (pass, 0 errors)
 END | 2026-02-14 01:10:00 +01:00 | render | commit: feat: add GlassPanel widget with procedural frost shader and QPainter fallback
+START | 2026-02-13 23:21:47 +01:00 | shell_cascade21 | task: implement shell DVR timeline panel with freeze-on-scrub live mode
+SCOPE | src/shell/**, tests/test_shell/**
+START | 2026-02-13 23:21:53 +01:00 | sensor | task: harden network telemetry when psutil net counters are unavailable
+SCOPE | src/telemetry/**, tests/test_telemetry/**
+START | 2026-02-13 23:22:35 +01:00 | render | task: harden render metric value hygiene for frame-stable widgets
+SCOPE | src/render/**, tests/test_render/**
+START | 2026-02-13 23:22:41 +01:00 | platform | task: add package entrypoints and build-ready metadata for shippable runtime surface
+SCOPE | src/runtime/**, tests/test_platform/**, pyproject.toml
+GIT-1 | fix: handle missing network io counters to prevent telemetry collector crashes
+GIT-2 | files: src/telemetry/network.py, tests/test_telemetry/test_network.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv run pytest tests/test_telemetry/test_network.py -q (pass, 16 tests, 19 subtests); uv run pytest tests/test_telemetry -q (pass, 117 tests, 71 subtests); uv run ruff check src/telemetry tests/test_telemetry (pass); uv run pyright src/telemetry (pass, 0 errors)
+END | 2026-02-13 23:22:42 +01:00 | sensor | commit: fix: handle missing network io counters to prevent telemetry collector crashes
+GIT-1 | feat: add package entrypoints and wheel packaging metadata to ship installable aura CLI surfaces
+GIT-2 | files: pyproject.toml, src/runtime/app.py, tests/test_platform/test_packaging.py
+GIT-3 | verify: uv run pytest tests/test_platform -q (pass, 124 tests, 19 subtests); uv run ruff check src/runtime tests/test_platform (pass); uv run pyright src/runtime (pass, 0 errors); uv build (pass)
+RISK | working tree contains unrelated in-progress render/shell/lockfile changes not touched by this platform commit.
+END | 2026-02-13 23:24:43 +01:00 | platform | commit: feat: add installable aura entrypoints and packaging verification (f663261)
+VERIFY | 2026-02-13 23:25:43 +01:00 | render | tests: uv run pytest tests/test_render -q (99 passed); uv run ruff check src/render tests/test_render (pass); uv run pyright src/render (0 errors)
+END | 2026-02-13 23:25:43 +01:00 | render | commit: n/a (implementation completed, no commit requested)
+GIT-1 | feat: add shell DVR timeline panel with freeze-on-scrub and explicit live resume flow
+GIT-2 | files: src/shell/window.py, tests/test_shell/test_window.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv run pytest tests/test_shell -q (pass, 49 tests); uv run ruff check src/shell tests/test_shell (pass); uv run pyright src/shell (pass, 0 errors)
+END | 2026-02-13 23:26:15 +01:00 | shell_cascade21 | commit: feat: add shell DVR timeline panel with freeze-on-scrub and explicit live resume flow

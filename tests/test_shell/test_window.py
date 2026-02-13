@@ -569,6 +569,7 @@ class GuiWindowTests(unittest.TestCase):
         ]
         self.assertCountEqual(assigned_panels, list(gui_window.PANEL_IDS))
         self.assertEqual(len(assigned_panels), len(set(assigned_panels)))
+        self.assertIn("dvr_timeline", dock_state.slot_tabs["center"])
         self.assertEqual(gui_window.get_active_panel(dock_state, "left"), "telemetry_overview")
         self.assertEqual(gui_window.get_active_panel(dock_state, "center"), "top_processes")
         self.assertEqual(gui_window.get_active_panel(dock_state, "right"), "render_surface")
@@ -922,6 +923,399 @@ class GuiWindowTests(unittest.TestCase):
             self.assertIsNot(window._render_cpu_gauge, window._cpu_gauge)
         finally:
             window.close()
+
+    @unittest.skipIf(gui_window._QT_IMPORT_ERROR is not None, "PySide6 is unavailable")
+    def test_timeline_panel_has_widget_and_live_button(self) -> None:
+        app = gui_window.QApplication.instance()
+        if app is None:
+            app = gui_window.QApplication([])
+
+        from render import TimelineWidget
+
+        window = gui_window.AuraWindow(
+            interval_seconds=60.0,
+            collect=lambda: SystemSnapshot(timestamp=1.0, cpu_percent=0.0, memory_percent=0.0),
+            collect_processes=lambda: [],
+            process_row_count=3,
+            db_path=None,
+        )
+        try:
+            self.assertIsInstance(window._timeline_widget, TimelineWidget)
+            self.assertEqual(window._timeline_live_btn.text(), "Live")
+            self.assertFalse(window._timeline_live_btn.isEnabled())
+            self.assertIn("persistence disabled", window._timeline_mode_label.text())
+        finally:
+            window.close()
+
+    @unittest.skipIf(gui_window._QT_IMPORT_ERROR is not None, "PySide6 is unavailable")
+    def test_on_snapshot_refreshes_timeline_when_persistence_enabled(self) -> None:
+        app = gui_window.QApplication.instance()
+        if app is None:
+            app = gui_window.QApplication([])
+
+        query_calls = 0
+
+        class _StoreStub:
+            def __init__(self, db_path: str) -> None:
+                self.db_path = db_path
+
+            def __enter__(self) -> "_StoreStub":
+                return self
+
+            def __exit__(self, exc_type, exc, tb) -> None:
+                self.close()
+
+            def append_and_count(self, snapshot: SystemSnapshot) -> int:
+                del snapshot
+                return 1
+
+            def count(self) -> int:
+                return 0
+
+            def latest(self, *, limit: int = 1) -> list[SystemSnapshot]:
+                del limit
+                return []
+
+            def close(self) -> None:
+                return None
+
+        def _query_timeline(store: object, *, start=None, end=None, resolution: int = 500):
+            del store, start, end, resolution
+            nonlocal query_calls
+            query_calls += 1
+            return [
+                SystemSnapshot(timestamp=1.0, cpu_percent=10.0, memory_percent=20.0),
+                SystemSnapshot(timestamp=2.0, cpu_percent=20.0, memory_percent=30.0),
+            ]
+
+        original_store = gui_window.TelemetryStore
+        original_query_timeline = gui_window.query_timeline
+        gui_window.TelemetryStore = _StoreStub
+        gui_window.query_timeline = _query_timeline
+
+        window: gui_window.AuraWindow | None = None
+        try:
+            window = gui_window.AuraWindow(
+                interval_seconds=60.0,
+                collect=lambda: SystemSnapshot(
+                    timestamp=1.0,
+                    cpu_percent=0.0,
+                    memory_percent=0.0,
+                ),
+                collect_processes=lambda: [],
+                process_row_count=3,
+                db_path="telemetry.sqlite",
+            )
+            window._worker.stop()
+            window._worker_thread.quit()
+            window._worker_thread.wait(500)
+
+            query_count_before_snapshot = query_calls
+            window._timeline_refresh_interval_seconds = 0.0
+            window._timeline_last_refresh_monotonic = 0.0
+            window._on_snapshot(
+                3.0,
+                55.0,
+                44.0,
+                "Streaming telemetry",
+                gui_window.format_process_rows([], row_count=3),
+            )
+
+            self.assertGreater(query_calls, query_count_before_snapshot)
+            self.assertEqual(window._timeline_widget.snapshot_count, 2)
+        finally:
+            gui_window.TelemetryStore = original_store
+            gui_window.query_timeline = original_query_timeline
+            if window is not None:
+                window.close()
+
+    @unittest.skipIf(gui_window._QT_IMPORT_ERROR is not None, "PySide6 is unavailable")
+    def test_on_snapshot_skips_timeline_query_when_no_db_path(self) -> None:
+        app = gui_window.QApplication.instance()
+        if app is None:
+            app = gui_window.QApplication([])
+
+        query_calls = 0
+
+        def _query_timeline(store: object, *, start=None, end=None, resolution: int = 500):
+            del store, start, end, resolution
+            nonlocal query_calls
+            query_calls += 1
+            return []
+
+        original_query_timeline = gui_window.query_timeline
+        gui_window.query_timeline = _query_timeline
+        try:
+            window = gui_window.AuraWindow(
+                interval_seconds=60.0,
+                collect=lambda: SystemSnapshot(
+                    timestamp=1.0,
+                    cpu_percent=0.0,
+                    memory_percent=0.0,
+                ),
+                collect_processes=lambda: [],
+                process_row_count=3,
+                db_path=None,
+            )
+            try:
+                window._on_snapshot(
+                    2.0,
+                    30.0,
+                    40.0,
+                    "Streaming telemetry",
+                    gui_window.format_process_rows([], row_count=3),
+                )
+                self.assertEqual(query_calls, 0)
+                self.assertIn("persistence disabled", window._timeline_mode_label.text())
+            finally:
+                window.close()
+        finally:
+            gui_window.query_timeline = original_query_timeline
+
+    @unittest.skipIf(gui_window._QT_IMPORT_ERROR is not None, "PySide6 is unavailable")
+    def test_timeline_scrub_switches_to_frozen_mode_and_updates_readouts(self) -> None:
+        app = gui_window.QApplication.instance()
+        if app is None:
+            app = gui_window.QApplication([])
+
+        window = gui_window.AuraWindow(
+            interval_seconds=60.0,
+            collect=lambda: SystemSnapshot(timestamp=1.0, cpu_percent=0.0, memory_percent=0.0),
+            collect_processes=lambda: [],
+            process_row_count=3,
+            db_path=None,
+        )
+        try:
+            window._timeline_snapshots = [
+                SystemSnapshot(timestamp=1.0, cpu_percent=10.0, memory_percent=20.0),
+                SystemSnapshot(timestamp=5.0, cpu_percent=40.0, memory_percent=50.0),
+            ]
+
+            window._on_timeline_scrub(5.0)
+
+            self.assertFalse(window._is_live_mode)
+            self.assertIsNotNone(window._frozen_snapshot)
+            self.assertEqual(window._frozen_snapshot.timestamp, 5.0)
+            self.assertEqual(window._status_label.text(), "Scrubbing DVR timeline")
+            self.assertEqual(window._timestamp_label.text(), "Updated 00:00:05 UTC")
+            self.assertTrue(window._timeline_live_btn.isEnabled())
+        finally:
+            window.close()
+
+    @unittest.skipIf(gui_window._QT_IMPORT_ERROR is not None, "PySide6 is unavailable")
+    def test_live_button_restores_live_mode_after_scrub(self) -> None:
+        app = gui_window.QApplication.instance()
+        if app is None:
+            app = gui_window.QApplication([])
+
+        window = gui_window.AuraWindow(
+            interval_seconds=60.0,
+            collect=lambda: SystemSnapshot(timestamp=1.0, cpu_percent=0.0, memory_percent=0.0),
+            collect_processes=lambda: [],
+            process_row_count=3,
+            db_path=None,
+        )
+        try:
+            rows = gui_window.format_process_rows([], row_count=3)
+            window._on_snapshot(10.0, 70.0, 60.0, "Streaming telemetry", rows)
+            window._timeline_snapshots = [
+                SystemSnapshot(timestamp=8.0, cpu_percent=22.0, memory_percent=33.0),
+                SystemSnapshot(timestamp=9.0, cpu_percent=25.0, memory_percent=35.0),
+            ]
+
+            window._on_timeline_scrub(8.0)
+            self.assertFalse(window._is_live_mode)
+            self.assertAlmostEqual(window._cpu_gauge.value, 22.0, places=1)
+
+            window._timeline_live_btn.click()
+
+            self.assertTrue(window._is_live_mode)
+            self.assertAlmostEqual(window._cpu_gauge.value, 70.0, places=1)
+            self.assertEqual(window._status_label.text(), "Streaming telemetry")
+            self.assertFalse(window._timeline_live_btn.isEnabled())
+        finally:
+            window.close()
+
+    @unittest.skipIf(gui_window._QT_IMPORT_ERROR is not None, "PySide6 is unavailable")
+    def test_live_snapshots_do_not_override_ui_while_frozen(self) -> None:
+        app = gui_window.QApplication.instance()
+        if app is None:
+            app = gui_window.QApplication([])
+
+        window = gui_window.AuraWindow(
+            interval_seconds=60.0,
+            collect=lambda: SystemSnapshot(timestamp=1.0, cpu_percent=0.0, memory_percent=0.0),
+            collect_processes=lambda: [],
+            process_row_count=3,
+            db_path=None,
+        )
+        try:
+            rows = gui_window.format_process_rows([], row_count=3)
+            window._on_snapshot(10.0, 70.0, 60.0, "Streaming telemetry", rows)
+            window._timeline_snapshots = [
+                SystemSnapshot(timestamp=3.0, cpu_percent=11.0, memory_percent=21.0),
+            ]
+            window._on_timeline_scrub(3.0)
+            frozen_timestamp = window._timestamp_label.text()
+
+            window._on_snapshot(11.0, 95.0, 88.0, "Streaming telemetry", rows)
+
+            self.assertEqual(window._timestamp_label.text(), frozen_timestamp)
+            self.assertAlmostEqual(window._cpu_gauge.value, 11.0, places=1)
+            self.assertFalse(window._is_live_mode)
+        finally:
+            window.close()
+
+    @unittest.skipIf(gui_window._QT_IMPORT_ERROR is not None, "PySide6 is unavailable")
+    def test_timeline_query_error_sets_panel_status_without_breaking_stream(self) -> None:
+        app = gui_window.QApplication.instance()
+        if app is None:
+            app = gui_window.QApplication([])
+
+        class _StoreStub:
+            def __init__(self, db_path: str) -> None:
+                self.db_path = db_path
+
+            def __enter__(self) -> "_StoreStub":
+                return self
+
+            def __exit__(self, exc_type, exc, tb) -> None:
+                self.close()
+
+            def append_and_count(self, snapshot: SystemSnapshot) -> int:
+                del snapshot
+                return 1
+
+            def count(self) -> int:
+                return 0
+
+            def latest(self, *, limit: int = 1) -> list[SystemSnapshot]:
+                del limit
+                return []
+
+            def close(self) -> None:
+                return None
+
+        def _query_timeline(store: object, *, start=None, end=None, resolution: int = 500):
+            del store, start, end, resolution
+            raise RuntimeError("timeline down")
+
+        original_store = gui_window.TelemetryStore
+        original_query_timeline = gui_window.query_timeline
+        gui_window.TelemetryStore = _StoreStub
+        gui_window.query_timeline = _query_timeline
+
+        window: gui_window.AuraWindow | None = None
+        try:
+            window = gui_window.AuraWindow(
+                interval_seconds=60.0,
+                collect=lambda: SystemSnapshot(
+                    timestamp=1.0,
+                    cpu_percent=0.0,
+                    memory_percent=0.0,
+                ),
+                collect_processes=lambda: [],
+                process_row_count=3,
+                db_path="telemetry.sqlite",
+            )
+            window._worker.stop()
+            window._worker_thread.quit()
+            window._worker_thread.wait(500)
+
+            window._on_snapshot(
+                3.0,
+                42.0,
+                31.0,
+                "Streaming telemetry",
+                gui_window.format_process_rows([], row_count=3),
+            )
+
+            self.assertEqual(window._status_label.text(), "Streaming telemetry")
+            self.assertIn("Timeline unavailable", window._timeline_mode_label.text())
+            self.assertIn("timeline down", window._timeline_mode_label.text())
+        finally:
+            gui_window.TelemetryStore = original_store
+            gui_window.query_timeline = original_query_timeline
+            if window is not None:
+                window.close()
+
+    @unittest.skipIf(gui_window._QT_IMPORT_ERROR is not None, "PySide6 is unavailable")
+    def test_timeline_refresh_throttling_limits_query_rate(self) -> None:
+        app = gui_window.QApplication.instance()
+        if app is None:
+            app = gui_window.QApplication([])
+
+        query_calls = 0
+
+        class _StoreStub:
+            def __init__(self, db_path: str) -> None:
+                self.db_path = db_path
+
+            def __enter__(self) -> "_StoreStub":
+                return self
+
+            def __exit__(self, exc_type, exc, tb) -> None:
+                self.close()
+
+            def append_and_count(self, snapshot: SystemSnapshot) -> int:
+                del snapshot
+                return 1
+
+            def count(self) -> int:
+                return 0
+
+            def latest(self, *, limit: int = 1) -> list[SystemSnapshot]:
+                del limit
+                return []
+
+            def close(self) -> None:
+                return None
+
+        def _query_timeline(store: object, *, start=None, end=None, resolution: int = 500):
+            del store, start, end, resolution
+            nonlocal query_calls
+            query_calls += 1
+            return [SystemSnapshot(timestamp=1.0, cpu_percent=10.0, memory_percent=20.0)]
+
+        original_store = gui_window.TelemetryStore
+        original_query_timeline = gui_window.query_timeline
+        gui_window.TelemetryStore = _StoreStub
+        gui_window.query_timeline = _query_timeline
+
+        window: gui_window.AuraWindow | None = None
+        try:
+            window = gui_window.AuraWindow(
+                interval_seconds=60.0,
+                collect=lambda: SystemSnapshot(
+                    timestamp=1.0,
+                    cpu_percent=0.0,
+                    memory_percent=0.0,
+                ),
+                collect_processes=lambda: [],
+                process_row_count=3,
+                db_path="telemetry.sqlite",
+            )
+            window._worker.stop()
+            window._worker_thread.quit()
+            window._worker_thread.wait(500)
+
+            baseline_query_calls = query_calls
+            window._timeline_refresh_interval_seconds = 30.0
+            window._timeline_last_refresh_monotonic = gui_window.time.monotonic()
+            window._on_snapshot(
+                2.0,
+                25.0,
+                35.0,
+                "Streaming telemetry",
+                gui_window.format_process_rows([], row_count=3),
+            )
+
+            self.assertEqual(query_calls, baseline_query_calls)
+        finally:
+            gui_window.TelemetryStore = original_store
+            gui_window.query_timeline = original_query_timeline
+            if window is not None:
+                window.close()
 
 
 if __name__ == "__main__":
