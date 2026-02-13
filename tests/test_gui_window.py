@@ -27,6 +27,11 @@ class GuiWindowTests(unittest.TestCase):
 
     def test_dvr_recorder_updates_sample_count_and_stream_status(self) -> None:
         created_stores: list[object] = []
+        seeded_snapshot = SystemSnapshot(
+            timestamp=3.0,
+            cpu_percent=30.0,
+            memory_percent=40.0,
+        )
 
         class _StoreStub:
             def __init__(self, db_path: str) -> None:
@@ -35,6 +40,7 @@ class GuiWindowTests(unittest.TestCase):
                 self.appended: list[SystemSnapshot] = []
                 self._count = 4
                 self.count_calls = 0
+                self.latest_limits: list[int] = []
                 created_stores.append(self)
 
             def append_and_count(self, snapshot: SystemSnapshot) -> int:
@@ -45,6 +51,10 @@ class GuiWindowTests(unittest.TestCase):
             def count(self) -> int:
                 self.count_calls += 1
                 return self._count
+
+            def latest(self, *, limit: int = 1) -> list[SystemSnapshot]:
+                self.latest_limits.append(limit)
+                return [seeded_snapshot]
 
             def close(self) -> None:
                 self.closed = True
@@ -66,6 +76,8 @@ class GuiWindowTests(unittest.TestCase):
         self.assertEqual(store.db_path, "telemetry.sqlite")
         self.assertEqual(store.appended, [snapshot])
         self.assertEqual(store.count_calls, 1)
+        self.assertEqual(store.latest_limits, [1])
+        self.assertEqual(recorder.latest_snapshot, seeded_snapshot)
         self.assertEqual(recorder.sample_count, 5)
         self.assertEqual(status, "Streaming telemetry | DVR samples: 5")
         self.assertTrue(store.closed)
@@ -85,6 +97,9 @@ class GuiWindowTests(unittest.TestCase):
 
             def count(self) -> int:
                 return self._count
+
+            def latest(self, *, limit: int = 1) -> list[SystemSnapshot]:
+                return []
 
             def close(self) -> None:
                 self.closed = True

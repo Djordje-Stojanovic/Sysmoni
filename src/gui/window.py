@@ -54,6 +54,7 @@ class DvrRecorder:
     def __init__(self, db_path: str | None) -> None:
         self.db_path = db_path
         self.sample_count: int | None = None
+        self.latest_snapshot: SystemSnapshot | None = None
         self.error: str | None = None
         self._store: TelemetryStore | None = None
 
@@ -63,6 +64,9 @@ class DvrRecorder:
         try:
             self._store = TelemetryStore(db_path)
             self.sample_count = self._store.count()
+            latest_snapshots = self._store.latest(limit=1)
+            if latest_snapshots:
+                self.latest_snapshot = latest_snapshots[0]
         except Exception as exc:
             self.error = str(exc)
 
@@ -168,6 +172,7 @@ if _QT_IMPORT_ERROR is None:
             self.setMinimumSize(540, 260)
             self._recorder = DvrRecorder(db_path)
             self._build_layout()
+            self._seed_latest_snapshot()
 
             self._worker_thread = QThread(self)
             self._worker = SnapshotWorker(
@@ -181,6 +186,18 @@ if _QT_IMPORT_ERROR is None:
             self._worker.finished.connect(self._worker_thread.quit)
             self._worker_thread.finished.connect(self._worker.deleteLater)
             self._worker_thread.start()
+
+        def _seed_latest_snapshot(self) -> None:
+            latest_snapshot = self._recorder.latest_snapshot
+            if latest_snapshot is None:
+                return
+            self._render_snapshot(latest_snapshot)
+
+        def _render_snapshot(self, snapshot: SystemSnapshot) -> None:
+            lines = format_snapshot_lines(snapshot)
+            self._cpu_label.setText(lines["cpu"])
+            self._memory_label.setText(lines["memory"])
+            self._timestamp_label.setText(lines["timestamp"])
 
         def _build_layout(self) -> None:
             self.setStyleSheet(
@@ -241,10 +258,7 @@ if _QT_IMPORT_ERROR is None:
                 cpu_percent=cpu_percent,
                 memory_percent=memory_percent,
             )
-            lines = format_snapshot_lines(snapshot)
-            self._cpu_label.setText(lines["cpu"])
-            self._memory_label.setText(lines["memory"])
-            self._timestamp_label.setText(lines["timestamp"])
+            self._render_snapshot(snapshot)
             self._recorder.append(snapshot)
             self._status_label.setText(format_stream_status(self._recorder))
 
