@@ -34,12 +34,12 @@ class _NetIOStub:
 class _PsutilNetStub:
     """Minimal psutil stub for network collection."""
 
-    def __init__(self, counters_sequence: list[_NetIOStub]) -> None:
+    def __init__(self, counters_sequence: list[_NetIOStub | None]) -> None:
         self._counters_sequence = list(counters_sequence)
         self._call_index = 0
         self._lock = threading.Lock()
 
-    def net_io_counters(self, pernic: bool = False) -> _NetIOStub:
+    def net_io_counters(self, pernic: bool = False) -> _NetIOStub | None:
         with self._lock:
             idx = self._call_index
             self._call_index += 1
@@ -128,6 +128,11 @@ class CollectNetworkSnapshotTests(unittest.TestCase):
 
     def test_raises_runtime_error_when_psutil_missing(self) -> None:
         network.psutil = None
+        with self.assertRaises(RuntimeError):
+            collect_network_snapshot(now=lambda: 1.0)
+
+    def test_raises_runtime_error_when_net_io_counters_returns_none(self) -> None:
+        network.psutil = _PsutilNetStub([None])
         with self.assertRaises(RuntimeError):
             collect_network_snapshot(now=lambda: 1.0)
 

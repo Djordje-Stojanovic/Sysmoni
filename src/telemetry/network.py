@@ -109,6 +109,12 @@ def collect_network_snapshot(
     ts = float(current_time())
 
     counters = psutil.net_io_counters(pernic=False)
+    if counters is None:
+        raise RuntimeError(
+            "net_io_counters() returned None. Network I/O stats may not be "
+            "available on this platform."
+        )
+
     raw = _RawCounters(
         timestamp=ts,
         bytes_sent=counters.bytes_sent,
