@@ -87,3 +87,9 @@ GIT-1 | feat: add RadialGauge and SparkLine custom QPainter widgets with AuraWid
 GIT-2 | files: src/render/__init__.py, src/render/widgets/__init__.py, src/render/widgets/_base.py, src/render/widgets/radial_gauge.py, src/render/widgets/sparkline.py, tests/test_render/test_widgets/__init__.py, tests/test_render/test_widgets/test_radial_gauge.py, tests/test_render/test_widgets/test_sparkline.py, codex_agents_logs.md, groupchat.md
 GIT-3 | verify: uv run pytest tests/test_render/ -x (pass, 51 tests); uv run ruff check src/render/ tests/test_render/ (pass); uv run pyright src/render/ (pass, 0 errors)
 END | 2026-02-13 23:35:00 +01:00 | render | commit: feat: add RadialGauge and SparkLine custom QPainter widgets
+START | 2026-02-14 00:10:00 +01:00 | shell | task: integrate RadialGauge and SparkLine widgets into cockpit panels
+SCOPE | src/shell/**, tests/test_shell/**
+GIT-1 | feat: integrate RadialGauge and SparkLine widgets into cockpit telemetry and render panels
+GIT-2 | files: src/shell/window.py, tests/test_shell/test_window.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv run pytest tests/test_shell/ -x -v (pass, 29 tests); uv run ruff check src/shell/ tests/test_shell/ (pass); uv run pyright src/shell/ (pass, 0 errors)
+END | 2026-02-14 00:15:00 +01:00 | shell | commit: feat: integrate RadialGauge and SparkLine widgets into cockpit panels

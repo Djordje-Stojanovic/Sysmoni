@@ -1,5 +1,5 @@
 from __future__ import annotations
-# pyright: reportAttributeAccessIssue=false, reportPossiblyUnboundVariable=false, reportRedeclaration=false
+# pyright: reportAttributeAccessIssue=false, reportPossiblyUnboundVariable=false, reportRedeclaration=false, reportArgumentType=false
 
 import os
 import pathlib
@@ -17,6 +17,10 @@ from contracts.types import ProcessSample, SystemSnapshot  # noqa: E402
 from render import (  # noqa: E402
     DEFAULT_PROCESS_ROW_COUNT,
     DEFAULT_THEME,
+    RadialGauge,
+    RadialGaugeConfig,
+    SparkLine,
+    SparkLineConfig,
     build_shell_stylesheet,
     compose_cockpit_frame,
     format_initial_status,
@@ -572,13 +576,34 @@ if _QT_IMPORT_ERROR is None:
                 self._panel_specs["telemetry_overview"].title,
             )
 
-            self._cpu_label = QLabel("CPU --.-%")
-            self._cpu_label.setObjectName("metric")
-            body_layout.addWidget(self._cpu_label)
+            gauge_row = QHBoxLayout()
+            gauge_row.setSpacing(12)
 
-            self._memory_label = QLabel("Memory --.-%")
-            self._memory_label.setObjectName("metric")
-            body_layout.addWidget(self._memory_label)
+            cpu_col = QVBoxLayout()
+            cpu_title = QLabel("CPU")
+            cpu_title.setObjectName("status")
+            cpu_title.setAlignment(Qt.AlignCenter)
+            cpu_col.addWidget(cpu_title)
+            self._cpu_gauge = RadialGauge(RadialGaugeConfig(min_size=110))
+            cpu_col.addWidget(self._cpu_gauge)
+            gauge_row.addLayout(cpu_col)
+
+            mem_col = QVBoxLayout()
+            mem_title = QLabel("MEMORY")
+            mem_title.setObjectName("status")
+            mem_title.setAlignment(Qt.AlignCenter)
+            mem_col.addWidget(mem_title)
+            self._mem_gauge = RadialGauge(RadialGaugeConfig(min_size=110))
+            mem_col.addWidget(self._mem_gauge)
+            gauge_row.addLayout(mem_col)
+
+            body_layout.addLayout(gauge_row)
+
+            self._cpu_sparkline = SparkLine(SparkLineConfig(buffer_size=120))
+            body_layout.addWidget(self._cpu_sparkline)
+
+            self._mem_sparkline = SparkLine(SparkLineConfig(buffer_size=120))
+            body_layout.addWidget(self._mem_sparkline)
 
             self._timestamp_label = QLabel("Updated --:--:-- UTC")
             self._timestamp_label.setObjectName("status")
@@ -612,17 +637,31 @@ if _QT_IMPORT_ERROR is None:
                 self._panel_specs["render_surface"].title,
             )
 
+            header_row = QHBoxLayout()
+            header_row.setSpacing(10)
+
+            self._render_cpu_gauge = RadialGauge(
+                RadialGaugeConfig(min_size=80, arc_width=8),
+            )
+            header_row.addWidget(self._render_cpu_gauge)
+
+            text_col = QVBoxLayout()
+            text_col.setSpacing(4)
+
             self._render_status_label = QLabel("Render bridge waiting for telemetry frame.")
             self._render_status_label.setObjectName("status")
-            body_layout.addWidget(self._render_status_label)
+            text_col.addWidget(self._render_status_label)
 
             self._render_timestamp_label = QLabel("Updated --:--:-- UTC")
             self._render_timestamp_label.setObjectName("status")
-            body_layout.addWidget(self._render_timestamp_label)
+            text_col.addWidget(self._render_timestamp_label)
 
             self._render_hint_label = QLabel("Top process feed waiting for telemetry rows.")
             self._render_hint_label.setObjectName("status")
-            body_layout.addWidget(self._render_hint_label)
+            text_col.addWidget(self._render_hint_label)
+
+            header_row.addLayout(text_col, 1)
+            body_layout.addLayout(header_row)
             body_layout.addStretch(1)
             return panel
 
@@ -743,8 +782,11 @@ if _QT_IMPORT_ERROR is None:
 
         def _render_snapshot(self, snapshot: SystemSnapshot) -> None:
             lines = format_snapshot_lines(snapshot)
-            self._cpu_label.setText(lines["cpu"])
-            self._memory_label.setText(lines["memory"])
+            self._cpu_gauge.set_value(snapshot.cpu_percent)
+            self._mem_gauge.set_value(snapshot.memory_percent)
+            self._cpu_sparkline.push(snapshot.cpu_percent)
+            self._mem_sparkline.push(snapshot.memory_percent)
+            self._render_cpu_gauge.set_value(snapshot.cpu_percent)
             self._timestamp_label.setText(lines["timestamp"])
             self._render_timestamp_label.setText(lines["timestamp"])
 
@@ -769,6 +811,12 @@ if _QT_IMPORT_ERROR is None:
                 memory_percent=self._last_mem,
             )
             self._phase = frame.phase
+
+            self._cpu_gauge.set_accent_intensity(frame.accent_intensity)
+            self._mem_gauge.set_accent_intensity(frame.accent_intensity)
+            self._cpu_sparkline.set_accent_intensity(frame.accent_intensity)
+            self._mem_sparkline.set_accent_intensity(frame.accent_intensity)
+            self._render_cpu_gauge.set_accent_intensity(frame.accent_intensity)
 
             bucket = int(frame.accent_intensity * 100.0)
             if bucket != self._accent_bucket:

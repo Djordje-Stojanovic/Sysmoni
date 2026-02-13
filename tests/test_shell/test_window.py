@@ -794,5 +794,135 @@ class GuiWindowTests(unittest.TestCase):
         self.assertNotEqual(ss_zero, ss_half)
 
 
+    @unittest.skipIf(gui_window._QT_IMPORT_ERROR is not None, "PySide6 is unavailable")
+    def test_telemetry_panel_has_radial_gauges_and_sparklines(self) -> None:
+        app = gui_window.QApplication.instance()
+        if app is None:
+            app = gui_window.QApplication([])
+
+        from render import RadialGauge, SparkLine
+
+        window = gui_window.AuraWindow(
+            interval_seconds=60.0,
+            collect=lambda: SystemSnapshot(timestamp=1.0, cpu_percent=0.0, memory_percent=0.0),
+            collect_processes=lambda: [],
+            process_row_count=3,
+            db_path=None,
+        )
+        try:
+            self.assertIsInstance(window._cpu_gauge, RadialGauge)
+            self.assertIsInstance(window._mem_gauge, RadialGauge)
+            self.assertIsInstance(window._cpu_sparkline, SparkLine)
+            self.assertIsInstance(window._mem_sparkline, SparkLine)
+            self.assertIsInstance(window._render_cpu_gauge, RadialGauge)
+        finally:
+            window.close()
+
+    @unittest.skipIf(gui_window._QT_IMPORT_ERROR is not None, "PySide6 is unavailable")
+    def test_on_snapshot_updates_gauge_values_and_sparkline_buffers(self) -> None:
+        app = gui_window.QApplication.instance()
+        if app is None:
+            app = gui_window.QApplication([])
+
+        window = gui_window.AuraWindow(
+            interval_seconds=60.0,
+            collect=lambda: SystemSnapshot(timestamp=1.0, cpu_percent=0.0, memory_percent=0.0),
+            collect_processes=lambda: [],
+            process_row_count=3,
+            db_path=None,
+        )
+        try:
+            window._on_snapshot(
+                1.0, 42.5, 68.3, "Streaming telemetry",
+                gui_window.format_process_rows([], row_count=3),
+            )
+            self.assertAlmostEqual(window._cpu_gauge.value, 42.5, places=1)
+            self.assertAlmostEqual(window._mem_gauge.value, 68.3, places=1)
+            self.assertEqual(window._cpu_sparkline.buffer_len, 1)
+            self.assertEqual(window._mem_sparkline.buffer_len, 1)
+        finally:
+            window.close()
+
+    @unittest.skipIf(gui_window._QT_IMPORT_ERROR is not None, "PySide6 is unavailable")
+    def test_on_frame_tick_propagates_accent_intensity_to_all_widgets(self) -> None:
+        app = gui_window.QApplication.instance()
+        if app is None:
+            app = gui_window.QApplication([])
+
+        window = gui_window.AuraWindow(
+            interval_seconds=60.0,
+            collect=lambda: SystemSnapshot(timestamp=1.0, cpu_percent=95.0, memory_percent=90.0),
+            collect_processes=lambda: [],
+            process_row_count=3,
+            db_path=None,
+        )
+        try:
+            window._last_cpu = 95.0
+            window._last_mem = 90.0
+            window._on_frame_tick()
+
+            # All 5 widgets should have accent_intensity set (may be > 0 at high load)
+            for widget in (
+                window._cpu_gauge,
+                window._mem_gauge,
+                window._cpu_sparkline,
+                window._mem_sparkline,
+                window._render_cpu_gauge,
+            ):
+                self.assertIsNotNone(widget.accent_intensity)
+                self.assertGreaterEqual(widget.accent_intensity, 0.0)
+                self.assertLessEqual(widget.accent_intensity, 1.0)
+        finally:
+            window.close()
+
+    @unittest.skipIf(gui_window._QT_IMPORT_ERROR is not None, "PySide6 is unavailable")
+    def test_multiple_snapshots_accumulate_sparkline_buffer(self) -> None:
+        app = gui_window.QApplication.instance()
+        if app is None:
+            app = gui_window.QApplication([])
+
+        window = gui_window.AuraWindow(
+            interval_seconds=60.0,
+            collect=lambda: SystemSnapshot(timestamp=1.0, cpu_percent=0.0, memory_percent=0.0),
+            collect_processes=lambda: [],
+            process_row_count=3,
+            db_path=None,
+        )
+        try:
+            rows = gui_window.format_process_rows([], row_count=3)
+            for i in range(5):
+                window._on_snapshot(
+                    float(i), float(i * 10), float(i * 5), "status", rows,
+                )
+            self.assertEqual(window._cpu_sparkline.buffer_len, 5)
+            self.assertEqual(window._mem_sparkline.buffer_len, 5)
+        finally:
+            window.close()
+
+    @unittest.skipIf(gui_window._QT_IMPORT_ERROR is not None, "PySide6 is unavailable")
+    def test_render_panel_gauge_shows_cpu_value(self) -> None:
+        app = gui_window.QApplication.instance()
+        if app is None:
+            app = gui_window.QApplication([])
+
+        window = gui_window.AuraWindow(
+            interval_seconds=60.0,
+            collect=lambda: SystemSnapshot(timestamp=1.0, cpu_percent=0.0, memory_percent=0.0),
+            collect_processes=lambda: [],
+            process_row_count=3,
+            db_path=None,
+        )
+        try:
+            window._on_snapshot(
+                1.0, 55.0, 30.0, "Streaming telemetry",
+                gui_window.format_process_rows([], row_count=3),
+            )
+            self.assertAlmostEqual(window._render_cpu_gauge.value, 55.0, places=1)
+            # Render gauge is a separate object from telemetry gauges
+            self.assertIsNot(window._render_cpu_gauge, window._cpu_gauge)
+        finally:
+            window.close()
+
+
 if __name__ == "__main__":
     unittest.main()
