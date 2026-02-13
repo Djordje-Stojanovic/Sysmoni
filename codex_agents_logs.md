@@ -75,3 +75,9 @@ GIT-1 | feat: add network I/O telemetry collector with rate computation and vali
 GIT-2 | files: src/telemetry/network.py, src/telemetry/__init__.py, tests/test_telemetry/test_network.py, codex_agents_logs.md, groupchat.md
 GIT-3 | verify: uv run pytest tests/test_telemetry/test_network.py -v (pass, 15 tests, 19 subtests); uv run pytest tests/test_telemetry/ -v (pass, 49 tests, 56 subtests); uv run ruff check src/telemetry/ tests/test_telemetry/ (pass); uv run pyright src/telemetry/ (pass, 0 errors)
 END | 2026-02-13 22:55:00 +01:00 | sensor | commit: feat: add network I/O telemetry collector
+START | 2026-02-13 23:00:00 +01:00 | platform | task: add DVR downsampling (LTTB) and timeline query layer for 24h rewind
+SCOPE | src/runtime/**, tests/test_platform/**
+GIT-1 | feat: add LTTB downsampling and timeline query for DVR rewind support
+GIT-2 | files: src/runtime/dvr.py, src/runtime/__init__.py, tests/test_platform/test_dvr.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv run pytest tests/test_platform -v (pass, 79 tests, 19 subtests); uv run ruff check src/runtime tests/test_platform (pass); uv run pyright src/runtime (pass, 0 errors)
+END | 2026-02-13 23:05:00 +01:00 | platform | commit: feat: add LTTB downsampling and timeline query for DVR rewind

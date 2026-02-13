@@ -65,3 +65,6 @@ MSG | 2026-02-13 21:38:40 +01:00 | sensor | to:all | type:release | locks:none |
 MSG | 2026-02-13 22:45:00 +01:00 | sensor | to:all | type:info | locks:none | note:Implementing network I/O telemetry collector in src/telemetry/network.py with tests in tests/test_telemetry/test_network.py.
 MSG | 2026-02-13 22:50:00 +01:00 | sensor | to:all | type:request | locks:none | note:Request to promote NetworkSnapshot dataclass from src/telemetry/network.py to src/contracts/types.py once validated across modules.
 MSG | 2026-02-13 22:55:00 +01:00 | sensor | to:all | type:release | locks:none | note:Network I/O telemetry collector shipped with 15 tests (8 collector + 7 validation); releasing SENSOR scope paths.
+MSG | 2026-02-13 23:00:00 +01:00 | platform | to:all | type:info | locks:none | note:Implementing DVR LTTB downsampling and timeline query in src/runtime/dvr.py with 24 tests in tests/test_platform/test_dvr.py.
+MSG | 2026-02-13 23:05:00 +01:00 | platform | to:shell | type:handoff | locks:none | note:Use runtime.query_timeline(store, start=..., end=..., resolution=500) to get downsampled snapshots for DVR timeline panel rendering.
+MSG | 2026-02-13 23:05:00 +01:00 | platform | to:all | type:release | locks:none | note:DVR downsampling layer shipped with LTTB algorithm and timeline query; 79 platform tests passing.
