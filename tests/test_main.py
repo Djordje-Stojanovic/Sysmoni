@@ -401,6 +401,73 @@ class MainCliTests(unittest.TestCase):
         self.assertEqual(store.appended, produced)
         self.assertTrue(store.closed)
 
+    def test_main_watch_mode_continues_when_store_write_fails(self) -> None:
+        produced = [
+            SystemSnapshot(timestamp=10.0, cpu_percent=1.0, memory_percent=2.0),
+            SystemSnapshot(timestamp=11.0, cpu_percent=3.0, memory_percent=4.0),
+        ]
+        created_stores: list[object] = []
+
+        class _StoreStub:
+            def __init__(self, db_path: str) -> None:
+                self.db_path = db_path
+                self.append_attempts = 0
+                self.closed = False
+                created_stores.append(self)
+
+            def append(self, snapshot: SystemSnapshot) -> None:
+                del snapshot
+                self.append_attempts += 1
+                raise OSError("disk full")
+
+            def close(self) -> None:
+                self.closed = True
+
+        def _run_polling_loop(interval_seconds: float, on_snapshot, *, stop_event) -> int:
+            del interval_seconds
+            emitted = 0
+            for snapshot in produced:
+                if stop_event.is_set():
+                    break
+                on_snapshot(snapshot)
+                emitted += 1
+            return emitted
+
+        original_run_polling_loop = app_main.run_polling_loop
+        original_collect_snapshot = app_main.collect_snapshot
+        original_telemetry_store = app_main.TelemetryStore
+        app_main.run_polling_loop = _run_polling_loop
+        app_main.collect_snapshot = lambda: (_ for _ in ()).throw(
+            AssertionError("collect_snapshot should not be called in watch mode.")
+        )
+        app_main.TelemetryStore = _StoreStub
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        try:
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                code = app_main.main(
+                    ["--watch", "--json", "--db-path", "telemetry.sqlite", "--count", "2"]
+                )
+        finally:
+            app_main.run_polling_loop = original_run_polling_loop
+            app_main.collect_snapshot = original_collect_snapshot
+            app_main.TelemetryStore = original_telemetry_store
+
+        self.assertEqual(code, 0)
+        self.assertEqual(
+            stdout.getvalue().strip().splitlines(),
+            [
+                '{"cpu_percent": 1.0, "memory_percent": 2.0, "timestamp": 10.0}',
+                '{"cpu_percent": 3.0, "memory_percent": 4.0, "timestamp": 11.0}',
+            ],
+        )
+        self.assertIn("DVR persistence disabled: disk full", stderr.getvalue())
+        self.assertEqual(len(created_stores), 1)
+        store = created_stores[0]
+        self.assertEqual(store.db_path, "telemetry.sqlite")
+        self.assertEqual(store.append_attempts, 1)
+        self.assertTrue(store.closed)
+
     def test_main_watch_mode_stops_after_count(self) -> None:
         produced = [
             SystemSnapshot(timestamp=10.0, cpu_percent=1.0, memory_percent=2.0),

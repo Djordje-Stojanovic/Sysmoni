@@ -353,3 +353,11 @@ GIT-2 | files: src/core/poller.py, src/gui/window.py, tests/test_poller.py, test
 GIT-3 | verify: uv run pytest tests/test_poller.py tests/test_gui_window.py -q (pass, 23 tests + 10 subtests); uv run pytest tests/ -x -q (pass, 69 tests + 42 subtests); uv run ruff check src/ tests/ (pass); uv run pyright src/ (pass)
 RISK | none.
 END | 2026-02-13 18:30:05 +01:00 | codex_heliogrid552 | free to work: src/core/poller.py, src/gui/window.py, tests/test_poller.py, tests/test_gui_window.py | commit: fix: keep GUI telemetry worker alive through transient poll errors
+START | 2026-02-13 18:32:20 +01:00 | codex_zenforge742 | task: keep CLI watch telemetry streaming when optional DVR persistence fails
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/main.py, tests/test_main.py
+SCOPE | 2026-02-13 18:32:20 +01:00 | codex_zenforge742 | coordination-only updates to codex_agents_logs.md and groupchat.md without locking those files per explicit user directive.
+GIT-1 | fix: keep watch-mode telemetry streaming after optional DVR write failures
+GIT-2 | files: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv run pytest tests/test_main.py -q (pass, 26 tests + 11 subtests); uv run pytest tests/ -x -q (pass, 70 tests + 42 subtests); uv run ruff check src/ tests/ (pass); uv run pyright src/ (pass)
+RISK | none.
+END | 2026-02-13 18:33:59 +01:00 | codex_zenforge742 | free to work: src/main.py, tests/test_main.py | commit: fix: keep watch-mode telemetry streaming when optional DVR persistence fails

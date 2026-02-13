@@ -197,11 +197,26 @@ def main(argv: list[str] | None = None) -> int:
         if args.watch:
             stop_event = threading.Event()
             remaining_samples = args.count
+            store_warning_emitted = False
 
             def _on_snapshot(snapshot: SystemSnapshot) -> None:
-                nonlocal remaining_samples
+                nonlocal remaining_samples, store_warning_emitted, store
                 if store is not None:
-                    store.append(snapshot)
+                    try:
+                        store.append(snapshot)
+                    except Exception as exc:
+                        if not store_warning_emitted:
+                            print(
+                                f"DVR persistence disabled: {exc}",
+                                file=sys.stderr,
+                            )
+                            store_warning_emitted = True
+                        try:
+                            store.close()
+                        except Exception:
+                            pass
+                        finally:
+                            store = None
                 _print_snapshot(
                     snapshot,
                     output_json=args.json,
