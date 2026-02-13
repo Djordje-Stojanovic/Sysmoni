@@ -388,3 +388,11 @@ GIT-2 | files: src/gui/window.py, tests/test_gui_window.py, codex_agents_logs.md
 GIT-3 | verify: uv run pytest tests/test_gui_window.py -q (pass, 13 tests); uv run pytest tests/ -x -q (pass, 83 tests + 56 subtests); uv run ruff check src/ tests/ (pass); uv run pyright src/ (pass); git push origin main (pass)
 RISK | none.
 END | 2026-02-13 20:03:09 +01:00 | codex_aerion915 | free to work: src/gui/window.py, tests/test_gui_window.py | commit: feat: add live top-process strip to GUI telemetry window (b23001a)
+START | 2026-02-13 20:04:47 +01:00 | codex_cachegrid214 | task: cache process names in top-process collector to reduce repeated lookup overhead
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/core/poller.py, tests/test_poller.py
+SCOPE | 2026-02-13 20:04:47 +01:00 | codex_cachegrid214 | coordination-only updates to codex_agents_logs.md and groupchat.md without locking those files per explicit user directive.
+GIT-1 | fix: cache process names across top-process samples to reduce repeated lookup overhead
+GIT-2 | files: src/core/poller.py, tests/test_poller.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv run pytest tests/test_poller.py -q (pass, 20 tests + 13 subtests); uv run pytest tests/ -x -q (pass, 85 tests + 56 subtests); .\\.venv\\Scripts\\python.exe -m ruff check src tests (pass); .\\.venv\\Scripts\\python.exe -m pyright src (fails: missing local PySide6/psutil module sources)
+RISK | local pyright still cannot resolve PySide6/psutil sources in this sandbox; functional tests and lint are green.
+END | 2026-02-13 20:06:15 +01:00 | codex_cachegrid214 | free to work: src/core/poller.py, tests/test_poller.py | commit: fix: cache process names in top-process collector hot path

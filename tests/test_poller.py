@@ -163,6 +163,14 @@ class CollectSnapshotTests(unittest.TestCase):
 
 
 class CollectTopProcessesTests(unittest.TestCase):
+    def setUp(self) -> None:
+        with poller._process_name_cache_lock:
+            poller._process_name_cache.clear()
+
+    def tearDown(self) -> None:
+        with poller._process_name_cache_lock:
+            poller._process_name_cache.clear()
+
     def test_collect_top_processes_raises_when_psutil_missing(self) -> None:
         original_psutil = poller.psutil
         poller.psutil = None
@@ -248,6 +256,82 @@ class CollectTopProcessesTests(unittest.TestCase):
                 ),
             ],
         )
+
+    def test_collect_top_processes_reuses_cached_name_when_name_is_missing(self) -> None:
+        seeded_stub = _ProcessPsutilStub(
+            [
+                _ProcessStub(
+                    {
+                        "pid": 7,
+                        "name": "worker",
+                        "cpu_percent": 15.0,
+                        "memory_info": _ProcessMemoryInfoStub(150),
+                    }
+                )
+            ]
+        )
+        missing_name_stub = _ProcessPsutilStub(
+            [
+                _ProcessStub(
+                    {
+                        "pid": 7,
+                        "name": "",
+                        "cpu_percent": 16.0,
+                        "memory_info": _ProcessMemoryInfoStub(160),
+                    }
+                )
+            ]
+        )
+        original_psutil = poller.psutil
+        poller.psutil = seeded_stub
+        try:
+            seeded_samples = poller.collect_top_processes(limit=5)
+            poller.psutil = missing_name_stub
+            cached_samples = poller.collect_top_processes(limit=5)
+        finally:
+            poller.psutil = original_psutil
+
+        self.assertEqual(seeded_samples[0].name, "worker")
+        self.assertEqual(cached_samples[0].name, "worker")
+
+    def test_collect_top_processes_prunes_name_cache_for_unseen_pids(self) -> None:
+        first_stub = _ProcessPsutilStub(
+            [
+                _ProcessStub(
+                    {
+                        "pid": 10,
+                        "name": "alpha",
+                        "cpu_percent": 20.0,
+                        "memory_info": _ProcessMemoryInfoStub(200),
+                    }
+                )
+            ]
+        )
+        second_stub = _ProcessPsutilStub(
+            [
+                _ProcessStub(
+                    {
+                        "pid": 11,
+                        "name": "beta",
+                        "cpu_percent": 30.0,
+                        "memory_info": _ProcessMemoryInfoStub(300),
+                    }
+                )
+            ]
+        )
+        original_psutil = poller.psutil
+        poller.psutil = first_stub
+        try:
+            poller.collect_top_processes(limit=5)
+            poller.psutil = second_stub
+            poller.collect_top_processes(limit=5)
+        finally:
+            poller.psutil = original_psutil
+
+        with poller._process_name_cache_lock:
+            cached_names = dict(poller._process_name_cache)
+
+        self.assertEqual(cached_names, {11: "beta"})
 
     def test_collect_top_processes_skips_recoverable_process_errors(self) -> None:
         class _DeniedProcess:

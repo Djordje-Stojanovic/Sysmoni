@@ -14,6 +14,8 @@ except ImportError:
 
 _cpu_percent_primed = False
 _cpu_prime_lock = threading.Lock()
+_process_name_cache: dict[int, str] = {}
+_process_name_cache_lock = threading.Lock()
 
 
 def _require_positive_finite_interval(interval_seconds: float) -> float:
@@ -84,6 +86,7 @@ def collect_top_processes(*, limit: int = 20) -> list[ProcessSample]:
     recoverable_errors = process_errors + (AttributeError, TypeError, ValueError)
 
     samples: list[ProcessSample] = []
+    observed_pids: set[int] = set()
     for process in psutil.process_iter(
         attrs=["pid", "name", "cpu_percent", "memory_info"],
     ):
@@ -94,9 +97,13 @@ def collect_top_processes(*, limit: int = 20) -> list[ProcessSample]:
 
             pid = int(info["pid"])
             raw_name = info.get("name")
-            name = str(raw_name).strip() if raw_name is not None else ""
-            if not name:
-                name = f"pid-{pid}"
+            explicit_name = str(raw_name).strip() if raw_name is not None else ""
+            if explicit_name:
+                name = explicit_name
+            else:
+                with _process_name_cache_lock:
+                    cached_name = _process_name_cache.get(pid)
+                name = cached_name if cached_name is not None else f"pid-{pid}"
 
             raw_cpu_percent = info.get("cpu_percent")
             cpu_percent = 0.0 if raw_cpu_percent is None else float(raw_cpu_percent)
@@ -104,16 +111,28 @@ def collect_top_processes(*, limit: int = 20) -> list[ProcessSample]:
             memory_info = info.get("memory_info")
             memory_rss_bytes = int(getattr(memory_info, "rss", 0))
 
-            samples.append(
-                ProcessSample(
-                    pid=pid,
-                    name=name,
-                    cpu_percent=cpu_percent,
-                    memory_rss_bytes=memory_rss_bytes,
-                )
+            sample = ProcessSample(
+                pid=pid,
+                name=name,
+                cpu_percent=cpu_percent,
+                memory_rss_bytes=memory_rss_bytes,
             )
+            samples.append(sample)
+            observed_pids.add(sample.pid)
+            if explicit_name:
+                with _process_name_cache_lock:
+                    _process_name_cache[sample.pid] = explicit_name
         except recoverable_errors:
             continue
+
+    with _process_name_cache_lock:
+        stale_pids = [
+            cached_pid
+            for cached_pid in _process_name_cache
+            if cached_pid not in observed_pids
+        ]
+        for stale_pid in stale_pids:
+            del _process_name_cache[stale_pid]
 
     samples.sort(
         key=lambda sample: (
