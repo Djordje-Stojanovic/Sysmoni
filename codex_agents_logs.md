@@ -374,3 +374,8 @@ GIT-2 | files: src/gui/window.py, tests/test_gui_window.py, codex_agents_logs.md
 GIT-3 | verify: uv run pytest tests/test_gui_window.py -q (pass, 11 tests); uv run pytest tests/ -x -q (pass, 72 tests + 42 subtests); uv run ruff check src/ tests/ (pass); uv run pyright src/ (pass)
 RISK | none.
 END | 2026-02-13 18:38:20 +01:00 | codex_iongrid908 | free to work: src/gui/window.py, tests/test_gui_window.py | commit: fix: harden GUI DVR recorder synchronization and startup cleanup
+GIT-1 | feat: add process telemetry collection primitive for upcoming process panel groundwork
+GIT-2 | files: src/core/poller.py, src/core/types.py, tests/test_poller.py, tests/test_types.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: .\\.venv\\Scripts\\python.exe -m pytest tests/test_types.py tests/test_poller.py -q (pass, 29 tests + 37 subtests); .\\.venv\\Scripts\\python.exe -m pytest tests/ -x -q (pass, 81 tests + 56 subtests); .\\.venv\\Scripts\\python.exe -m ruff check src tests (pass); .\\.venv\\Scripts\\python.exe -m pyright src (fails: missing local PySide6/psutil module sources in this environment)
+RISK | local .venv pyright cannot resolve PySide6/psutil sources in this sandboxed environment; functional tests and lint are green.
+END | 2026-02-13 18:41:23 +01:00 | codex_singularity612 | free to work: src/core/poller.py, src/core/types.py, tests/test_poller.py, tests/test_types.py | commit: feat: add top-process telemetry collection primitive

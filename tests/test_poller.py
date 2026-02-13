@@ -15,7 +15,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from core import poller  # noqa: E402
-from core.types import SystemSnapshot  # noqa: E402
+from core.types import ProcessSample, SystemSnapshot  # noqa: E402
 
 
 class _PsutilStub:
@@ -43,6 +43,42 @@ class _PsutilStub:
             percent = self._memory_percent
 
         return _Memory()
+
+
+class _ProcessMemoryInfoStub:
+    def __init__(self, rss: int) -> None:
+        self.rss = rss
+
+
+class _ProcessStub:
+    def __init__(self, info: dict[str, object]) -> None:
+        self.info = info
+
+
+class _NoSuchProcessStub(Exception):
+    pass
+
+
+class _AccessDeniedStub(Exception):
+    pass
+
+
+class _ZombieProcessStub(Exception):
+    pass
+
+
+class _ProcessPsutilStub:
+    NoSuchProcess = _NoSuchProcessStub
+    AccessDenied = _AccessDeniedStub
+    ZombieProcess = _ZombieProcessStub
+
+    def __init__(self, processes: list[object]) -> None:
+        self._processes = processes
+        self.process_iter_attrs: list[list[str]] = []
+
+    def process_iter(self, attrs: list[str]) -> list[object]:
+        self.process_iter_attrs.append(attrs)
+        return list(self._processes)
 
 
 class CollectSnapshotTests(unittest.TestCase):
@@ -124,6 +160,140 @@ class CollectSnapshotTests(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(stub.cpu_intervals.count(0.1), 1)
         self.assertEqual(stub.cpu_intervals.count(None), worker_count - 1)
+
+
+class CollectTopProcessesTests(unittest.TestCase):
+    def test_collect_top_processes_raises_when_psutil_missing(self) -> None:
+        original_psutil = poller.psutil
+        poller.psutil = None
+        try:
+            with self.assertRaises(RuntimeError):
+                poller.collect_top_processes()
+        finally:
+            poller.psutil = original_psutil
+
+    def test_collect_top_processes_requires_positive_limit(self) -> None:
+        original_psutil = poller.psutil
+        poller.psutil = _ProcessPsutilStub([])
+        try:
+            for invalid_limit in (0, -1, False):
+                with self.subTest(invalid_limit=invalid_limit):
+                    with self.assertRaises(ValueError):
+                        poller.collect_top_processes(limit=invalid_limit)
+        finally:
+            poller.psutil = original_psutil
+
+    def test_collect_top_processes_sorts_by_cpu_then_memory_and_applies_limit(self) -> None:
+        stub = _ProcessPsutilStub(
+            [
+                _ProcessStub(
+                    {
+                        "pid": 1,
+                        "name": "alpha",
+                        "cpu_percent": 2.0,
+                        "memory_info": _ProcessMemoryInfoStub(200),
+                    }
+                ),
+                _ProcessStub(
+                    {
+                        "pid": 2,
+                        "name": "beta",
+                        "cpu_percent": 20.0,
+                        "memory_info": _ProcessMemoryInfoStub(100),
+                    }
+                ),
+                _ProcessStub(
+                    {
+                        "pid": 3,
+                        "name": "",
+                        "cpu_percent": 20.0,
+                        "memory_info": _ProcessMemoryInfoStub(500),
+                    }
+                ),
+                _ProcessStub(
+                    {
+                        "pid": 0,
+                        "name": "invalid",
+                        "cpu_percent": 99.0,
+                        "memory_info": _ProcessMemoryInfoStub(999),
+                    }
+                ),
+            ]
+        )
+        original_psutil = poller.psutil
+        poller.psutil = stub
+        try:
+            samples = poller.collect_top_processes(limit=2)
+        finally:
+            poller.psutil = original_psutil
+
+        self.assertEqual(
+            stub.process_iter_attrs,
+            [["pid", "name", "cpu_percent", "memory_info"]],
+        )
+        self.assertEqual(
+            samples,
+            [
+                ProcessSample(
+                    pid=3,
+                    name="pid-3",
+                    cpu_percent=20.0,
+                    memory_rss_bytes=500,
+                ),
+                ProcessSample(
+                    pid=2,
+                    name="beta",
+                    cpu_percent=20.0,
+                    memory_rss_bytes=100,
+                ),
+            ],
+        )
+
+    def test_collect_top_processes_skips_recoverable_process_errors(self) -> None:
+        class _DeniedProcess:
+            @property
+            def info(self) -> dict[str, object]:
+                raise _AccessDeniedStub("permission denied")
+
+        stub = _ProcessPsutilStub(
+            [
+                _DeniedProcess(),
+                _ProcessStub(
+                    {
+                        "pid": 4,
+                        "name": "worker",
+                        "cpu_percent": 8.5,
+                        "memory_info": _ProcessMemoryInfoStub(120),
+                    }
+                ),
+                _ProcessStub(
+                    {
+                        "pid": 5,
+                        "name": "broken",
+                        "cpu_percent": math.nan,
+                        "memory_info": _ProcessMemoryInfoStub(200),
+                    }
+                ),
+            ]
+        )
+        original_psutil = poller.psutil
+        poller.psutil = stub
+        try:
+            samples = poller.collect_top_processes(limit=10)
+        finally:
+            poller.psutil = original_psutil
+
+        self.assertEqual(
+            samples,
+            [
+                ProcessSample(
+                    pid=4,
+                    name="worker",
+                    cpu_percent=8.5,
+                    memory_rss_bytes=120,
+                )
+            ],
+        )
 
 
 class RunPollingLoopTests(unittest.TestCase):

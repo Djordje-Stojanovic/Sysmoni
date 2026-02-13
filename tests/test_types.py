@@ -11,7 +11,7 @@ SRC_ROOT = PROJECT_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from core.types import SystemSnapshot  # noqa: E402
+from core.types import ProcessSample, SystemSnapshot  # noqa: E402
 
 
 class SystemSnapshotTests(unittest.TestCase):
@@ -74,6 +74,74 @@ class SystemSnapshotTests(unittest.TestCase):
                         timestamp=1.0,
                         cpu_percent=20.0,
                         memory_percent=invalid_memory_percent,
+                    )
+
+
+class ProcessSampleTests(unittest.TestCase):
+    def test_process_sample_normalizes_numeric_fields(self) -> None:
+        sample = ProcessSample(
+            pid=100,
+            name=" python ",
+            cpu_percent=12,
+            memory_rss_bytes=2048,
+        )
+
+        self.assertEqual(sample.pid, 100)
+        self.assertEqual(sample.name, "python")
+        self.assertEqual(sample.cpu_percent, 12.0)
+        self.assertEqual(sample.memory_rss_bytes, 2048)
+        self.assertEqual(
+            sample.to_dict(),
+            {
+                "pid": 100,
+                "name": "python",
+                "cpu_percent": 12.0,
+                "memory_rss_bytes": 2048,
+            },
+        )
+
+    def test_process_sample_rejects_invalid_pid(self) -> None:
+        for invalid_pid in (0, -1, True):
+            with self.subTest(invalid_pid=invalid_pid):
+                with self.assertRaises(ValueError):
+                    ProcessSample(
+                        pid=invalid_pid,
+                        name="python",
+                        cpu_percent=1.0,
+                        memory_rss_bytes=1,
+                    )
+
+    def test_process_sample_rejects_blank_name(self) -> None:
+        for invalid_name in ("", "   "):
+            with self.subTest(invalid_name=invalid_name):
+                with self.assertRaises(ValueError):
+                    ProcessSample(
+                        pid=1,
+                        name=invalid_name,
+                        cpu_percent=1.0,
+                        memory_rss_bytes=1,
+                    )
+
+    def test_process_sample_rejects_invalid_cpu_percent(self) -> None:
+        for invalid_cpu_percent in (-0.1, math.nan, math.inf, -math.inf):
+            with self.subTest(invalid_cpu_percent=invalid_cpu_percent):
+                with self.assertRaises(ValueError):
+                    ProcessSample(
+                        pid=1,
+                        name="python",
+                        cpu_percent=invalid_cpu_percent,
+                        memory_rss_bytes=1,
+                    )
+
+    def test_process_sample_rejects_invalid_memory_rss(self) -> None:
+        for invalid_memory_rss in (-1, True):
+            with self.subTest(invalid_memory_rss=invalid_memory_rss):
+                with self.assertRaises(ValueError):
+                    ProcessSample(
+                        pid=1,
+                        name="python",
+                        cpu_percent=1.0,
+                        memory_rss_bytes=invalid_memory_rss,
                     )
 
 

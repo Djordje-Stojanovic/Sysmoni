@@ -5,7 +5,7 @@ import threading
 import time
 from typing import Callable
 
-from .types import SystemSnapshot
+from .types import ProcessSample, SystemSnapshot
 
 try:
     import psutil
@@ -24,6 +24,16 @@ def _require_positive_finite_interval(interval_seconds: float) -> float:
     if not math.isfinite(normalized_interval) or normalized_interval <= 0:
         raise ValueError("interval_seconds must be a finite number greater than 0.")
     return normalized_interval
+
+
+def _require_positive_process_limit(limit: int) -> int:
+    if isinstance(limit, bool):
+        raise ValueError("limit must be an integer greater than 0.")
+
+    normalized_limit = int(limit)
+    if normalized_limit <= 0:
+        raise ValueError("limit must be an integer greater than 0.")
+    return normalized_limit
 
 
 def collect_snapshot(now: Callable[[], float] | None = None) -> SystemSnapshot:
@@ -51,6 +61,68 @@ def collect_snapshot(now: Callable[[], float] | None = None) -> SystemSnapshot:
         cpu_percent=cpu_percent,
         memory_percent=float(psutil.virtual_memory().percent),
     )
+
+
+def collect_top_processes(*, limit: int = 20) -> list[ProcessSample]:
+    """Collect top process snapshots sorted by CPU and RSS memory usage."""
+    normalized_limit = _require_positive_process_limit(limit)
+
+    if psutil is None:
+        raise RuntimeError(
+            "psutil is required to collect telemetry. Install dependencies first."
+        )
+
+    process_errors: tuple[type[BaseException], ...] = tuple(
+        process_error
+        for process_error in (
+            getattr(psutil, "NoSuchProcess", None),
+            getattr(psutil, "AccessDenied", None),
+            getattr(psutil, "ZombieProcess", None),
+        )
+        if isinstance(process_error, type) and issubclass(process_error, BaseException)
+    )
+    recoverable_errors = process_errors + (AttributeError, TypeError, ValueError)
+
+    samples: list[ProcessSample] = []
+    for process in psutil.process_iter(
+        attrs=["pid", "name", "cpu_percent", "memory_info"],
+    ):
+        try:
+            info = process.info
+            if not isinstance(info, dict):
+                raise TypeError("psutil process info must be a dict.")
+
+            pid = int(info["pid"])
+            raw_name = info.get("name")
+            name = str(raw_name).strip() if raw_name is not None else ""
+            if not name:
+                name = f"pid-{pid}"
+
+            raw_cpu_percent = info.get("cpu_percent")
+            cpu_percent = 0.0 if raw_cpu_percent is None else float(raw_cpu_percent)
+
+            memory_info = info.get("memory_info")
+            memory_rss_bytes = int(getattr(memory_info, "rss", 0))
+
+            samples.append(
+                ProcessSample(
+                    pid=pid,
+                    name=name,
+                    cpu_percent=cpu_percent,
+                    memory_rss_bytes=memory_rss_bytes,
+                )
+            )
+        except recoverable_errors:
+            continue
+
+    samples.sort(
+        key=lambda sample: (
+            -sample.cpu_percent,
+            -sample.memory_rss_bytes,
+            sample.pid,
+        )
+    )
+    return samples[:normalized_limit]
 
 
 def run_polling_loop(
