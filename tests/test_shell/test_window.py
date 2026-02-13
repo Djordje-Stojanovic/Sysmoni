@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import io
 import pathlib
 import sys
 import threading
 import unittest
-from contextlib import redirect_stderr
 
 
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -18,14 +16,6 @@ from shell import window as gui_window  # noqa: E402
 
 
 class GuiWindowTests(unittest.TestCase):
-    def test_resolve_gui_db_path_handles_missing_blank_and_set_values(self) -> None:
-        self.assertIsNone(gui_window.resolve_gui_db_path({}))
-        self.assertIsNone(gui_window.resolve_gui_db_path({"AURA_DB_PATH": "   "}))
-        self.assertEqual(
-            gui_window.resolve_gui_db_path({"AURA_DB_PATH": " telemetry.sqlite "}),
-            "telemetry.sqlite",
-        )
-
     def test_dvr_recorder_updates_sample_count_and_stream_status(self) -> None:
         created_stores: list[object] = []
         seeded_snapshot = SystemSnapshot(
@@ -677,19 +667,6 @@ class GuiWindowTests(unittest.TestCase):
             gui_window._QT_IMPORT_ERROR = original_error
 
         self.assertIn("PySide6 is required for the GUI slice", str(ctx.exception))
-
-    def test_run_returns_error_code_when_qt_is_missing(self) -> None:
-        original_error = gui_window._QT_IMPORT_ERROR
-        gui_window._QT_IMPORT_ERROR = ImportError("No module named PySide6")
-        stderr = io.StringIO()
-        try:
-            with redirect_stderr(stderr):
-                exit_code = gui_window.run([])
-        finally:
-            gui_window._QT_IMPORT_ERROR = original_error
-
-        self.assertEqual(exit_code, 2)
-        self.assertIn("PySide6 is required for the GUI slice", stderr.getvalue())
 
     @unittest.skipIf(gui_window._QT_IMPORT_ERROR is not None, "PySide6 is unavailable")
     def test_on_frame_tick_updates_phase_and_accent_bucket(self) -> None:

@@ -1,4 +1,4 @@
 from .titlebar import AuraTitleBar
-from .window import AuraWindow, run
+from .window import AuraWindow
 
-__all__ = ["AuraTitleBar", "AuraWindow", "run"]
+__all__ = ["AuraTitleBar", "AuraWindow"]

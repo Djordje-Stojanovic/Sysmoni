@@ -1,17 +1,10 @@
 from __future__ import annotations
 # pyright: reportAttributeAccessIssue=false, reportPossiblyUnboundVariable=false, reportRedeclaration=false, reportArgumentType=false
 
-import os
-import pathlib
-import sys
 import threading
 import time
 from dataclasses import dataclass
 from typing import Callable, Literal, cast
-
-SRC_ROOT = pathlib.Path(__file__).resolve().parents[1]
-if str(SRC_ROOT) not in sys.path:
-    sys.path.insert(0, str(SRC_ROOT))
 
 from contracts.types import ProcessSample, SystemSnapshot  # noqa: E402
 from render import (  # noqa: E402
@@ -53,15 +46,6 @@ try:
 except ImportError as exc:  # pragma: no cover - exercised in tests by monkeypatching
     _QT_IMPORT_ERROR = exc
 
-
-def resolve_gui_db_path(env: dict[str, str] | None = None) -> str | None:
-    source = os.environ if env is None else env
-    raw_value = source.get("AURA_DB_PATH")
-    if raw_value is None:
-        return None
-
-    db_path = raw_value.strip()
-    return db_path or None
 
 DockSlot = Literal["left", "center", "right"]
 PanelId = Literal[
@@ -431,6 +415,7 @@ def require_qt() -> None:
         raise RuntimeError(
             "PySide6 is required for the GUI slice. Run `uv sync` to install it."
         ) from _QT_IMPORT_ERROR
+    _ = QApplication
 
 
 if _QT_IMPORT_ERROR is None:
@@ -1083,24 +1068,3 @@ else:
     class AuraWindow:  # pragma: no cover - only used when Qt is unavailable
         def __init__(self, **_: object) -> None:
             require_qt()
-
-
-def run(argv: list[str] | None = None) -> int:
-    del argv  # Reserved for future window args without changing signature.
-    try:
-        require_qt()
-    except RuntimeError as exc:
-        print(str(exc), file=sys.stderr)
-        return 2
-
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication(sys.argv)
-
-    window = AuraWindow(db_path=resolve_gui_db_path())
-    window.show()
-    return int(app.exec())
-
-
-if __name__ == "__main__":
-    raise SystemExit(run())
