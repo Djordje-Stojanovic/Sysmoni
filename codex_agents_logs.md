@@ -16,3 +16,16 @@ GIT-2 | files: ai.md, AGENTS.md, AGENTS.MD, coding_guideliines.md, ARCHITECTURE.
 GIT-3 | verify: uv run pytest tests/ -x (pass, 85 tests); uv run ruff check src/ tests/ (pass); uv run pyright src/ (pass, 0 errors)
 RISK | platform module remains on src/runtime path to avoid shadowing Python stdlib platform module when src is prepended to sys.path.
 END | 2026-02-13 20:55:14 +01:00 | codex_heliovault431 | free to work: AGENTS.md, AGENTS.MD, ARCHITECTURE.md, DISPATCH.md, PARALLEL_OPS.md, ai.md, coding_guideliines.md, README.md, RUN_WINDOWS11.md, src/render/__init__.py, tests/test_render/__init__.py, tests/test_telemetry/test_types.py, codex_agents_logs.md, groupchat.md | commit: docs: align to strict 4-agent autonomous architecture and prompts
+
+START | 2026-02-13 21:15:42 +01:00 | render | task: add render-owned formatting, status, and theme primitives with tests
+SCOPE | src/render/**, tests/test_render/**
+
+START | 2026-02-13 21:15:40 +01:00 | platform | task: add runtime config surface with default auto persistence and retention controls
+SCOPE | src/runtime/**, tests/test_platform/**
+
+START | 2026-02-13 21:17:05 +01:00 | shell | task: implement docking-first tabbed cockpit shell with telemetry/render panel flow
+SCOPE | src/shell/**, tests/test_shell/**
+GIT-1 | feat: add render-owned formatting, status, and cached theme primitives to unblock shell visual integration
+GIT-2 | files: src/render/__init__.py, src/render/formatting.py, src/render/status.py, src/render/theme.py, tests/test_render/test_formatting.py, tests/test_render/test_status.py, tests/test_render/test_theme.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv run pytest tests/test_render -q (pass, 12 tests); uv run ruff check src/render tests/test_render (pass); uv run pyright src/render (pass)
+END | 2026-02-13 21:17:47 +01:00 | render | commit: feat: add render primitives for shell visual formatting and theme
