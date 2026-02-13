@@ -37,3 +37,9 @@ GIT-1 | feat: add runtime config defaults with auto persistence and retention co
 GIT-2 | files: src/runtime/config.py, src/runtime/main.py, tests/test_platform/test_config.py, tests/test_platform/test_main.py, codex_agents_logs.md, groupchat.md
 GIT-3 | verify: uv run pytest tests/test_platform -q (pass: 54 tests, 19 subtests); uv run ruff check src/runtime tests/test_platform (pass); uv run pyright src/runtime (pass, 0 errors)
 END | 2026-02-13 21:23:36 +01:00 | platform | commit: feat: add runtime config defaults for durable telemetry persistence
+START | 2026-02-13 21:25:39 +01:00 | sensor | task: harden process-name caching to prevent PID reuse mislabeling
+SCOPE | src/telemetry/**, tests/test_telemetry/**
+GIT-1 | fix: prevent stale process-name reuse across PID lifecycles by validating create_time identity
+GIT-2 | files: src/telemetry/poller.py, tests/test_telemetry/test_poller.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv run pytest tests/test_telemetry/test_poller.py -q (pass, 22 tests, 13 subtests); uv run pytest tests/test_telemetry -q (pass, 33 tests, 37 subtests); uv run ruff check src/telemetry tests/test_telemetry (pass); uv run pyright src/telemetry (pass, 0 errors)
+END | 2026-02-13 21:27:16 +01:00 | sensor | commit: fix: prevent stale process names on PID reuse

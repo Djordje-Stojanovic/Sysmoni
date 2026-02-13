@@ -200,6 +200,7 @@ class CollectTopProcessesTests(unittest.TestCase):
                         "name": "alpha",
                         "cpu_percent": 2.0,
                         "memory_info": _ProcessMemoryInfoStub(200),
+                        "create_time": 10.0,
                     }
                 ),
                 _ProcessStub(
@@ -208,6 +209,7 @@ class CollectTopProcessesTests(unittest.TestCase):
                         "name": "beta",
                         "cpu_percent": 20.0,
                         "memory_info": _ProcessMemoryInfoStub(100),
+                        "create_time": 20.0,
                     }
                 ),
                 _ProcessStub(
@@ -216,6 +218,7 @@ class CollectTopProcessesTests(unittest.TestCase):
                         "name": "",
                         "cpu_percent": 20.0,
                         "memory_info": _ProcessMemoryInfoStub(500),
+                        "create_time": 30.0,
                     }
                 ),
                 _ProcessStub(
@@ -224,6 +227,7 @@ class CollectTopProcessesTests(unittest.TestCase):
                         "name": "invalid",
                         "cpu_percent": 99.0,
                         "memory_info": _ProcessMemoryInfoStub(999),
+                        "create_time": 40.0,
                     }
                 ),
             ]
@@ -237,7 +241,7 @@ class CollectTopProcessesTests(unittest.TestCase):
 
         self.assertEqual(
             stub.process_iter_attrs,
-            [["pid", "name", "cpu_percent", "memory_info"]],
+            [["pid", "name", "cpu_percent", "memory_info", "create_time"]],
         )
         self.assertEqual(
             samples,
@@ -266,6 +270,7 @@ class CollectTopProcessesTests(unittest.TestCase):
                         "name": "worker",
                         "cpu_percent": 15.0,
                         "memory_info": _ProcessMemoryInfoStub(150),
+                        "create_time": 70.0,
                     }
                 )
             ]
@@ -278,6 +283,7 @@ class CollectTopProcessesTests(unittest.TestCase):
                         "name": "",
                         "cpu_percent": 16.0,
                         "memory_info": _ProcessMemoryInfoStub(160),
+                        "create_time": 70.0,
                     }
                 )
             ]
@@ -294,6 +300,81 @@ class CollectTopProcessesTests(unittest.TestCase):
         self.assertEqual(seeded_samples[0].name, "worker")
         self.assertEqual(cached_samples[0].name, "worker")
 
+    def test_collect_top_processes_does_not_reuse_cached_name_when_create_time_changes(self) -> None:
+        seeded_stub = _ProcessPsutilStub(
+            [
+                _ProcessStub(
+                    {
+                        "pid": 7,
+                        "name": "worker",
+                        "cpu_percent": 15.0,
+                        "memory_info": _ProcessMemoryInfoStub(150),
+                        "create_time": 70.0,
+                    }
+                )
+            ]
+        )
+        reused_pid_stub = _ProcessPsutilStub(
+            [
+                _ProcessStub(
+                    {
+                        "pid": 7,
+                        "name": "",
+                        "cpu_percent": 16.0,
+                        "memory_info": _ProcessMemoryInfoStub(160),
+                        "create_time": 71.0,
+                    }
+                )
+            ]
+        )
+        original_psutil = poller.psutil
+        poller.psutil = seeded_stub
+        try:
+            poller.collect_top_processes(limit=5)
+            poller.psutil = reused_pid_stub
+            reused_pid_samples = poller.collect_top_processes(limit=5)
+        finally:
+            poller.psutil = original_psutil
+
+        self.assertEqual(reused_pid_samples[0].name, "pid-7")
+
+    def test_collect_top_processes_does_not_reuse_cached_name_when_create_time_missing(self) -> None:
+        seeded_stub = _ProcessPsutilStub(
+            [
+                _ProcessStub(
+                    {
+                        "pid": 7,
+                        "name": "worker",
+                        "cpu_percent": 15.0,
+                        "memory_info": _ProcessMemoryInfoStub(150),
+                        "create_time": 70.0,
+                    }
+                )
+            ]
+        )
+        missing_create_time_stub = _ProcessPsutilStub(
+            [
+                _ProcessStub(
+                    {
+                        "pid": 7,
+                        "name": "",
+                        "cpu_percent": 16.0,
+                        "memory_info": _ProcessMemoryInfoStub(160),
+                    }
+                )
+            ]
+        )
+        original_psutil = poller.psutil
+        poller.psutil = seeded_stub
+        try:
+            poller.collect_top_processes(limit=5)
+            poller.psutil = missing_create_time_stub
+            missing_create_time_samples = poller.collect_top_processes(limit=5)
+        finally:
+            poller.psutil = original_psutil
+
+        self.assertEqual(missing_create_time_samples[0].name, "pid-7")
+
     def test_collect_top_processes_prunes_name_cache_for_unseen_pids(self) -> None:
         first_stub = _ProcessPsutilStub(
             [
@@ -303,6 +384,7 @@ class CollectTopProcessesTests(unittest.TestCase):
                         "name": "alpha",
                         "cpu_percent": 20.0,
                         "memory_info": _ProcessMemoryInfoStub(200),
+                        "create_time": 100.0,
                     }
                 )
             ]
@@ -315,6 +397,7 @@ class CollectTopProcessesTests(unittest.TestCase):
                         "name": "beta",
                         "cpu_percent": 30.0,
                         "memory_info": _ProcessMemoryInfoStub(300),
+                        "create_time": 110.0,
                     }
                 )
             ]
@@ -331,7 +414,7 @@ class CollectTopProcessesTests(unittest.TestCase):
         with poller._process_name_cache_lock:
             cached_names = dict(poller._process_name_cache)
 
-        self.assertEqual(cached_names, {11: "beta"})
+        self.assertEqual(cached_names, {11: ("beta", 110.0)})
 
     def test_collect_top_processes_skips_recoverable_process_errors(self) -> None:
         class _DeniedProcess:
@@ -348,6 +431,7 @@ class CollectTopProcessesTests(unittest.TestCase):
                         "name": "worker",
                         "cpu_percent": 8.5,
                         "memory_info": _ProcessMemoryInfoStub(120),
+                        "create_time": 40.0,
                     }
                 ),
                 _ProcessStub(
@@ -356,6 +440,7 @@ class CollectTopProcessesTests(unittest.TestCase):
                         "name": "broken",
                         "cpu_percent": math.nan,
                         "memory_info": _ProcessMemoryInfoStub(200),
+                        "create_time": 50.0,
                     }
                 ),
             ]

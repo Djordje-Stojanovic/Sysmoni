@@ -14,7 +14,7 @@ except ImportError:
 
 _cpu_percent_primed = False
 _cpu_prime_lock = threading.Lock()
-_process_name_cache: dict[int, str] = {}
+_process_name_cache: dict[int, tuple[str, float | None]] = {}
 _process_name_cache_lock = threading.Lock()
 
 
@@ -36,6 +36,23 @@ def _require_positive_process_limit(limit: int) -> int:
     if normalized_limit <= 0:
         raise ValueError("limit must be an integer greater than 0.")
     return normalized_limit
+
+
+def _normalize_optional_create_time(raw_create_time: object) -> float | None:
+    if raw_create_time is None or isinstance(raw_create_time, bool):
+        return None
+
+    if not isinstance(raw_create_time, (int, float, str)):
+        return None
+
+    try:
+        normalized_create_time = float(raw_create_time)
+    except (TypeError, ValueError):
+        return None
+
+    if not math.isfinite(normalized_create_time):
+        return None
+    return normalized_create_time
 
 
 def collect_snapshot(now: Callable[[], float] | None = None) -> SystemSnapshot:
@@ -88,7 +105,7 @@ def collect_top_processes(*, limit: int = 20) -> list[ProcessSample]:
     samples: list[ProcessSample] = []
     observed_pids: set[int] = set()
     for process in psutil.process_iter(
-        attrs=["pid", "name", "cpu_percent", "memory_info"],
+        attrs=["pid", "name", "cpu_percent", "memory_info", "create_time"],
     ):
         try:
             info = process.info
@@ -96,14 +113,22 @@ def collect_top_processes(*, limit: int = 20) -> list[ProcessSample]:
                 raise TypeError("psutil process info must be a dict.")
 
             pid = int(info["pid"])
+            create_time = _normalize_optional_create_time(info.get("create_time"))
             raw_name = info.get("name")
             explicit_name = str(raw_name).strip() if raw_name is not None else ""
             if explicit_name:
                 name = explicit_name
             else:
                 with _process_name_cache_lock:
-                    cached_name = _process_name_cache.get(pid)
-                name = cached_name if cached_name is not None else f"pid-{pid}"
+                    cached_process = _process_name_cache.get(pid)
+                if (
+                    cached_process is not None
+                    and create_time is not None
+                    and cached_process[1] == create_time
+                ):
+                    name = cached_process[0]
+                else:
+                    name = f"pid-{pid}"
 
             raw_cpu_percent = info.get("cpu_percent")
             cpu_percent = 0.0 if raw_cpu_percent is None else float(raw_cpu_percent)
@@ -121,7 +146,7 @@ def collect_top_processes(*, limit: int = 20) -> list[ProcessSample]:
             observed_pids.add(sample.pid)
             if explicit_name:
                 with _process_name_cache_lock:
-                    _process_name_cache[sample.pid] = explicit_name
+                    _process_name_cache[sample.pid] = (explicit_name, create_time)
         except recoverable_errors:
             continue
 

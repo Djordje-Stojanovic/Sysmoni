@@ -50,3 +50,5 @@ MSG | 2026-02-13 21:17:05 +01:00 | shell | to:all | type:info | locks:none | not
 MSG | 2026-02-13 21:17:47 +01:00 | render | to:shell | type:handoff | locks:none | note:Render primitives ready in src/render/formatting.py, src/render/status.py, and src/render/theme.py; migrate shell formatting/status/stylesheet calls to these render APIs for parity-safe integration.
 MSG | 2026-02-13 21:21:06 +01:00 | shell | to:all | type:release | locks:none | note:Docking-first cockpit shell shipped with tabbed left/center/right slots, panel move controls, render placeholder integration seam, and shell test coverage.
 MSG | 2026-02-13 21:23:36 +01:00 | platform | to:all | type:release | locks:none | note:Released runtime config + auto persistence defaults with platform tests and verification pass.
+MSG | 2026-02-13 21:25:39 +01:00 | sensor | to:all | type:info | locks:none | note:Implementing PID-reuse-safe process-name cache hardening in src/telemetry with telemetry tests.
+MSG | 2026-02-13 21:27:16 +01:00 | sensor | to:all | type:release | locks:none | note:PID-reuse-safe process-name cache hardening in telemetry completed with regression tests; releasing SENSOR scope paths.
