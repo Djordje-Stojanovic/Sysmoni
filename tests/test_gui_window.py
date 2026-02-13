@@ -17,6 +17,96 @@ from gui import window as gui_window  # noqa: E402
 
 
 class GuiWindowTests(unittest.TestCase):
+    def test_resolve_gui_db_path_handles_missing_blank_and_set_values(self) -> None:
+        self.assertIsNone(gui_window.resolve_gui_db_path({}))
+        self.assertIsNone(gui_window.resolve_gui_db_path({"AURA_DB_PATH": "   "}))
+        self.assertEqual(
+            gui_window.resolve_gui_db_path({"AURA_DB_PATH": " telemetry.sqlite "}),
+            "telemetry.sqlite",
+        )
+
+    def test_dvr_recorder_updates_sample_count_and_stream_status(self) -> None:
+        created_stores: list[object] = []
+
+        class _StoreStub:
+            def __init__(self, db_path: str) -> None:
+                self.db_path = db_path
+                self.closed = False
+                self.appended: list[SystemSnapshot] = []
+                self._count = 4
+                created_stores.append(self)
+
+            def append(self, snapshot: SystemSnapshot) -> None:
+                self.appended.append(snapshot)
+                self._count += 1
+
+            def count(self) -> int:
+                return self._count
+
+            def close(self) -> None:
+                self.closed = True
+
+        original_store = gui_window.TelemetryStore
+        gui_window.TelemetryStore = _StoreStub
+        try:
+            recorder = gui_window.DvrRecorder("telemetry.sqlite")
+            snapshot = SystemSnapshot(timestamp=1.0, cpu_percent=10.0, memory_percent=20.0)
+
+            recorder.append(snapshot)
+            status = gui_window.format_stream_status(recorder)
+            recorder.close()
+        finally:
+            gui_window.TelemetryStore = original_store
+
+        self.assertEqual(len(created_stores), 1)
+        store = created_stores[0]
+        self.assertEqual(store.db_path, "telemetry.sqlite")
+        self.assertEqual(store.appended, [snapshot])
+        self.assertEqual(recorder.sample_count, 5)
+        self.assertEqual(status, "Streaming telemetry | DVR samples: 5")
+        self.assertTrue(store.closed)
+
+    def test_dvr_recorder_disables_store_after_write_error(self) -> None:
+        created_stores: list[object] = []
+
+        class _StoreStub:
+            def __init__(self, db_path: str) -> None:
+                self.db_path = db_path
+                self.closed = False
+                self._count = 1
+                created_stores.append(self)
+
+            def append(self, snapshot: SystemSnapshot) -> None:
+                raise OSError("disk full")
+
+            def count(self) -> int:
+                return self._count
+
+            def close(self) -> None:
+                self.closed = True
+
+        original_store = gui_window.TelemetryStore
+        gui_window.TelemetryStore = _StoreStub
+        try:
+            recorder = gui_window.DvrRecorder("telemetry.sqlite")
+            recorder.append(
+                SystemSnapshot(timestamp=1.0, cpu_percent=10.0, memory_percent=20.0)
+            )
+            status = gui_window.format_stream_status(recorder)
+        finally:
+            gui_window.TelemetryStore = original_store
+
+        self.assertEqual(len(created_stores), 1)
+        self.assertTrue(created_stores[0].closed)
+        self.assertIn("disk full", recorder.error or "")
+        self.assertIn("DVR unavailable", status)
+
+    def test_format_status_functions_without_dvr_path(self) -> None:
+        recorder = gui_window.DvrRecorder(None)
+
+        self.assertEqual(gui_window.format_initial_status(recorder), "Collecting telemetry...")
+        self.assertEqual(gui_window.format_stream_status(recorder), "Streaming telemetry")
+
     def test_format_snapshot_lines_formats_live_metrics(self) -> None:
         snapshot = SystemSnapshot(
             timestamp=0.0,

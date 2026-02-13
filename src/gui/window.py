@@ -2,6 +2,7 @@ from __future__ import annotations
 # pyright: reportAttributeAccessIssue=false, reportPossiblyUnboundVariable=false, reportRedeclaration=false
 
 import datetime as dt
+import os
 import pathlib
 import sys
 import threading
@@ -12,6 +13,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from core.poller import collect_snapshot, run_polling_loop  # noqa: E402
+from core.store import TelemetryStore  # noqa: E402
 from core.types import SystemSnapshot  # noqa: E402
 
 _QT_IMPORT_ERROR: ImportError | None = None
@@ -34,6 +36,73 @@ def format_snapshot_lines(snapshot: SystemSnapshot) -> dict[str, str]:
         "memory": f"Memory {snapshot.memory_percent:.1f}%",
         "timestamp": f"Updated {utc_timestamp}",
     }
+
+
+def resolve_gui_db_path(env: dict[str, str] | None = None) -> str | None:
+    source = os.environ if env is None else env
+    raw_value = source.get("AURA_DB_PATH")
+    if raw_value is None:
+        return None
+
+    db_path = raw_value.strip()
+    return db_path or None
+
+
+class DvrRecorder:
+    """Persists GUI snapshots into the local telemetry store when configured."""
+
+    def __init__(self, db_path: str | None) -> None:
+        self.db_path = db_path
+        self.sample_count: int | None = None
+        self.error: str | None = None
+        self._store: TelemetryStore | None = None
+
+        if db_path is None:
+            return
+
+        try:
+            self._store = TelemetryStore(db_path)
+            self.sample_count = self._store.count()
+        except Exception as exc:
+            self.error = str(exc)
+
+    def append(self, snapshot: SystemSnapshot) -> None:
+        if self._store is None:
+            return
+
+        try:
+            self._store.append(snapshot)
+            self.sample_count = self._store.count()
+        except Exception as exc:
+            self.error = str(exc)
+            self.close()
+
+    def close(self) -> None:
+        if self._store is None:
+            return
+
+        try:
+            self._store.close()
+        finally:
+            self._store = None
+
+
+def format_initial_status(recorder: DvrRecorder) -> str:
+    if recorder.db_path is None:
+        return "Collecting telemetry..."
+    if recorder.error is not None:
+        return f"Collecting telemetry... | DVR unavailable: {recorder.error}"
+    sample_count = 0 if recorder.sample_count is None else recorder.sample_count
+    return f"Collecting telemetry... | DVR samples: {sample_count}"
+
+
+def format_stream_status(recorder: DvrRecorder) -> str:
+    if recorder.db_path is None:
+        return "Streaming telemetry"
+    if recorder.error is not None:
+        return f"Streaming telemetry | DVR unavailable: {recorder.error}"
+    sample_count = 0 if recorder.sample_count is None else recorder.sample_count
+    return f"Streaming telemetry | DVR samples: {sample_count}"
 
 
 def require_qt() -> None:
@@ -93,10 +162,12 @@ if _QT_IMPORT_ERROR is None:
             *,
             interval_seconds: float = 1.0,
             collect: Callable[[], SystemSnapshot] = collect_snapshot,
+            db_path: str | None = None,
         ) -> None:
             super().__init__()
             self.setWindowTitle("Aura | Telemetry")
             self.setMinimumSize(540, 260)
+            self._recorder = DvrRecorder(db_path)
             self._build_layout()
 
             self._worker_thread = QThread(self)
@@ -160,6 +231,7 @@ if _QT_IMPORT_ERROR is None:
 
             self._status_label = QLabel("Collecting telemetry...")
             self._status_label.setObjectName("status")
+            self._status_label.setText(format_initial_status(self._recorder))
             layout.addWidget(self._status_label)
             layout.addStretch(1)
 
@@ -174,7 +246,8 @@ if _QT_IMPORT_ERROR is None:
             self._cpu_label.setText(lines["cpu"])
             self._memory_label.setText(lines["memory"])
             self._timestamp_label.setText(lines["timestamp"])
-            self._status_label.setText("Streaming telemetry")
+            self._recorder.append(snapshot)
+            self._status_label.setText(format_stream_status(self._recorder))
 
         @Slot(str)
         def _on_worker_error(self, message: str) -> None:
@@ -184,6 +257,7 @@ if _QT_IMPORT_ERROR is None:
             self._worker.stop()
             self._worker_thread.quit()
             self._worker_thread.wait(1500)
+            self._recorder.close()
             super().closeEvent(event)
 
 else:
@@ -205,7 +279,7 @@ def run(argv: list[str] | None = None) -> int:
     if app is None:
         app = QApplication(sys.argv)
 
-    window = AuraWindow()
+    window = AuraWindow(db_path=resolve_gui_db_path())
     window.show()
     return int(app.exec())
 

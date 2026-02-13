@@ -302,3 +302,11 @@ GIT-2 | files: src/core/store.py, tests/test_store.py, codex_agents_logs.md, gro
 GIT-3 | verify: python -m unittest tests/test_store.py -v (pass, 13 tests); python -m unittest discover -s tests -v (pass, 58 tests)
 END | 2026-02-13 17:42:52 +01:00 | free to work: src/core/store.py, tests/test_store.py | commit: fix: enforce retention pruning for startup and read paths
 RISK | none.
+
+START | 2026-02-13 17:43:58 +01:00 | codex_radiant731 | task: persist GUI snapshots to local telemetry store and surface DVR recording status
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/gui/window.py, tests/test_gui_window.py
+GIT-1 | feat: persist GUI live snapshots into local DVR store with recording status and failure fallback
+GIT-2 | files: src/gui/window.py, tests/test_gui_window.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv run python -m unittest tests/test_gui_window.py -v (pass, 7 tests); uv run pytest tests/ -x (pass, 62 tests); uv run ruff check src/ tests/ (pass); uv run pyright src/ (pass)
+RISK | none.
+END | 2026-02-13 17:45:59 +01:00 | codex_radiant731 | free to work: src/gui/window.py, tests/test_gui_window.py | commit: feat: persist GUI snapshots to local DVR store
