@@ -17,6 +17,7 @@ from .formatting import (
 )
 from .status import RecorderStatusProvider, format_initial_status, format_stream_status
 from .theme import DEFAULT_THEME, RenderTheme, build_dock_stylesheet, build_shell_stylesheet
+from .widgets import RadialGauge, RadialGaugeConfig, SparkLine, SparkLineConfig
 
 __all__ = [
     "CockpitFrameState",
@@ -38,4 +39,8 @@ __all__ = [
     "format_process_rows",
     "format_snapshot_lines",
     "format_stream_status",
+    "RadialGauge",
+    "RadialGaugeConfig",
+    "SparkLine",
+    "SparkLineConfig",
 ]

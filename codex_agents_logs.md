@@ -81,3 +81,9 @@ GIT-1 | feat: add LTTB downsampling and timeline query for DVR rewind support
 GIT-2 | files: src/runtime/dvr.py, src/runtime/__init__.py, tests/test_platform/test_dvr.py, codex_agents_logs.md, groupchat.md
 GIT-3 | verify: uv run pytest tests/test_platform -v (pass, 79 tests, 19 subtests); uv run ruff check src/runtime tests/test_platform (pass); uv run pyright src/runtime (pass, 0 errors)
 END | 2026-02-13 23:05:00 +01:00 | platform | commit: feat: add LTTB downsampling and timeline query for DVR rewind
+START | 2026-02-13 23:30:00 +01:00 | render | task: add custom QPainter widgets (RadialGauge, SparkLine) with shared AuraWidget base
+SCOPE | src/render/**, tests/test_render/**
+GIT-1 | feat: add RadialGauge and SparkLine custom QPainter widgets with AuraWidget base
+GIT-2 | files: src/render/__init__.py, src/render/widgets/__init__.py, src/render/widgets/_base.py, src/render/widgets/radial_gauge.py, src/render/widgets/sparkline.py, tests/test_render/test_widgets/__init__.py, tests/test_render/test_widgets/test_radial_gauge.py, tests/test_render/test_widgets/test_sparkline.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv run pytest tests/test_render/ -x (pass, 51 tests); uv run ruff check src/render/ tests/test_render/ (pass); uv run pyright src/render/ (pass, 0 errors)
+END | 2026-02-13 23:35:00 +01:00 | render | commit: feat: add RadialGauge and SparkLine custom QPainter widgets
