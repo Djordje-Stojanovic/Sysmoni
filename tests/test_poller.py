@@ -269,6 +269,49 @@ class PollSnapshotsTests(unittest.TestCase):
         self.assertEqual(len(sleep_calls), 1)
         self.assertAlmostEqual(sleep_calls[0], 0.8)
 
+    def test_poll_snapshots_continues_when_continue_on_error_is_enabled(self) -> None:
+        expected_snapshot = SystemSnapshot(
+            timestamp=2.0,
+            cpu_percent=11.0,
+            memory_percent=21.0,
+        )
+        collected_calls = 0
+        observed: list[SystemSnapshot] = []
+        observed_errors: list[str] = []
+        sleep_calls: list[float] = []
+        monotonic_values = iter([10.0, 10.1, 11.0, 11.2])
+
+        def _monotonic() -> float:
+            return next(monotonic_values)
+
+        def _collect_snapshot() -> SystemSnapshot:
+            nonlocal collected_calls
+            collected_calls += 1
+            if collected_calls == 1:
+                raise RuntimeError("sensor glitch")
+            return expected_snapshot
+
+        def _should_stop() -> bool:
+            return bool(observed) and bool(observed_errors)
+
+        emitted = poller.poll_snapshots(
+            observed.append,
+            interval_seconds=1.0,
+            should_stop=_should_stop,
+            sleep=sleep_calls.append,
+            monotonic=_monotonic,
+            collect=_collect_snapshot,
+            on_error=lambda exc: observed_errors.append(str(exc)),
+            continue_on_error=True,
+        )
+
+        self.assertEqual(emitted, 1)
+        self.assertEqual(observed, [expected_snapshot])
+        self.assertEqual(observed_errors, ["sensor glitch"])
+        self.assertEqual(collected_calls, 2)
+        self.assertEqual(len(sleep_calls), 1)
+        self.assertAlmostEqual(sleep_calls[0], 0.9)
+
 
 if __name__ == "__main__":
     unittest.main()

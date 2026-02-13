@@ -146,12 +146,19 @@ if _QT_IMPORT_ERROR is None:
                     format_stream_status(self._recorder),
                 )
 
+            def _on_error(exc: Exception) -> None:
+                if self._stop_event.is_set():
+                    return
+                self.error.emit(str(exc))
+
             try:
                 run_polling_loop(
                     self._interval_seconds,
                     _on_snapshot,
                     stop_event=self._stop_event,
                     collect=self._collect,
+                    on_error=_on_error,
+                    continue_on_error=True,
                 )
             except Exception as exc:
                 if not self._stop_event.is_set():

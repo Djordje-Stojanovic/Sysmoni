@@ -60,6 +60,8 @@ def run_polling_loop(
     stop_event: threading.Event,
     collect: Callable[[], SystemSnapshot] | None = None,
     monotonic: Callable[[], float] | None = None,
+    on_error: Callable[[Exception], None] | None = None,
+    continue_on_error: bool = False,
 ) -> int:
     """Collect snapshots at a fixed interval until the stop event is set."""
     interval_seconds = _require_positive_finite_interval(interval_seconds)
@@ -74,6 +76,8 @@ def run_polling_loop(
         sleep=_wait,
         monotonic=monotonic,
         collect=collect,
+        on_error=on_error,
+        continue_on_error=continue_on_error,
     )
 
 
@@ -85,6 +89,8 @@ def poll_snapshots(
     sleep: Callable[[float], None] | None = None,
     monotonic: Callable[[], float] | None = None,
     collect: Callable[[], SystemSnapshot] | None = None,
+    on_error: Callable[[Exception], None] | None = None,
+    continue_on_error: bool = False,
 ) -> int:
     """Collect snapshots at a fixed interval until `should_stop` returns True."""
     interval_seconds = _require_positive_finite_interval(interval_seconds)
@@ -97,8 +103,14 @@ def poll_snapshots(
 
     while not stop():
         cycle_started_at = clock()
-        on_snapshot(collect_snapshot_fn())
-        emitted += 1
+        try:
+            on_snapshot(collect_snapshot_fn())
+            emitted += 1
+        except Exception as exc:
+            if on_error is not None:
+                on_error(exc)
+            if not continue_on_error:
+                raise
 
         remaining = interval_seconds - (clock() - cycle_started_at)
         if remaining > 0 and not stop():

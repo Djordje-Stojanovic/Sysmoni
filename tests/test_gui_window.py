@@ -146,9 +146,13 @@ class GuiWindowTests(unittest.TestCase):
             *,
             stop_event,
             collect,
+            on_error,
+            continue_on_error,
         ) -> int:
             self.assertEqual(interval_seconds, 0.5)
             self.assertFalse(stop_event.is_set())
+            self.assertTrue(continue_on_error)
+            self.assertIsNotNone(on_error)
             on_snapshot(collect())
             stop_event.set()
             return 1
@@ -185,6 +189,79 @@ class GuiWindowTests(unittest.TestCase):
             ],
         )
         self.assertEqual(errors, [])
+        self.assertEqual(finished, [True])
+
+    @unittest.skipIf(gui_window._QT_IMPORT_ERROR is not None, "PySide6 is unavailable")
+    def test_snapshot_worker_emits_error_and_continues_after_transient_failure(self) -> None:
+        emitted: list[tuple[float, float, float, str]] = []
+        errors: list[str] = []
+        finished: list[bool] = []
+
+        class _RecorderStub:
+            def __init__(self) -> None:
+                self.db_path = "telemetry.sqlite"
+                self.sample_count = 0
+                self.error: str | None = None
+                self.appended: list[SystemSnapshot] = []
+
+            def append(self, value: SystemSnapshot) -> None:
+                self.appended.append(value)
+                self.sample_count += 1
+
+        recorder = _RecorderStub()
+        expected_snapshot = SystemSnapshot(timestamp=2.0, cpu_percent=11.0, memory_percent=21.0)
+
+        def _collect() -> SystemSnapshot:
+            return expected_snapshot
+
+        def _run_polling_loop(
+            interval_seconds: float,
+            on_snapshot,
+            *,
+            stop_event,
+            collect,
+            on_error,
+            continue_on_error,
+        ) -> int:
+            self.assertEqual(interval_seconds, 0.5)
+            self.assertTrue(continue_on_error)
+            on_error(RuntimeError("sensor glitch"))
+            on_snapshot(collect())
+            stop_event.set()
+            return 1
+
+        original_run_polling_loop = gui_window.run_polling_loop
+        gui_window.run_polling_loop = _run_polling_loop
+        try:
+            worker = gui_window.SnapshotWorker(
+                interval_seconds=0.5,
+                collect=_collect,
+                recorder=recorder,
+            )
+            worker.snapshot_ready.connect(
+                lambda timestamp, cpu, memory, status: emitted.append(
+                    (timestamp, cpu, memory, status)
+                )
+            )
+            worker.error.connect(errors.append)
+            worker.finished.connect(lambda: finished.append(True))
+            worker.run()
+        finally:
+            gui_window.run_polling_loop = original_run_polling_loop
+
+        self.assertEqual(recorder.appended, [expected_snapshot])
+        self.assertEqual(
+            emitted,
+            [
+                (
+                    2.0,
+                    11.0,
+                    21.0,
+                    "Streaming telemetry | DVR samples: 1",
+                )
+            ],
+        )
+        self.assertEqual(errors, ["sensor glitch"])
         self.assertEqual(finished, [True])
 
     def test_format_status_functions_without_dvr_path(self) -> None:

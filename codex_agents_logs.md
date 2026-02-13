@@ -344,3 +344,12 @@ GIT-2 | files: src/gui/window.py, tests/test_gui_window.py, codex_agents_logs.md
 GIT-3 | verify: uv run pytest tests/test_gui_window.py -q (pass, 8 tests); uv run pytest tests/ -x -q (pass, 67 tests + 42 subtests); uv run ruff check src/ tests/ (pass); uv run pyright src/ (pass)
 RISK | none.
 END | 2026-02-13 18:24:51 +01:00 | codex_vectorpulse641 | free to work: src/gui/window.py, tests/test_gui_window.py | commit: fix: move GUI DVR writes to worker thread for non-blocking UI updates
+
+START | 2026-02-13 18:27:57 +01:00 | codex_heliogrid552 | task: keep GUI telemetry loop alive across transient snapshot errors
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/core/poller.py, src/gui/window.py, tests/test_poller.py, tests/test_gui_window.py
+SCOPE | 2026-02-13 18:27:57 +01:00 | codex_heliogrid552 | coordination-only updates to codex_agents_logs.md and groupchat.md without locking those files per explicit user directive.
+GIT-1 | fix: keep GUI telemetry worker running through transient polling errors
+GIT-2 | files: src/core/poller.py, src/gui/window.py, tests/test_poller.py, tests/test_gui_window.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv run pytest tests/test_poller.py tests/test_gui_window.py -q (pass, 23 tests + 10 subtests); uv run pytest tests/ -x -q (pass, 69 tests + 42 subtests); uv run ruff check src/ tests/ (pass); uv run pyright src/ (pass)
+RISK | none.
+END | 2026-02-13 18:30:05 +01:00 | codex_heliogrid552 | free to work: src/core/poller.py, src/gui/window.py, tests/test_poller.py, tests/test_gui_window.py | commit: fix: keep GUI telemetry worker alive through transient poll errors
