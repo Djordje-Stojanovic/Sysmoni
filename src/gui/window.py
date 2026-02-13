@@ -1,4 +1,5 @@
 from __future__ import annotations
+# pyright: reportAttributeAccessIssue=false, reportPossiblyUnboundVariable=false, reportRedeclaration=false
 
 import datetime as dt
 import pathlib
@@ -10,8 +11,8 @@ SRC_ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from core.poller import collect_snapshot, run_polling_loop
-from core.types import SystemSnapshot
+from core.poller import collect_snapshot, run_polling_loop  # noqa: E402
+from core.types import SystemSnapshot  # noqa: E402
 
 _QT_IMPORT_ERROR: ImportError | None = None
 

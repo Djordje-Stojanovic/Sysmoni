@@ -9,6 +9,13 @@ dependencies = [
     "psutil>=5.9",
 ]
 
+[dependency-groups]
+dev = [
+    "pyright>=1.1.406",
+    "pytest>=8.4.2",
+    "ruff>=0.12.8",
+]
+
 [build-system]
 requires = ["hatchling>=1.25.0"]
 build-backend = "hatchling.build"

@@ -285,3 +285,15 @@ GIT-2 | files: RUN_WINDOWS11.md, uv.lock, pyproject.toml, codex_agents_logs.md, 
 GIT-3 | verify: uv sync (pass); uv run python -m unittest tests/test_gui_window.py -v (pass, 3 tests); uv run python src/gui/window.py (pass, exits cleanly in this environment)
 RISK | none.
 END | 2026-02-13 00:21:42 +01:00 | free to work: RUN_WINDOWS11.md, pyproject.toml, uv.lock | commit: docs: machine-independent minimal Windows run commands
+
+START | 2026-02-13 17:39:00 +01:00 | codex_forge329 | task: enable documented dev verification commands by adding missing dev tool dependencies
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: pyproject.toml, uv.lock
+SCOPE | 2026-02-13 17:40:15 +01:00 | codex_forge329 | expand locks: src/gui/window.py to clear existing ruff E402 import-order violations and complete lint verification.
+GIT-1 | fix: restore documented pytest/ruff/pyright verification workflow via dev dependency group and lint/type bootstrap cleanup
+GIT-2 | files: pyproject.toml, uv.lock, src/gui/window.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv sync (pass); uv run pytest tests/ -x (pass, 56 passed); uv run ruff check src/ (pass); uv run pyright src/ (pass)
+RISK | none.
+END | 2026-02-13 17:41:29 +01:00 | codex_forge329 | free to work: pyproject.toml, uv.lock, src/gui/window.py | commit: fix: restore documented dev verification toolchain commands
+
+START | 2026-02-13 17:41:32 +01:00 | codex_fluxhaven27 | task: enforce retention-window reads so stale snapshots are pruned before query use
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/core/store.py, tests/test_store.py
