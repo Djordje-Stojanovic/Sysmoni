@@ -690,6 +690,109 @@ class GuiWindowTests(unittest.TestCase):
         self.assertEqual(exit_code, 2)
         self.assertIn("PySide6 is required for the GUI slice", stderr.getvalue())
 
+    @unittest.skipIf(gui_window._QT_IMPORT_ERROR is not None, "PySide6 is unavailable")
+    def test_on_frame_tick_updates_phase_and_accent_bucket(self) -> None:
+        app = gui_window.QApplication.instance()
+        if app is None:
+            app = gui_window.QApplication([])
+
+        window = gui_window.AuraWindow(
+            interval_seconds=60.0,
+            collect=lambda: SystemSnapshot(timestamp=1.0, cpu_percent=80.0, memory_percent=70.0),
+            collect_processes=lambda: [],
+            process_row_count=3,
+            db_path=None,
+        )
+        try:
+            window._last_cpu = 80.0
+            window._last_mem = 70.0
+            window._phase = 0.0
+            window._accent_bucket = -1  # force mismatch so stylesheet updates
+
+            window._on_frame_tick()
+
+            self.assertNotEqual(window._phase, 0.0)
+            self.assertGreaterEqual(window._accent_bucket, 0)
+            self.assertLessEqual(window._accent_bucket, 100)
+        finally:
+            window.close()
+
+    @unittest.skipIf(gui_window._QT_IMPORT_ERROR is not None, "PySide6 is unavailable")
+    def test_on_frame_tick_skips_stylesheet_when_bucket_unchanged(self) -> None:
+        app = gui_window.QApplication.instance()
+        if app is None:
+            app = gui_window.QApplication([])
+
+        window = gui_window.AuraWindow(
+            interval_seconds=60.0,
+            collect=lambda: SystemSnapshot(timestamp=1.0, cpu_percent=0.0, memory_percent=0.0),
+            collect_processes=lambda: [],
+            process_row_count=3,
+            db_path=None,
+        )
+        try:
+            # Run one tick to establish a known bucket
+            window._last_cpu = 0.0
+            window._last_mem = 0.0
+            window._on_frame_tick()
+            established_bucket = window._accent_bucket
+
+            # Track setStyleSheet calls via a counter
+            call_count = 0
+            original_set = window.setStyleSheet
+
+            def _counting_set(ss: str) -> None:
+                nonlocal call_count
+                call_count += 1
+                original_set(ss)
+
+            window.setStyleSheet = _counting_set  # type: ignore[assignment]
+
+            # Force bucket to match what next tick will produce
+            window._accent_bucket = established_bucket
+            window._on_frame_tick()
+
+            self.assertEqual(call_count, 0)
+        finally:
+            window.close()
+
+    @unittest.skipIf(gui_window._QT_IMPORT_ERROR is not None, "PySide6 is unavailable")
+    def test_on_snapshot_stores_cpu_and_memory_for_animation(self) -> None:
+        app = gui_window.QApplication.instance()
+        if app is None:
+            app = gui_window.QApplication([])
+
+        window = gui_window.AuraWindow(
+            interval_seconds=60.0,
+            collect=lambda: SystemSnapshot(timestamp=1.0, cpu_percent=10.0, memory_percent=20.0),
+            collect_processes=lambda: [],
+            process_row_count=3,
+            db_path=None,
+        )
+        try:
+            window._on_snapshot(
+                2.0,
+                55.5,
+                33.3,
+                "Streaming telemetry",
+                gui_window.format_process_rows([], row_count=3),
+            )
+
+            self.assertEqual(window._last_cpu, 55.5)
+            self.assertEqual(window._last_mem, 33.3)
+        finally:
+            window.close()
+
+    def test_build_window_stylesheet_passes_accent_intensity(self) -> None:
+        ss_zero = gui_window.build_window_stylesheet(0.0)
+        ss_half = gui_window.build_window_stylesheet(0.5)
+
+        # Both should contain shell controls
+        self.assertIn("QPushButton#tabButton", ss_zero)
+        self.assertIn("QPushButton#tabButton", ss_half)
+        # Accent should change the theme-derived portion
+        self.assertNotEqual(ss_zero, ss_half)
+
 
 if __name__ == "__main__":
     unittest.main()

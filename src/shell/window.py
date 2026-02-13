@@ -5,6 +5,7 @@ import os
 import pathlib
 import sys
 import threading
+import time
 from dataclasses import dataclass
 from typing import Callable, Literal, cast
 
@@ -17,6 +18,7 @@ from render import (  # noqa: E402
     DEFAULT_PROCESS_ROW_COUNT,
     DEFAULT_THEME,
     build_shell_stylesheet,
+    compose_cockpit_frame,
     format_initial_status,
     format_process_rows,
     format_snapshot_lines,
@@ -28,7 +30,7 @@ from telemetry.poller import collect_snapshot, collect_top_processes, run_pollin
 _QT_IMPORT_ERROR: ImportError | None = None
 
 try:
-    from PySide6.QtCore import QObject, Qt, QThread, Signal, Slot
+    from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal, Slot
     from PySide6.QtGui import QCloseEvent
     from PySide6.QtWidgets import (
         QApplication,
@@ -309,10 +311,10 @@ def format_render_panel_hint(process_rows: list[str]) -> str:
     return f"Top process | {str(process_rows[0]).strip()}"
 
 
-def build_window_stylesheet() -> str:
+def build_window_stylesheet(accent_intensity: float = 0.0) -> str:
     theme = DEFAULT_THEME
     return (
-        build_shell_stylesheet(theme)
+        build_shell_stylesheet(theme, accent_intensity=accent_intensity)
         + f"""
                 QLabel#title {{
                     padding-bottom: 6px;
@@ -477,6 +479,12 @@ if _QT_IMPORT_ERROR is None:
             self._build_layout()
             self._seed_latest_snapshot()
 
+            self._phase: float = 0.0
+            self._last_frame_time: float = time.monotonic()
+            self._last_cpu: float = 0.0
+            self._last_mem: float = 0.0
+            self._accent_bucket: int = 0
+
             self._worker_thread = QThread(self)
             self._worker = SnapshotWorker(
                 interval_seconds=interval_seconds,
@@ -492,6 +500,12 @@ if _QT_IMPORT_ERROR is None:
             self._worker.finished.connect(self._worker_thread.quit)
             self._worker_thread.finished.connect(self._worker.deleteLater)
             self._worker_thread.start()
+
+            self._frame_timer = QTimer(self)
+            self._frame_timer.setTimerType(Qt.PreciseTimer)
+            self._frame_timer.setInterval(16)  # ~60 FPS
+            self._frame_timer.timeout.connect(self._on_frame_tick)
+            self._frame_timer.start()
 
         @staticmethod
         def _clear_layout(layout: QLayout, *, delete_widgets: bool) -> None:
@@ -742,6 +756,25 @@ if _QT_IMPORT_ERROR is None:
             for label, row in zip(self._process_labels, normalized_rows):
                 label.setText(row)
 
+        @Slot()
+        def _on_frame_tick(self) -> None:
+            now = time.monotonic()
+            elapsed = now - self._last_frame_time
+            self._last_frame_time = now
+
+            frame = compose_cockpit_frame(
+                previous_phase=self._phase,
+                elapsed_since_last_frame=elapsed,
+                cpu_percent=self._last_cpu,
+                memory_percent=self._last_mem,
+            )
+            self._phase = frame.phase
+
+            bucket = int(frame.accent_intensity * 100.0)
+            if bucket != self._accent_bucket:
+                self._accent_bucket = bucket
+                self.setStyleSheet(build_window_stylesheet(frame.accent_intensity))
+
         @Slot(float, float, float, str, list)
         def _on_snapshot(
             self,
@@ -751,6 +784,8 @@ if _QT_IMPORT_ERROR is None:
             status_text: str,
             process_rows: list[str],
         ) -> None:
+            self._last_cpu = cpu_percent
+            self._last_mem = memory_percent
             snapshot = SystemSnapshot(
                 timestamp=timestamp,
                 cpu_percent=cpu_percent,
@@ -772,6 +807,7 @@ if _QT_IMPORT_ERROR is None:
             self._render_status_label.setText(f"Render bridge paused | {error_text}")
 
         def closeEvent(self, event: QCloseEvent) -> None:
+            self._frame_timer.stop()
             self._worker.stop()
             self._worker_thread.quit()
             self._worker_thread.wait(1500)
