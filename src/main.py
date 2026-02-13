@@ -25,7 +25,12 @@ def _is_closed_stream_error(exc: OSError) -> bool:
 
 
 def _positive_interval_seconds(value: str) -> float:
-    interval = float(value)
+    try:
+        interval = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            "interval must be a finite number greater than 0"
+        ) from exc
     if not math.isfinite(interval) or interval <= 0:
         raise argparse.ArgumentTypeError(
             "interval must be a finite number greater than 0"
@@ -34,7 +39,10 @@ def _positive_interval_seconds(value: str) -> float:
 
 
 def _finite_timestamp_seconds(value: str) -> float:
-    timestamp = float(value)
+    try:
+        timestamp = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("timestamp must be a finite number") from exc
     if not math.isfinite(timestamp):
         raise argparse.ArgumentTypeError("timestamp must be a finite number")
     return timestamp

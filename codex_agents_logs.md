@@ -318,3 +318,11 @@ GIT-2 | files: src/core/store.py, src/gui/window.py, tests/test_store.py, tests/
 GIT-3 | verify: uv run pytest tests/test_store.py tests/test_gui_window.py -q (pass, 22 tests + 8 subtests); uv run pytest tests/ -x (pass, 64 tests); uv run ruff check src/ tests/ (pass); uv run pyright src/ (pass)
 RISK | none.
 END | 2026-02-13 17:50:28 +01:00 | codex_crux915 | free to work: src/core/store.py, src/gui/window.py, tests/test_store.py, tests/test_gui_window.py | commit: fix: collapse GUI DVR append/count into one store transaction
+
+START | 2026-02-13 17:51:21 +01:00 | codex_titan904 | task: normalize argparse numeric parse errors for interval/since/until into clear user-facing messages
+LOCKS | folder: C:\AI\TEST_GUI_Python | files: src/main.py, tests/test_main.py
+GIT-1 | fix: normalize CLI numeric parse errors so invalid interval/timestamp input returns clear user-facing argparse messages
+GIT-2 | files: src/main.py, tests/test_main.py, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: uv run pytest tests/test_main.py -q (pass, 25 tests + 11 subtests); uv run pytest tests/ -x -q (pass, 66 tests + 42 subtests); uv run ruff check src/ tests/ (pass); uv run pyright src/ (pass)
+RISK | none.
+END | 2026-02-13 17:52:37 +01:00 | codex_titan904 | free to work: src/main.py, tests/test_main.py | commit: fix: normalize CLI numeric parse errors for interval and timestamp arguments

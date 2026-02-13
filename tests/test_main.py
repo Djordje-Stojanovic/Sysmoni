@@ -489,6 +489,43 @@ class MainCliTests(unittest.TestCase):
         self.assertEqual(stdout.getvalue(), "")
         self.assertIn("finite number greater than 0", stderr.getvalue())
 
+    def test_main_watch_mode_rejects_non_numeric_interval(self) -> None:
+        original_run_polling_loop = app_main.run_polling_loop
+        app_main.run_polling_loop = lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("run_polling_loop should not be called for invalid interval.")
+        )
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        try:
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                with self.assertRaises(SystemExit) as ctx:
+                    app_main.main(["--watch", "--interval", "abc"])
+        finally:
+            app_main.run_polling_loop = original_run_polling_loop
+
+        self.assertEqual(ctx.exception.code, 2)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn("interval must be a finite number greater than 0", stderr.getvalue())
+        self.assertNotIn("_positive_interval_seconds", stderr.getvalue())
+
+    def test_main_rejects_non_numeric_since_or_until(self) -> None:
+        for argv in (
+            ["--since", "abc", "--db-path", "telemetry.sqlite"],
+            ["--until", "abc", "--db-path", "telemetry.sqlite"],
+        ):
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+
+            with self.subTest(argv=argv):
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    with self.assertRaises(SystemExit) as ctx:
+                        app_main.main(argv)
+
+                self.assertEqual(ctx.exception.code, 2)
+                self.assertEqual(stdout.getvalue(), "")
+                self.assertIn("timestamp must be a finite number", stderr.getvalue())
+                self.assertNotIn("_finite_timestamp_seconds", stderr.getvalue())
+
     def test_main_watch_mode_streams_json_snapshots(self) -> None:
         produced = [
             SystemSnapshot(timestamp=10.0, cpu_percent=1.0, memory_percent=2.0),
