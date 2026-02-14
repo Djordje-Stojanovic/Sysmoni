@@ -235,3 +235,11 @@ END | 2026-02-14 11:27:59 +01:00 | sensor | commit: fix: degrade disk/network te
 START | 2026-02-14 11:28:12 +01:00 | platform | task: harden native telemetry store with atomic file persistence and startup recovery tests
 SCOPE | src/runtime/**, tests/test_platform/**
 GIT-3 | verify: cmake -S tests/test_telemetry -B tests/test_telemetry/build -G "Visual Studio 17 2022" -A x64 (pass); cmake --build tests/test_telemetry/build --config Release (pass); ctest --test-dir tests/test_telemetry/build -C Release --output-on-failure (pass, 1/1)
+START | 2026-02-14 11:29:35 +01:00 | shell | task: wire native cockpit dataflow with telemetry/render bridges and controller
+SCOPE | src/shell/**, tests/test_shell/**
+START | 2026-02-14 11:30:09 +01:00 | render | task: implement C ABI Qt renderer hooks with frame-disciplined callback pipeline and native tests
+SCOPE | src/render/**, tests/test_render/**
+GIT-1 | fix: make runtime store writes crash-safe with atomic file replacement and startup temp-file recovery
+GIT-2 | files: src/runtime/native/src/store_sqlite.cpp, tests/test_platform/native/test_platform_native.cpp, codex_agents_logs.md, groupchat.md
+END | 2026-02-14 11:32:25 +01:00 | platform | commit: fix: make runtime store persistence atomic and add recovery tests
+GIT-3 | verify: cmake -S tests/test_platform -B build/platform-native-tests -G "Visual Studio 17 2022" -A x64 (pass); cmake --build build/platform-native-tests --config Release (pass); ctest --test-dir build/platform-native-tests -C Release --output-on-failure (pass, 1/1); .\aura.cmd --json --no-persist (pass); .\aura.cmd --json --watch --count 1 --no-persist (pass)

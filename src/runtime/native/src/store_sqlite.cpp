@@ -10,6 +10,11 @@
 #include <string>
 #include <vector>
 
+#ifdef _WIN32
+#define NOMINMAX
+#include <windows.h>
+#endif
+
 namespace aura::platform {
 namespace {
 
@@ -41,6 +46,51 @@ bool IsLegacySqliteFile(const std::string& path) {
         'o', 'r', 'm', 'a', 't', ' ', '3', '\0'
     };
     return std::memcmp(header, kSqliteMagic, sizeof(kSqliteMagic)) == 0;
+}
+
+std::filesystem::path TempStorePath(const std::filesystem::path& db_path) {
+    std::filesystem::path temp_path = db_path;
+    temp_path += ".tmp";
+    return temp_path;
+}
+
+void RemoveFileBestEffort(const std::filesystem::path& path) {
+    std::error_code remove_error;
+    std::filesystem::remove(path, remove_error);
+}
+
+void ReplaceFileAtomically(
+    const std::filesystem::path& source_path,
+    const std::filesystem::path& destination_path,
+    const std::string& logical_db_path
+) {
+#ifdef _WIN32
+    const auto source_native = source_path.native();
+    const auto destination_native = destination_path.native();
+
+    if (!MoveFileExW(
+            source_native.c_str(),
+            destination_native.c_str(),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH
+        )) {
+        const auto win_error = static_cast<unsigned long>(GetLastError());
+        RemoveFileBestEffort(source_path);
+        throw std::runtime_error(
+            "Unable to atomically replace telemetry store at: " + logical_db_path +
+            " (win32=" + std::to_string(win_error) + ")."
+        );
+    }
+#else
+    std::error_code rename_error;
+    std::filesystem::rename(source_path, destination_path, rename_error);
+    if (rename_error) {
+        RemoveFileBestEffort(source_path);
+        throw std::runtime_error(
+            "Unable to atomically replace telemetry store at: " + logical_db_path +
+            " (" + rename_error.message() + ")."
+        );
+    }
+#endif
 }
 
 Snapshot ParseSnapshotLine(const std::string& line) {
@@ -81,6 +131,7 @@ class FileBackedStore final : public TelemetryStore {
         ValidatePositiveFinite(retention_seconds_, "retention_seconds");
         EnsureParentDirectory(db_path_);
         if (db_path_ != ":memory:") {
+            RecoverPendingTempFile();
             if (IsLegacySqliteFile(db_path_)) {
                 const std::filesystem::path source(db_path_);
                 const std::filesystem::path legacy_path = source.string() + ".legacy.sqlite";
@@ -166,6 +217,32 @@ class FileBackedStore final : public TelemetryStore {
     }
 
   private:
+    void RecoverPendingTempFile() {
+        const std::filesystem::path db_path(db_path_);
+        const std::filesystem::path temp_path = TempStorePath(db_path);
+
+        std::error_code exists_error;
+        const bool temp_exists = std::filesystem::exists(temp_path, exists_error);
+        if (exists_error) {
+            throw std::runtime_error("Unable to inspect telemetry temp store at: " + temp_path.string());
+        }
+        if (!temp_exists) {
+            return;
+        }
+
+        const bool db_exists = std::filesystem::exists(db_path, exists_error);
+        if (exists_error) {
+            throw std::runtime_error("Unable to inspect telemetry store at: " + db_path_);
+        }
+
+        if (!db_exists) {
+            ReplaceFileAtomically(temp_path, db_path, db_path_);
+            return;
+        }
+
+        RemoveFileBestEffort(temp_path);
+    }
+
     void LoadFromDisk() {
         std::ifstream input(db_path_);
         if (!input.is_open()) {
@@ -224,13 +301,30 @@ class FileBackedStore final : public TelemetryStore {
             return;
         }
 
-        std::ofstream output(db_path_, std::ios::trunc);
+        const std::filesystem::path db_path(db_path_);
+        const std::filesystem::path temp_path = TempStorePath(db_path);
+
+        std::ofstream output(temp_path, std::ios::trunc | std::ios::binary);
         if (!output.is_open()) {
-            throw std::runtime_error("Unable to write telemetry store at: " + db_path_);
+            throw std::runtime_error("Unable to write telemetry temp store at: " + temp_path.string());
         }
         for (const Snapshot& snapshot : snapshots_) {
             output << SerializeSnapshotLine(snapshot) << '\n';
         }
+
+        output.flush();
+        if (!output.good()) {
+            output.close();
+            RemoveFileBestEffort(temp_path);
+            throw std::runtime_error("Unable to write telemetry store at: " + db_path_);
+        }
+        output.close();
+        if (!output) {
+            RemoveFileBestEffort(temp_path);
+            throw std::runtime_error("Unable to write telemetry store at: " + db_path_);
+        }
+
+        ReplaceFileAtomically(temp_path, db_path, db_path_);
     }
 
     std::string db_path_;
