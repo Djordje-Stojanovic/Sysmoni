@@ -272,8 +272,15 @@ int main(int argc, char** argv) {
         if (config.persistence_enabled != 0) {
             const int rc = aura_store_open(config.db_path, config.retention_seconds, &store, &err);
             if (rc != AURA_OK) {
-                std::cerr << (err.message[0] != '\0' ? err.message : "Failed to open store") << '\n';
-                return 2;
+                if (config.db_source == AURA_DB_SOURCE_AUTO) {
+                    std::cerr << "DVR persistence disabled: "
+                              << (err.message[0] != '\0' ? err.message : "Failed to open store")
+                              << '\n';
+                    store = nullptr;
+                } else {
+                    std::cerr << (err.message[0] != '\0' ? err.message : "Failed to open store") << '\n';
+                    return 2;
+                }
             }
         }
 

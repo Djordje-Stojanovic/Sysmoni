@@ -37,9 +37,7 @@ void SetError(aura_error_t* out_error, int code, const std::string& message) {
     }
     out_error->code = code;
     std::memset(out_error->message, 0, sizeof(out_error->message));
-    const std::size_t max_copy = sizeof(out_error->message) - 1;
-    std::strncpy(out_error->message, message.c_str(), max_copy);
-    out_error->message[max_copy] = '\0';
+    strncpy_s(out_error->message, sizeof(out_error->message), message.c_str(), _TRUNCATE);
 }
 
 void ClearError(aura_error_t* out_error) {
@@ -143,9 +141,7 @@ void WriteConfigOutput(const RuntimeConfig& config, aura_runtime_config_t* out_c
     out_config->db_source = ToAbiDbSource(config.db_source);
     std::memset(out_config->db_path, 0, sizeof(out_config->db_path));
     if (!config.db_path.empty()) {
-        const std::size_t max_copy = sizeof(out_config->db_path) - 1;
-        std::strncpy(out_config->db_path, config.db_path.c_str(), max_copy);
-        out_config->db_path[max_copy] = '\0';
+        strncpy_s(out_config->db_path, sizeof(out_config->db_path), config.db_path.c_str(), _TRUNCATE);
     }
 }
 

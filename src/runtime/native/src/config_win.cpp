@@ -40,8 +40,16 @@ std::optional<std::string> ReadEnvOptional(const char* key) {
     if (key == nullptr) {
         return std::nullopt;
     }
-    const char* value = std::getenv(key);
-    return NormalizeOptionalPath(value);
+    char* value = nullptr;
+    std::size_t length = 0;
+    const errno_t rc = _dupenv_s(&value, &length, key);
+    if (rc != 0 || value == nullptr) {
+        return std::nullopt;
+    }
+
+    std::optional<std::string> normalized = NormalizeOptionalPath(value);
+    std::free(value);
+    return normalized;
 }
 
 std::optional<double> ParsePositiveFiniteOptional(const std::string& value, const char* source_name) {

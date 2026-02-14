@@ -6,6 +6,7 @@ target_include_directories(platform_native_tests
 )
 
 target_link_libraries(platform_native_tests PRIVATE aura_platform)
+target_compile_features(platform_native_tests PRIVATE cxx_std_20)
 
 if(MSVC)
     target_compile_options(platform_native_tests PRIVATE /W4 /EHsc)
