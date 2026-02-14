@@ -1,48 +1,41 @@
-# Aura Native Shell (Windows, C++)
+# Aura Shell Native (Windows)
 
-This directory contains the native `aura_shell.exe` scaffold for the shell
-module. It is Windows-first and targets Qt6 with a hybrid Widgets + QML UI
-composition.
+Native SHELL module for the desktop UI (`aura_shell.exe`).
 
-The shell module is native-only. Python shell entrypoints have been removed.
-
-## Build (Windows)
+## Fast Run (from repo root)
 
 ```powershell
-cd src/shell/native
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64
-cmake --build build --config Release --target aura_shell
+.\aura.cmd
 ```
 
-Expected binary:
+```powershell
+.\aura.cmd --gui
+```
 
-`src/shell/native/build/Release/aura_shell.exe`
-
-If Qt6 is not installed, configure still succeeds for core+tests and skips the
-`aura_shell` UI executable. Set `Qt6_DIR` or `CMAKE_PREFIX_PATH` to a Qt6
-installation and reconfigure to build the UI target.
-
-## Test
+## Build Shell App Directly (from repo root)
 
 ```powershell
-# From repository root
+cmake -S src/shell/native -B build/shell-native -G "Visual Studio 17 2022" -A x64 -DQt6_DIR="C:\Qt\6.10.2\msvc2022_64\lib\cmake\Qt6"
+cmake --build build/shell-native --config Release --target aura_shell
+```
+
+## Build + Deploy GUI Runtime (from repo root)
+
+```powershell
+powershell -ExecutionPolicy Bypass -File installer/windows/build_shell_native.ps1 -Qt6Dir "C:\Qt\6.10.2\msvc2022_64\lib\cmake\Qt6"
+```
+
+Artifacts are staged in `build/shell-native/dist`.
+
+## Test (from repo root)
+
+```powershell
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64
 cmake --build build --config Release
 ctest --test-dir build -C Release --output-on-failure --tests-regex "aura_shell_.*_tests"
 ```
 
-## CLI Args
-
-- `--interval <seconds>`
-- `--db-path <path>`
-- `--retention-seconds <seconds>`
-- `--no-persist`
-
 ## Notes
 
-- The current implementation is intentionally shell-owned groundwork:
-  docking model + native window host + QML cockpit scene.
-- Runtime launch cutover lives in the `platform` module and should call this
-  binary via shell launch contracts.
-- Shell regression tests live in `tests/test_shell/native/` and are run via
-  root CMake + CTest.
+- Qt6 is required for `aura_shell.exe`.
+- Shell core and tests still build without Qt6.

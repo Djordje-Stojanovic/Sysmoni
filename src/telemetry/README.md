@@ -1,18 +1,28 @@
-# Aura Telemetry (SENSOR) - Native Only
+# Aura Telemetry Module
 
-This module is C++-only.
+Native SENSOR module for process/system telemetry collection.
 
-- No Python runtime files are retained under `src/telemetry/**`.
-- Core implementation lives in `src/telemetry/native/src/`.
-- Public native interfaces live in `src/telemetry/native/include/`.
+## Paths
 
-## Build (Windows, Visual Studio)
+- Source: `src/telemetry/native/src`
+- Headers: `src/telemetry/native/include`
+- Tests: `tests/test_telemetry`
+
+## Build (from repo root)
 
 ```powershell
-cmake -S src/telemetry/native -B src/telemetry/native/build -G "Visual Studio 17 2022" -A x64
-cmake --build src/telemetry/native/build --config Release
+cmake -S src/telemetry/native -B build/telemetry-native -G "Visual Studio 17 2022" -A x64
+cmake --build build/telemetry-native --config Release
 ```
 
-## Output
+## Test (from repo root)
 
-- `src/telemetry/native/build/Release/aura_telemetry_native.dll`
+```powershell
+cmake -S tests/test_telemetry -B build/telemetry-native-tests -G "Visual Studio 17 2022" -A x64
+cmake --build build/telemetry-native-tests --config Release
+ctest --test-dir build/telemetry-native-tests -C Release --output-on-failure
+```
+
+## Artifact
+
+- `build/telemetry-native/Release/aura_telemetry_native.dll`
