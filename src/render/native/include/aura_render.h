@@ -96,6 +96,15 @@ typedef struct AuraQtRenderBackendCaps {
     int preferred_fps;
 } AuraQtRenderBackendCaps;
 
+/*
+ * C ABI boundary contract:
+ * - Functions never throw C++ exceptions across the ABI.
+ * - On fallback/error paths, callers can inspect aura_last_error().
+ * - On success, aura_last_error() is cleared to an empty string.
+ */
+AURA_RENDER_API const char* aura_last_error(void);
+AURA_RENDER_API void aura_clear_error(void);
+
 AURA_RENDER_API double aura_sanitize_percent(double value);
 AURA_RENDER_API double aura_sanitize_non_negative(double value);
 AURA_RENDER_API int aura_quantize_accent_intensity(double accent_intensity);

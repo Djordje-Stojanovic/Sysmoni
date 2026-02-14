@@ -12,6 +12,18 @@ namespace {
 
 constexpr double kFloatEpsilon = 1e-9;
 
+void assert_last_error_contains(const char* needle) {
+    const char* error = aura_last_error();
+    assert(error != nullptr);
+    assert(std::strstr(error, needle) != nullptr);
+}
+
+void assert_last_error_clear() {
+    const char* error = aura_last_error();
+    assert(error != nullptr);
+    assert(std::strcmp(error, "") == 0);
+}
+
 void assert_style_tokens_ranges(const AuraRenderStyleTokens& tokens, int target_fps) {
     assert(std::isfinite(tokens.phase));
     assert(std::isfinite(tokens.next_delay_seconds));
@@ -116,6 +128,54 @@ void test_theme() {
     aura_blend_hex_color("#205b8e", "#3f8fd8", 1.0, out, sizeof(out));
     assert(std::strcmp(out, "#3f8fd8") == 0);
     assert(aura_quantize_accent_intensity(0.504) == 50);
+}
+
+void test_c_api_error_surface_and_fallbacks() {
+    aura_clear_error();
+    assert_last_error_clear();
+
+    const AuraFrameDiscipline invalid_discipline{0, 4};
+    const double fallback_phase = aura_advance_phase(0.2, 0.01, 0.5, invalid_discipline);
+    assert(std::isfinite(fallback_phase));
+    assert(fallback_phase >= 0.0 && fallback_phase < 1.0);
+    assert_last_error_contains("aura_advance_phase");
+
+    const AuraFrameDiscipline valid_discipline{60, 4};
+    (void)aura_advance_phase(0.2, 0.01, 0.5, valid_discipline);
+    assert_last_error_clear();
+
+    const double accent = aura_compute_accent_intensity(10.0, 20.0, 0.2, 0.8, 0.2, 0.2);
+    assert(std::fabs(accent - 0.8) < kFloatEpsilon);
+    assert_last_error_contains("aura_compute_accent_intensity");
+
+    const AuraCockpitFrameState fallback_frame = aura_compose_cockpit_frame(
+        std::numeric_limits<double>::quiet_NaN(),
+        10.0,
+        10.0,
+        20.0,
+        AuraFrameDiscipline{0, 0},
+        -1.0
+    );
+    assert(std::isfinite(fallback_frame.phase));
+    assert(std::isfinite(fallback_frame.accent_intensity));
+    assert(std::isfinite(fallback_frame.next_delay_seconds));
+    assert(std::fabs(fallback_frame.accent_intensity - 0.15) < kFloatEpsilon);
+    assert(fallback_frame.next_delay_seconds > 0.0);
+    assert_last_error_contains("aura_compose_cockpit_frame");
+
+    char blended[16] = {};
+    aura_blend_hex_color(nullptr, "#ffffff", 0.5, blended, sizeof(blended));
+    assert(std::strcmp(blended, "#000000") == 0);
+    assert_last_error_contains("aura_blend_hex_color");
+
+    aura_blend_hex_color("#000000", "#ffffff", 0.5, blended, sizeof(blended));
+    assert(std::strcmp(blended, "#808080") == 0);
+    assert_last_error_clear();
+
+    assert(aura_qt_hooks_create(nullptr, nullptr) == nullptr);
+    assert_last_error_contains("aura_qt_hooks_create");
+    aura_clear_error();
+    assert_last_error_clear();
 }
 
 void test_formatting_and_status() {
@@ -392,6 +452,7 @@ int main() {
     test_style_tokens_sanitization_and_defaults();
     test_style_tokens_phase_progression();
     test_theme();
+    test_c_api_error_surface_and_fallbacks();
     test_formatting_and_status();
     test_widgets_backend();
     test_qt_hooks_caps_and_lifecycle();

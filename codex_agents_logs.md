@@ -310,3 +310,8 @@ END | 2026-02-14 13:27:34 +01:00 | sensor | commit: fix: reduce telemetry proces
 START | 2026-02-14 13:27:36 +01:00 | shell | task: replace cockpit DVR timeline placeholder with hybrid runtime/live flow
 SCOPE | src/shell/**, tests/test_shell/**
 GIT-3 | verify: cmake -S tests/test_telemetry -B tests/test_telemetry/build -G "Visual Studio 17 2022" -A x64 (pass); cmake --build tests/test_telemetry/build --config Release (pass); ctest --test-dir tests/test_telemetry/build -C Release --output-on-failure (pass, 1/1)
+GIT-1 | fix: harden render c abi to never throw and expose last-error diagnostics for shell-safe frame calls
+GIT-2 | files: src/render/native/include/aura_render.h, src/render/native/src/c_api.cpp, tests/test_render/render_native_tests.cpp, codex_agents_logs.md, groupchat.md
+END | 2026-02-14 13:30:29 +01:00 | render | commit: fix: harden render c abi to never throw and expose last-error diagnostics
+GIT-3 | verify: cmake -S tests/test_render -B build/render-native-tests -G "Visual Studio 17 2022" -A x64 (pass); cmake --build build/render-native-tests --config Release (pass); ctest --test-dir build/render-native-tests -C Release --output-on-failure (pass, 1/1)
+END | 2026-02-14 13:30:41 +01:00 | render | commit: fix: harden render c abi to never throw and expose last-error diagnostics
