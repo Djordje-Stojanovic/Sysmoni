@@ -4,12 +4,21 @@
 #include <cstring>
 #include <optional>
 #include <string>
+#include <utility>
 
 #include "render_native/formatting.hpp"
 #include "render_native/math.hpp"
+#include "render_native/qt_hooks.hpp"
 #include "render_native/status.hpp"
 #include "render_native/theme.hpp"
 #include "render_native/widgets.hpp"
+
+struct AuraQtRenderHooks {
+    explicit AuraQtRenderHooks(aura::render_native::QtRenderCallbacks callbacks, void* user_data)
+        : hooks(std::move(callbacks), user_data) {}
+
+    aura::render_native::QtRenderHooks hooks;
+};
 
 namespace {
 
@@ -33,6 +42,28 @@ aura::render_native::FrameDiscipline to_internal(AuraFrameDiscipline discipline)
     return aura::render_native::FrameDiscipline{
         discipline.target_fps,
         discipline.max_catchup_frames,
+    };
+}
+
+aura::render_native::QtRenderCallbacks to_internal(AuraQtRenderCallbacks callbacks) {
+    return aura::render_native::QtRenderCallbacks{
+        callbacks.begin_frame,
+        callbacks.set_accent_rgba,
+        callbacks.set_panel_frost,
+        callbacks.set_ring_style,
+        callbacks.set_timeline_emphasis,
+        callbacks.commit_frame,
+    };
+}
+
+aura::render_native::QtRenderFrameInput to_internal(AuraQtRenderFrameInput input) {
+    return aura::render_native::QtRenderFrameInput{
+        input.cpu_percent,
+        input.memory_percent,
+        input.elapsed_since_last_frame,
+        input.pulse_hz,
+        input.target_fps,
+        input.max_catchup_frames,
     };
 }
 
@@ -198,6 +229,50 @@ void aura_format_stream_status(
         optional_string_from_nullable(error)
     );
     write_c_string(value, out_status, out_status_size);
+}
+
+AuraQtRenderBackendCaps aura_qt_hooks_backend_caps(void) {
+    const aura::render_native::QtRenderBackendCaps caps = aura::render_native::qt_backend_caps();
+    return AuraQtRenderBackendCaps{
+        caps.available ? 1 : 0,
+        caps.supports_callbacks ? 1 : 0,
+        caps.preferred_fps,
+    };
+}
+
+AuraQtRenderHooks* aura_qt_hooks_create(const AuraQtRenderCallbacks* callbacks, void* user_data) {
+    if (callbacks == nullptr) {
+        return nullptr;
+    }
+
+    aura::render_native::QtRenderCallbacks internal_callbacks = to_internal(*callbacks);
+    if (!aura::render_native::qt_callbacks_complete(internal_callbacks)) {
+        return nullptr;
+    }
+
+    try {
+        return new AuraQtRenderHooks(std::move(internal_callbacks), user_data);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+void aura_qt_hooks_destroy(AuraQtRenderHooks* hooks) {
+    delete hooks;
+}
+
+int aura_qt_hooks_render_frame(AuraQtRenderHooks* hooks, AuraQtRenderFrameInput input) {
+    if (hooks == nullptr) {
+        return 0;
+    }
+    return hooks->hooks.render_frame(to_internal(input)) ? 1 : 0;
+}
+
+const char* aura_qt_hooks_last_error(const AuraQtRenderHooks* hooks) {
+    if (hooks == nullptr) {
+        return "invalid render hooks handle";
+    }
+    return hooks->hooks.last_error().c_str();
 }
 
 }  // extern "C"

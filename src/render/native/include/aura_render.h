@@ -31,6 +31,45 @@ typedef struct AuraSnapshotLines {
     char timestamp[64];
 } AuraSnapshotLines;
 
+typedef struct AuraQtRenderHooks AuraQtRenderHooks;
+
+typedef void (*AuraQtBeginFrameFn)(void* user_data);
+typedef void (*AuraQtSetAccentRgbaFn)(
+    void* user_data,
+    double red,
+    double green,
+    double blue,
+    double alpha
+);
+typedef void (*AuraQtSetPanelFrostFn)(void* user_data, double frost_intensity, double tint_strength);
+typedef void (*AuraQtSetRingStyleFn)(void* user_data, double line_width, double glow_strength);
+typedef void (*AuraQtSetTimelineEmphasisFn)(void* user_data, double cpu_alpha, double memory_alpha);
+typedef void (*AuraQtCommitFrameFn)(void* user_data);
+
+typedef struct AuraQtRenderCallbacks {
+    AuraQtBeginFrameFn begin_frame;
+    AuraQtSetAccentRgbaFn set_accent_rgba;
+    AuraQtSetPanelFrostFn set_panel_frost;
+    AuraQtSetRingStyleFn set_ring_style;
+    AuraQtSetTimelineEmphasisFn set_timeline_emphasis;
+    AuraQtCommitFrameFn commit_frame;
+} AuraQtRenderCallbacks;
+
+typedef struct AuraQtRenderFrameInput {
+    double cpu_percent;
+    double memory_percent;
+    double elapsed_since_last_frame;
+    double pulse_hz;
+    int target_fps;
+    int max_catchup_frames;
+} AuraQtRenderFrameInput;
+
+typedef struct AuraQtRenderBackendCaps {
+    int available;
+    int supports_callbacks;
+    int preferred_fps;
+} AuraQtRenderBackendCaps;
+
 AURA_RENDER_API double aura_sanitize_percent(double value);
 AURA_RENDER_API double aura_sanitize_non_negative(double value);
 AURA_RENDER_API int aura_quantize_accent_intensity(double accent_intensity);
@@ -103,6 +142,22 @@ AURA_RENDER_API void aura_format_stream_status(
     char* out_status,
     size_t out_status_size
 );
+
+AURA_RENDER_API AuraQtRenderBackendCaps aura_qt_hooks_backend_caps(void);
+
+AURA_RENDER_API AuraQtRenderHooks* aura_qt_hooks_create(
+    const AuraQtRenderCallbacks* callbacks,
+    void* user_data
+);
+
+AURA_RENDER_API void aura_qt_hooks_destroy(AuraQtRenderHooks* hooks);
+
+AURA_RENDER_API int aura_qt_hooks_render_frame(
+    AuraQtRenderHooks* hooks,
+    AuraQtRenderFrameInput input
+);
+
+AURA_RENDER_API const char* aura_qt_hooks_last_error(const AuraQtRenderHooks* hooks);
 
 #ifdef __cplusplus
 }

@@ -15,6 +15,7 @@ set(RENDER_NATIVE_SOURCES
     src/status.cpp
     src/widgets.cpp
     src/widgets_models.cpp
+    src/qt_hooks.cpp
 )
 
 add_library(aura_render_native SHARED ${RENDER_NATIVE_SOURCES})

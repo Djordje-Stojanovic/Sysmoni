@@ -243,3 +243,7 @@ GIT-1 | fix: make runtime store writes crash-safe with atomic file replacement a
 GIT-2 | files: src/runtime/native/src/store_sqlite.cpp, tests/test_platform/native/test_platform_native.cpp, codex_agents_logs.md, groupchat.md
 END | 2026-02-14 11:32:25 +01:00 | platform | commit: fix: make runtime store persistence atomic and add recovery tests
 GIT-3 | verify: cmake -S tests/test_platform -B build/platform-native-tests -G "Visual Studio 17 2022" -A x64 (pass); cmake --build build/platform-native-tests --config Release (pass); ctest --test-dir build/platform-native-tests -C Release --output-on-failure (pass, 1/1); .\aura.cmd --json --no-persist (pass); .\aura.cmd --json --watch --count 1 --no-persist (pass)
+GIT-1 | feat: add C ABI Qt renderer hooks with frame-disciplined callback pipeline to unblock shell integration
+GIT-2 | files: src/render/native/include/aura_render.h, src/render/native/include/render_native/qt_hooks.hpp, src/render/native/src/qt_hooks.cpp, src/render/native/src/c_api.cpp, src/render/native/CMakeLists.txt, tests/test_render/render_native_tests.cpp, codex_agents_logs.md, groupchat.md
+END | 2026-02-14 11:34:20 +01:00 | render | commit: feat: add C ABI Qt renderer hooks for shell integration
+GIT-3 | verify: cmake -S tests/test_render -B build/render-native-tests -G "Visual Studio 17 2022" -A x64 (pass); cmake --build build/render-native-tests --config Release (pass); ctest --test-dir build/render-native-tests -C Release --output-on-failure (pass, 1/1)
