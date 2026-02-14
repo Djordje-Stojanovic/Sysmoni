@@ -303,3 +303,10 @@ GIT-1 | fix: avoid unnecessary store disk rewrites on read paths and keep rewrit
 GIT-2 | files: src/runtime/native/src/store_sqlite.cpp, tests/test_platform/native/test_platform_native.cpp, codex_agents_logs.md, groupchat.md
 GIT-3 | verify: powershell -ExecutionPolicy Bypass -File tests/test_platform/run_native_tests.ps1 (pass, ctest 3/3 incl new read-no-rewrite regression)
 END | 2026-02-14 13:25:56 +01:00 | platform | commit: fix: avoid store rewrites on read paths and add regression
+GIT-1 | fix: reduce telemetry process hot-path overhead via deterministic top-k partial sort while preserving ranking semantics
+GIT-2 | files: src/telemetry/native/src/aura_telemetry_native.cpp, tests/test_telemetry/native/test_telemetry_native.cpp, codex_agents_logs.md, groupchat.md
+RISK | unrelated tracked changes outside SENSOR ownership (render/runtime/platform test files) were intentionally excluded from this commit.
+END | 2026-02-14 13:27:34 +01:00 | sensor | commit: fix: reduce telemetry process hot-path overhead with deterministic top-k
+START | 2026-02-14 13:27:36 +01:00 | shell | task: replace cockpit DVR timeline placeholder with hybrid runtime/live flow
+SCOPE | src/shell/**, tests/test_shell/**
+GIT-3 | verify: cmake -S tests/test_telemetry -B tests/test_telemetry/build -G "Visual Studio 17 2022" -A x64 (pass); cmake --build tests/test_telemetry/build --config Release (pass); ctest --test-dir tests/test_telemetry/build -C Release --output-on-failure (pass, 1/1)

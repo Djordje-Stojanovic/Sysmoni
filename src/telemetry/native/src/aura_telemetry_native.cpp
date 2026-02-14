@@ -496,21 +496,30 @@ extern "C" int aura_collect_processes(
     CloseHandle(snapshot);
     prune_process_cpu_state(seen_pids);
 
-    std::sort(
-        collected.begin(),
-        collected.end(),
-        [](const aura_process_sample& left, const aura_process_sample& right) {
-            if (left.cpu_percent != right.cpu_percent) {
-                return left.cpu_percent > right.cpu_percent;
-            }
-            if (left.memory_rss_bytes != right.memory_rss_bytes) {
-                return left.memory_rss_bytes > right.memory_rss_bytes;
-            }
-            return left.pid < right.pid;
+    const size_t result_count = std::min(static_cast<size_t>(max_samples), collected.size());
+    if (result_count == 0U) {
+        *out_count = 0;
+        write_error(error_buffer, error_buffer_len, "");
+        return AURA_STATUS_OK;
+    }
+
+    const auto process_rank = [](const aura_process_sample& left, const aura_process_sample& right) {
+        if (left.cpu_percent != right.cpu_percent) {
+            return left.cpu_percent > right.cpu_percent;
         }
+        if (left.memory_rss_bytes != right.memory_rss_bytes) {
+            return left.memory_rss_bytes > right.memory_rss_bytes;
+        }
+        return left.pid < right.pid;
+    };
+
+    std::partial_sort(
+        collected.begin(),
+        collected.begin() + static_cast<std::ptrdiff_t>(result_count),
+        collected.end(),
+        process_rank
     );
 
-    const size_t result_count = std::min(static_cast<size_t>(max_samples), collected.size());
     for (size_t i = 0; i < result_count; ++i) {
         samples[i] = collected[i];
     }
