@@ -32,6 +32,7 @@ typedef struct AuraSnapshotLines {
 } AuraSnapshotLines;
 
 typedef struct AuraQtRenderHooks AuraQtRenderHooks;
+typedef struct AuraStyleSequencer AuraStyleSequencer;
 
 typedef void (*AuraQtBeginFrameFn)(void* user_data);
 typedef void (*AuraQtSetAccentRgbaFn)(
@@ -90,6 +91,20 @@ typedef struct AuraRenderStyleTokens {
     double memory_alpha;
 } AuraRenderStyleTokens;
 
+typedef struct AuraStyleSequencerConfig {
+    int target_fps;
+    int max_catchup_frames;
+    double pulse_hz;
+    double rise_half_life_seconds;
+    double fall_half_life_seconds;
+} AuraStyleSequencerConfig;
+
+typedef struct AuraStyleSequencerInput {
+    double cpu_percent;
+    double memory_percent;
+    double elapsed_since_last_frame;
+} AuraStyleSequencerInput;
+
 typedef struct AuraQtRenderBackendCaps {
     int available;
     int supports_callbacks;
@@ -138,6 +153,22 @@ AURA_RENDER_API AuraCockpitFrameState aura_compose_cockpit_frame(
 
 AURA_RENDER_API AuraRenderStyleTokens
 aura_compute_style_tokens(AuraRenderStyleTokensInput input);
+
+AURA_RENDER_API AuraStyleSequencer*
+aura_style_sequencer_create(AuraStyleSequencerConfig config);
+
+AURA_RENDER_API void aura_style_sequencer_destroy(AuraStyleSequencer* sequencer);
+
+AURA_RENDER_API void aura_style_sequencer_reset(
+    AuraStyleSequencer* sequencer,
+    double phase_seed
+);
+
+AURA_RENDER_API AuraRenderStyleTokens
+aura_style_sequencer_tick(AuraStyleSequencer* sequencer, AuraStyleSequencerInput input);
+
+AURA_RENDER_API const char*
+aura_style_sequencer_last_error(const AuraStyleSequencer* sequencer);
 
 AURA_RENDER_API void aura_blend_hex_color(
     const char* start,

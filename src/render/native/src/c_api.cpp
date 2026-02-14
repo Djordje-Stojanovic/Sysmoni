@@ -23,15 +23,33 @@ struct AuraQtRenderHooks {
     aura::render_native::QtRenderHooks hooks;
 };
 
+struct AuraStyleSequencer {
+    aura::render_native::FrameDiscipline discipline{};
+    double pulse_hz{0.5};
+    double rise_half_life_seconds{0.12};
+    double fall_half_life_seconds{0.22};
+    double phase{0.0};
+    double smoothed_cpu_percent{0.0};
+    double smoothed_memory_percent{0.0};
+    bool has_smoothed_samples{false};
+    std::string last_error{};
+};
+
 namespace {
 
 constexpr int kDefaultTargetFps = 60;
+constexpr int kDefaultMaxCatchupFrames = 4;
+constexpr double kDefaultPulseHz = 0.5;
+constexpr double kDefaultRiseHalfLifeSeconds = 0.12;
+constexpr double kDefaultFallHalfLifeSeconds = 0.22;
 constexpr double kDefaultAccentIntensity = 0.15;
 constexpr char kFallbackHexColor[] = "#000000";
 constexpr char kFallbackProcessRow[] = " 0. unavailable           CPU   0.0%  RAM     0.0 MB";
 constexpr char kFallbackInitialStatus[] = "Collecting telemetry...";
 constexpr char kFallbackStreamStatus[] = "Streaming telemetry";
 constexpr char kFallbackLastError[] = "";
+constexpr char kInvalidStyleSequencerHandle[] = "invalid style sequencer handle";
+constexpr double kLn2 = 0.69314718055994530942;
 
 thread_local char g_last_error[512] = "";
 
@@ -159,6 +177,84 @@ AuraRenderStyleTokens fallback_style_tokens(double previous_phase) {
     tokens.cpu_alpha = 0.20;
     tokens.memory_alpha = 0.20;
     return tokens;
+}
+
+int resolve_target_fps(int target_fps) {
+    return target_fps > 0 ? target_fps : kDefaultTargetFps;
+}
+
+int resolve_max_catchup_frames(int max_catchup_frames) {
+    return max_catchup_frames > 0 ? max_catchup_frames : kDefaultMaxCatchupFrames;
+}
+
+double resolve_positive_finite(double value, double fallback) {
+    if (!std::isfinite(value) || value <= 0.0) {
+        return fallback;
+    }
+    return value;
+}
+
+AuraStyleSequencerConfig sanitize_style_sequencer_config(AuraStyleSequencerConfig config) {
+    AuraStyleSequencerConfig out{};
+    out.target_fps = resolve_target_fps(config.target_fps);
+    out.max_catchup_frames = resolve_max_catchup_frames(config.max_catchup_frames);
+    out.pulse_hz = resolve_positive_finite(config.pulse_hz, kDefaultPulseHz);
+    out.rise_half_life_seconds = resolve_positive_finite(
+        config.rise_half_life_seconds,
+        kDefaultRiseHalfLifeSeconds
+    );
+    out.fall_half_life_seconds = resolve_positive_finite(
+        config.fall_half_life_seconds,
+        kDefaultFallHalfLifeSeconds
+    );
+    return out;
+}
+
+double resolve_elapsed_seconds(const AuraStyleSequencer& sequencer, double elapsed_since_last_frame) {
+    return sequencer.discipline.clamp_delta_seconds(elapsed_since_last_frame);
+}
+
+double smoothing_alpha(double elapsed_seconds, double half_life_seconds) {
+    const double clamped_elapsed = aura::render_native::sanitize_non_negative(elapsed_seconds);
+    if (clamped_elapsed <= 0.0) {
+        return 0.0;
+    }
+
+    const double safe_half_life =
+        resolve_positive_finite(half_life_seconds, kDefaultRiseHalfLifeSeconds);
+    const double alpha = 1.0 - std::exp((-kLn2 * clamped_elapsed) / safe_half_life);
+    return aura::render_native::clamp_unit(alpha);
+}
+
+double apply_asymmetric_smoothing(
+    double current_value,
+    double target_value,
+    double elapsed_seconds,
+    double rise_half_life_seconds,
+    double fall_half_life_seconds
+) {
+    const double rise_half_life =
+        resolve_positive_finite(rise_half_life_seconds, kDefaultRiseHalfLifeSeconds);
+    const double fall_half_life =
+        resolve_positive_finite(fall_half_life_seconds, kDefaultFallHalfLifeSeconds);
+    const double half_life = target_value >= current_value ? rise_half_life : fall_half_life;
+    const double alpha = smoothing_alpha(elapsed_seconds, half_life);
+    const double smoothed = current_value + ((target_value - current_value) * alpha);
+    return aura::render_native::sanitize_percent(smoothed);
+}
+
+void set_style_sequencer_error(AuraStyleSequencer* sequencer, std::string message) {
+    if (sequencer == nullptr) {
+        return;
+    }
+    sequencer->last_error = std::move(message);
+}
+
+void clear_style_sequencer_error(AuraStyleSequencer* sequencer) {
+    if (sequencer == nullptr) {
+        return;
+    }
+    sequencer->last_error.clear();
 }
 
 AuraSnapshotLines fallback_snapshot_lines() {
@@ -364,6 +460,135 @@ AuraRenderStyleTokens aura_compute_style_tokens(AuraRenderStyleTokensInput input
             return to_external(tokens);
         }
     );
+}
+
+AuraStyleSequencer* aura_style_sequencer_create(AuraStyleSequencerConfig config) {
+    try {
+        const AuraStyleSequencerConfig sanitized = sanitize_style_sequencer_config(config);
+        auto* sequencer = new AuraStyleSequencer{};
+        sequencer->discipline = aura::render_native::FrameDiscipline{
+            sanitized.target_fps,
+            sanitized.max_catchup_frames,
+        };
+        sequencer->pulse_hz = sanitized.pulse_hz;
+        sequencer->rise_half_life_seconds = sanitized.rise_half_life_seconds;
+        sequencer->fall_half_life_seconds = sanitized.fall_half_life_seconds;
+        sequencer->phase = 0.0;
+        sequencer->smoothed_cpu_percent = 0.0;
+        sequencer->smoothed_memory_percent = 0.0;
+        sequencer->has_smoothed_samples = false;
+        clear_style_sequencer_error(sequencer);
+        clear_last_error();
+        return sequencer;
+    } catch (const std::exception& ex) {
+        set_last_error_exception("aura_style_sequencer_create", ex);
+        return nullptr;
+    } catch (...) {
+        set_last_error_unknown("aura_style_sequencer_create");
+        return nullptr;
+    }
+}
+
+void aura_style_sequencer_destroy(AuraStyleSequencer* sequencer) {
+    (void)call_void_with_error("aura_style_sequencer_destroy", [&]() {
+        delete sequencer;
+    });
+}
+
+void aura_style_sequencer_reset(AuraStyleSequencer* sequencer, double phase_seed) {
+    if (sequencer == nullptr) {
+        set_last_error("aura_style_sequencer_reset", kInvalidStyleSequencerHandle);
+        return;
+    }
+
+    const bool ok = call_void_with_error("aura_style_sequencer_reset", [&]() {
+        sequencer->phase = normalize_phase(phase_seed);
+        sequencer->smoothed_cpu_percent = 0.0;
+        sequencer->smoothed_memory_percent = 0.0;
+        sequencer->has_smoothed_samples = false;
+        clear_style_sequencer_error(sequencer);
+    });
+    if (!ok) {
+        set_style_sequencer_error(sequencer, "reset failed");
+    }
+}
+
+AuraRenderStyleTokens aura_style_sequencer_tick(
+    AuraStyleSequencer* sequencer,
+    AuraStyleSequencerInput input
+) {
+    if (sequencer == nullptr) {
+        set_last_error("aura_style_sequencer_tick", kInvalidStyleSequencerHandle);
+        return fallback_style_tokens(0.0);
+    }
+
+    try {
+        const double cpu_percent = aura::render_native::sanitize_percent(input.cpu_percent);
+        const double memory_percent = aura::render_native::sanitize_percent(input.memory_percent);
+        const double elapsed_seconds = resolve_elapsed_seconds(*sequencer, input.elapsed_since_last_frame);
+
+        if (!sequencer->has_smoothed_samples) {
+            sequencer->smoothed_cpu_percent = cpu_percent;
+            sequencer->smoothed_memory_percent = memory_percent;
+            sequencer->has_smoothed_samples = true;
+        } else {
+            sequencer->smoothed_cpu_percent = apply_asymmetric_smoothing(
+                sequencer->smoothed_cpu_percent,
+                cpu_percent,
+                elapsed_seconds,
+                sequencer->rise_half_life_seconds,
+                sequencer->fall_half_life_seconds
+            );
+            sequencer->smoothed_memory_percent = apply_asymmetric_smoothing(
+                sequencer->smoothed_memory_percent,
+                memory_percent,
+                elapsed_seconds,
+                sequencer->rise_half_life_seconds,
+                sequencer->fall_half_life_seconds
+            );
+        }
+
+        aura::render_native::QtRenderFrameInput frame_input{};
+        frame_input.cpu_percent = sequencer->smoothed_cpu_percent;
+        frame_input.memory_percent = sequencer->smoothed_memory_percent;
+        frame_input.elapsed_since_last_frame = elapsed_seconds;
+        frame_input.pulse_hz = sequencer->pulse_hz;
+        frame_input.target_fps = sequencer->discipline.target_fps;
+        frame_input.max_catchup_frames = sequencer->discipline.max_catchup_frames;
+
+        const aura::render_native::QtRenderStyleTokens tokens =
+            aura::render_native::compute_qt_style_tokens(sequencer->phase, frame_input);
+        sequencer->phase = tokens.phase;
+        clear_style_sequencer_error(sequencer);
+        clear_last_error();
+        return to_external(tokens);
+    } catch (const std::exception& ex) {
+        set_style_sequencer_error(sequencer, std::string(ex.what()));
+        set_last_error_exception("aura_style_sequencer_tick", ex);
+        return fallback_style_tokens(sequencer->phase);
+    } catch (...) {
+        set_style_sequencer_error(sequencer, "unknown exception");
+        set_last_error_unknown("aura_style_sequencer_tick");
+        return fallback_style_tokens(sequencer->phase);
+    }
+}
+
+const char* aura_style_sequencer_last_error(const AuraStyleSequencer* sequencer) {
+    if (sequencer == nullptr) {
+        set_last_error("aura_style_sequencer_last_error", kInvalidStyleSequencerHandle);
+        return kInvalidStyleSequencerHandle;
+    }
+
+    try {
+        clear_last_error();
+        return sequencer->last_error.c_str();
+    } catch (const std::exception& ex) {
+        set_last_error_exception("aura_style_sequencer_last_error", ex);
+        return "unable to read style sequencer error";
+    } catch (...) {
+        set_last_error_unknown("aura_style_sequencer_last_error");
+        return "unable to read style sequencer error";
+    }
 }
 
 void aura_blend_hex_color(

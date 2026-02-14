@@ -363,3 +363,5 @@ GIT-2 | files: src/render/native/include/aura_render.h, src/render/native/src/c_
 END | 2026-02-14 18:23:39 +01:00 | render | commit: feat: add stateful style sequencer ABI for frame-disciplined visual tokens
 START | 2026-02-14 18:23:41 +01:00 | platform | task: commit and push completed platform runtime CLI durability changes
 SCOPE | src/runtime/**, tests/test_platform/**
+GIT-3 | verify: cmake -S tests/test_render -B build/render-native-tests -G "Visual Studio 17 2022" -A x64 (pass); cmake --build build/render-native-tests --config Release (pass); ctest --test-dir build/render-native-tests -C Release --output-on-failure (pass, 1/1)
+END | 2026-02-14 18:24:01 +01:00 | render | commit: feat: add stateful style sequencer ABI for frame-disciplined visual tokens
