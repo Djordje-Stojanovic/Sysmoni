@@ -113,7 +113,21 @@ void CleanupStoreFiles(const std::filesystem::path& db_path) {
 std::string SnapshotLine(const double timestamp, const double cpu_percent, const double memory_percent) {
     std::ostringstream output;
     output.precision(17);
-    output << timestamp << ',' << cpu_percent << ',' << memory_percent;
+    output << timestamp << ',' << cpu_percent << ',' << memory_percent << ',' << 0.0 << ',' << 0.0;
+    return output.str();
+}
+
+std::string SnapshotLineWithDisk(
+    const double timestamp,
+    const double cpu_percent,
+    const double memory_percent,
+    const double disk_read_bps,
+    const double disk_write_bps
+) {
+    std::ostringstream output;
+    output.precision(17);
+    output << timestamp << ',' << cpu_percent << ',' << memory_percent
+           << ',' << disk_read_bps << ',' << disk_write_bps;
     return output.str();
 }
 
@@ -552,6 +566,110 @@ void TestQueryTimeline() {
     ExpectEq(rc, AURA_OK, "store close query timeline");
 }
 
+void TestSnapshotDiskFieldsPersisted() {
+    aura_error_t error{};
+    aura_store_t* store = nullptr;
+
+    int rc = aura_store_open(":memory:", 3600.0, &store, &error);
+    ExpectEq(rc, AURA_OK, "disk fields: store open should succeed");
+
+    const double base = NowSeconds();
+    aura_snapshot_t snap{};
+    snap.timestamp = base;
+    snap.cpu_percent = 10.0;
+    snap.memory_percent = 20.0;
+    snap.disk_read_bps = 1234567.0;
+    snap.disk_write_bps = 7654321.0;
+
+    rc = aura_store_append(store, &snap, &error);
+    ExpectEq(rc, AURA_OK, "disk fields: append should succeed");
+
+    aura_snapshot_t latest[1]{};
+    int out_count = 0;
+    rc = aura_store_latest(store, 1, latest, 1, &out_count, &error);
+    ExpectEq(rc, AURA_OK, "disk fields: latest should succeed");
+    ExpectEq(out_count, 1, "disk fields: latest count should be one");
+    ExpectNear(latest[0].disk_read_bps, 1234567.0, 1e-3, "disk_read_bps should persist");
+    ExpectNear(latest[0].disk_write_bps, 7654321.0, 1e-3, "disk_write_bps should persist");
+
+    rc = aura_store_close(store);
+    ExpectEq(rc, AURA_OK, "disk fields: store close should succeed");
+}
+
+void TestSnapshotDiskFieldsPersistedToFile() {
+    const std::filesystem::path db_path = BuildStorePath("disk_fields_file");
+    const std::string db_path_raw = db_path.string();
+
+    aura_error_t error{};
+    aura_store_t* store = nullptr;
+    int rc = aura_store_open(db_path_raw.c_str(), 3600.0, &store, &error);
+    ExpectEq(rc, AURA_OK, "disk fields file: store open should succeed");
+
+    const double base = NowSeconds() - 10.0;
+    aura_snapshot_t snap{};
+    snap.timestamp = base;
+    snap.cpu_percent = 15.0;
+    snap.memory_percent = 25.0;
+    snap.disk_read_bps = 500000.0;
+    snap.disk_write_bps = 300000.0;
+
+    rc = aura_store_append(store, &snap, &error);
+    ExpectEq(rc, AURA_OK, "disk fields file: append should succeed");
+
+    rc = aura_store_close(store);
+    ExpectEq(rc, AURA_OK, "disk fields file: close first handle");
+
+    store = nullptr;
+    rc = aura_store_open(db_path_raw.c_str(), 3600.0, &store, &error);
+    ExpectEq(rc, AURA_OK, "disk fields file: reopen should succeed");
+
+    aura_snapshot_t latest[1]{};
+    int out_count = 0;
+    rc = aura_store_latest(store, 1, latest, 1, &out_count, &error);
+    ExpectEq(rc, AURA_OK, "disk fields file: latest should succeed");
+    ExpectEq(out_count, 1, "disk fields file: latest count should be one");
+    ExpectNear(latest[0].disk_read_bps, 500000.0, 1e-3, "disk_read_bps should persist across reopen");
+    ExpectNear(latest[0].disk_write_bps, 300000.0, 1e-3, "disk_write_bps should persist across reopen");
+
+    rc = aura_store_close(store);
+    ExpectEq(rc, AURA_OK, "disk fields file: close second handle");
+
+    CleanupStoreFiles(db_path);
+}
+
+void TestLegacy3FieldSnapshotBackwardCompat() {
+    const std::filesystem::path db_path = BuildStorePath("legacy_3field");
+    const std::string db_path_raw = db_path.string();
+    const double base = NowSeconds() - 10.0;
+
+    // Write old 3-field format lines (no disk fields)
+    {
+        std::ofstream output(db_path, std::ios::trunc | std::ios::binary);
+        ExpectTrue(output.is_open(), "legacy 3-field: create fixture file");
+        output.precision(17);
+        output << base << ',' << 55.0 << ',' << 65.0 << '\n';
+    }
+
+    aura_error_t error{};
+    aura_store_t* store = nullptr;
+    int rc = aura_store_open(db_path_raw.c_str(), 3600.0, &store, &error);
+    ExpectEq(rc, AURA_OK, "legacy 3-field: store open should succeed");
+
+    aura_snapshot_t latest[1]{};
+    int out_count = 0;
+    rc = aura_store_latest(store, 1, latest, 1, &out_count, &error);
+    ExpectEq(rc, AURA_OK, "legacy 3-field: latest should succeed");
+    ExpectEq(out_count, 1, "legacy 3-field: latest count should be one");
+    ExpectNear(latest[0].cpu_percent, 55.0, 1e-3, "legacy 3-field: cpu_percent preserved");
+    ExpectNear(latest[0].disk_read_bps, 0.0, 1e-9, "legacy 3-field: disk_read_bps defaults to zero");
+    ExpectNear(latest[0].disk_write_bps, 0.0, 1e-9, "legacy 3-field: disk_write_bps defaults to zero");
+
+    rc = aura_store_close(store);
+    ExpectEq(rc, AURA_OK, "legacy 3-field: close");
+
+    CleanupStoreFiles(db_path);
+}
+
 } // namespace
 
 int main() {
@@ -567,6 +685,9 @@ int main() {
     TestCorruptLineToleranceDoesNotCrash();
     TestLttbDownsample();
     TestQueryTimeline();
+    TestSnapshotDiskFieldsPersisted();
+    TestSnapshotDiskFieldsPersistedToFile();
+    TestLegacy3FieldSnapshotBackwardCompat();
 
     std::cout << "platform_native_tests: PASS" << std::endl;
     return 0;

@@ -90,6 +90,8 @@ NativeCollectors DefaultNativeCollectors() {
     collectors.collect_disk_counters = aura_collect_disk_counters;
     collectors.collect_network_counters = aura_collect_network_counters;
     collectors.collect_thermal_readings = aura_collect_thermal_readings;
+    collectors.collect_per_core_cpu = aura_collect_per_core_cpu;
+    collectors.collect_gpu_utilization = aura_collect_gpu_utilization;
     return collectors;
 }
 
@@ -502,6 +504,104 @@ bool TelemetryEngine::CollectThermalSnapshot(
         }
     }
 
+    clear_error(error_message);
+    return true;
+}
+
+bool TelemetryEngine::CollectPerCoreCpu(
+    double timestamp_seconds,
+    PerCoreCpuSnapshot* out_snapshot,
+    std::string* error_message
+) const {
+    if (out_snapshot == nullptr) {
+        if (error_message != nullptr) {
+            *error_message = "CollectPerCoreCpu requires out_snapshot.";
+        }
+        return false;
+    }
+    if (!is_finite(timestamp_seconds)) {
+        if (error_message != nullptr) {
+            *error_message = "CollectPerCoreCpu requires finite timestamp.";
+        }
+        return false;
+    }
+
+    out_snapshot->timestamp_seconds = timestamp_seconds;
+    out_snapshot->core_percents.clear();
+
+    if (collectors_.collect_per_core_cpu == nullptr) {
+        clear_error(error_message);
+        return true;
+    }
+
+    std::array<double, kMaxCores> raw_percents{};
+    uint32_t out_count = 0;
+    std::array<char, 512> error_buffer{};
+    const int status = collectors_.collect_per_core_cpu(
+        raw_percents.data(),
+        static_cast<uint32_t>(raw_percents.size()),
+        &out_count,
+        error_buffer.data(),
+        error_buffer.size()
+    );
+
+    if (status != AURA_STATUS_OK) {
+        clear_error(error_message);
+        return true;
+    }
+
+    const uint32_t bounded_count = std::min(out_count, static_cast<uint32_t>(raw_percents.size()));
+    out_snapshot->core_percents.reserve(bounded_count);
+    for (uint32_t i = 0; i < bounded_count; ++i) {
+        out_snapshot->core_percents.push_back(clamp_percent(raw_percents[i]));
+    }
+
+    clear_error(error_message);
+    return true;
+}
+
+bool TelemetryEngine::CollectGpuSnapshot(
+    double timestamp_seconds,
+    GpuSnapshot* out_snapshot,
+    std::string* error_message
+) const noexcept {
+    if (out_snapshot == nullptr || !is_finite(timestamp_seconds)) {
+        if (error_message != nullptr) {
+            *error_message = "CollectGpuSnapshot requires finite timestamp and output.";
+        }
+        return false;
+    }
+
+    out_snapshot->timestamp_seconds = timestamp_seconds;
+    out_snapshot->available = false;
+    out_snapshot->gpu_percent = 0.0;
+    out_snapshot->vram_percent = 0.0;
+    out_snapshot->vram_used_bytes = 0;
+    out_snapshot->vram_total_bytes = 0;
+
+    if (collectors_.collect_gpu_utilization == nullptr) {
+        clear_error(error_message);
+        return true;
+    }
+
+    aura_gpu_utilization raw{};
+    std::array<char, 512> error_buffer{};
+    const int status = collectors_.collect_gpu_utilization(
+        &raw,
+        error_buffer.data(),
+        error_buffer.size()
+    );
+
+    if (status != AURA_STATUS_OK) {
+        clear_error(error_message);
+        return true;
+    }
+
+    out_snapshot->available = true;
+    out_snapshot->gpu_percent = clamp_percent(raw.gpu_percent);
+    out_snapshot->vram_percent = clamp_percent(raw.vram_percent);
+    out_snapshot->vram_used_bytes = raw.vram_used_bytes;
+    out_snapshot->vram_total_bytes = raw.vram_total_bytes;
     clear_error(error_message);
     return true;
 }

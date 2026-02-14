@@ -58,6 +58,20 @@ struct ThermalSnapshot {
     std::optional<double> hottest_celsius;
 };
 
+struct PerCoreCpuSnapshot {
+    double timestamp_seconds = 0.0;
+    std::vector<double> core_percents;
+};
+
+struct GpuSnapshot {
+    double timestamp_seconds = 0.0;
+    bool available = false;
+    double gpu_percent = 0.0;
+    double vram_percent = 0.0;
+    uint64_t vram_used_bytes = 0;
+    uint64_t vram_total_bytes = 0;
+};
+
 using CollectSystemSnapshotFn = int (*)(double*, double*, char*, size_t);
 using CollectProcessesFn = int (*)(
     aura_process_sample*,
@@ -75,6 +89,8 @@ using CollectThermalReadingsFn = int (*)(
     char*,
     size_t
 );
+using CollectPerCoreCpuFn = int (*)(double*, uint32_t, uint32_t*, char*, size_t);
+using CollectGpuUtilizationFn = int (*)(aura_gpu_utilization*, char*, size_t);
 
 struct NativeCollectors {
     CollectSystemSnapshotFn collect_system_snapshot = nullptr;
@@ -82,6 +98,8 @@ struct NativeCollectors {
     CollectDiskCountersFn collect_disk_counters = nullptr;
     CollectNetworkCountersFn collect_network_counters = nullptr;
     CollectThermalReadingsFn collect_thermal_readings = nullptr;
+    CollectPerCoreCpuFn collect_per_core_cpu = nullptr;
+    CollectGpuUtilizationFn collect_gpu_utilization = nullptr;
 };
 
 NativeCollectors DefaultNativeCollectors();
@@ -120,6 +138,18 @@ public:
         std::string* error_message
     ) const noexcept;
 
+    bool CollectPerCoreCpu(
+        double timestamp_seconds,
+        PerCoreCpuSnapshot* out_snapshot,
+        std::string* error_message
+    ) const;
+
+    bool CollectGpuSnapshot(
+        double timestamp_seconds,
+        GpuSnapshot* out_snapshot,
+        std::string* error_message
+    ) const noexcept;
+
 private:
     struct DiskState {
         bool has_previous = false;
@@ -135,6 +165,7 @@ private:
 
     static constexpr uint32_t kMaxProcessSamples = 256;
     static constexpr uint32_t kMaxThermalReadings = 256;
+    static constexpr uint32_t kMaxCores = 256;
 
     NativeCollectors collectors_;
 

@@ -20,6 +20,8 @@ typedef struct aura_snapshot_t {
     double timestamp;
     double cpu_percent;
     double memory_percent;
+    double disk_read_bps;
+    double disk_write_bps;
 } aura_snapshot_t;
 
 enum aura_db_source_t {
