@@ -24,4 +24,7 @@ std::string format_process_row(
     int max_chars = kDefaultProcessNameMaxChars
 );
 
+std::string format_disk_rate(double bytes_per_second);
+std::string format_network_rate(double bytes_per_second);
+
 }  // namespace aura::render_native

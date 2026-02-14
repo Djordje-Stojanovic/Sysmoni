@@ -199,6 +199,50 @@ void test_formatting_and_status() {
     assert(std::strcmp(status, "Streaming telemetry | DVR unavailable: disk full") == 0);
 }
 
+void test_format_disk_rate() {
+    char buf[64] = {};
+
+    // Sub-MB: should format as KB/s
+    aura_format_disk_rate(512.0 * 1024.0, buf, sizeof(buf));
+    assert(std::strcmp(buf, "Disk 512.0 KB/s") == 0);
+
+    // Exactly 1 MB/s
+    aura_format_disk_rate(1024.0 * 1024.0, buf, sizeof(buf));
+    assert(std::strcmp(buf, "Disk 1.0 MB/s") == 0);
+
+    // Large value: GB/s
+    aura_format_disk_rate(2.5 * 1024.0 * 1024.0 * 1024.0, buf, sizeof(buf));
+    assert(std::strcmp(buf, "Disk 2.50 GB/s") == 0);
+
+    // Zero
+    aura_format_disk_rate(0.0, buf, sizeof(buf));
+    assert(std::strcmp(buf, "Disk 0.0 KB/s") == 0);
+
+    // Negative clamped to zero
+    aura_format_disk_rate(-100.0, buf, sizeof(buf));
+    assert(std::strcmp(buf, "Disk 0.0 KB/s") == 0);
+}
+
+void test_format_network_rate() {
+    char buf[64] = {};
+
+    // Sub-MB: should format as KB/s
+    aura_format_network_rate(256.0 * 1024.0, buf, sizeof(buf));
+    assert(std::strcmp(buf, "Net 256.0 KB/s") == 0);
+
+    // MB/s range
+    aura_format_network_rate(10.0 * 1024.0 * 1024.0, buf, sizeof(buf));
+    assert(std::strcmp(buf, "Net 10.0 MB/s") == 0);
+
+    // GB/s range
+    aura_format_network_rate(1.0 * 1024.0 * 1024.0 * 1024.0, buf, sizeof(buf));
+    assert(std::strcmp(buf, "Net 1.00 GB/s") == 0);
+
+    // Small value
+    aura_format_network_rate(100.0, buf, sizeof(buf));
+    assert(std::strcmp(buf, "Net 0.1 KB/s") == 0);
+}
+
 void test_widgets_backend() {
     const char* backend = aura_widget_backend_name();
     assert(backend != nullptr);
@@ -454,6 +498,8 @@ int main() {
     test_theme();
     test_c_api_error_surface_and_fallbacks();
     test_formatting_and_status();
+    test_format_disk_rate();
+    test_format_network_rate();
     test_widgets_backend();
     test_qt_hooks_caps_and_lifecycle();
     test_qt_hooks_callback_order_and_ranges();
