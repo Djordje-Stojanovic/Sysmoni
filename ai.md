@@ -60,7 +60,7 @@ For every task and decision, run this sequence in order:
 - One engineer, one module, one clear ownership boundary.
 - Do not edit outside your owned directory.
 - If cross-module change is needed, request in `groupchat.md`, keep moving with local placeholders.
-- Contract layer (`src/contracts/**`) is shared and protected by user approval.
+- Cross-module type contracts are C++ headers within each module's `native/include/` directory; coordinate changes via `groupchat.md`.
 
 ## Decision Autonomy (No Hardcoded Next Tasks)
 

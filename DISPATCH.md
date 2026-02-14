@@ -51,7 +51,7 @@ You may edit only:
 - groupchat.md (append-only)
 
 You may not edit outside scope.
-If you need src/contracts/** changes, post a request to user in groupchat.md and continue with placeholders.
+If you need cross-module type changes, post a request in groupchat.md and continue with placeholders.
 
 Mission:
 - Deliver accurate, lightweight, production-safe telemetry.
@@ -80,7 +80,7 @@ You may edit only:
 - groupchat.md (append-only)
 
 You may not edit outside scope.
-If you need src/contracts/** changes, post a request to user in groupchat.md and continue with placeholders.
+If you need cross-module type changes, post a request in groupchat.md and continue with placeholders.
 
 Mission:
 - Build premium custom visuals with strict frame-discipline.
@@ -109,7 +109,7 @@ You may edit only:
 - groupchat.md (append-only)
 
 You may not edit outside scope.
-If you need src/contracts/** changes, post a request to user in groupchat.md and continue with placeholders.
+If you need cross-module type changes, post a request in groupchat.md and continue with placeholders.
 
 Mission:
 - Build the cockpit UX: window, interaction, panel composition.
@@ -134,13 +134,12 @@ Read ai.md, AGENTS.MD, coding_guidelines.md, ARCHITECTURE.md.
 You may edit only:
 - src/runtime/**
 - tests/test_platform/**
-- installer/** (when added)
-- pyproject.toml (only if required by your task)
+- installer/**
 - codex_agents_logs.md (append-only)
 - groupchat.md (append-only)
 
 You may not edit outside scope.
-If you need src/contracts/** changes, post a request to user in groupchat.md and continue with placeholders.
+If you need cross-module type changes, post a request in groupchat.md and continue with placeholders.
 
 Mission:
 - Make Aura durable and shippable: runtime flow, store, config, packaging surfaces.
@@ -154,17 +153,17 @@ Execution:
 
 ---
 
-## Contract Change Process
+## Cross-Module Type Change Process
 
-When any engineer needs a contract change:
+When any engineer needs a type/interface change in another module:
 
 1. Post in `groupchat.md`:
 
 ```text
-MSG | <timestamp> | <agent> | to:user | type:request | locks:none | note:Need <contract change> with fields: <...>
+MSG | <timestamp> | <agent> | to:<owning-agent> | type:request | locks:none | note:Need <type change> in <header> with fields: <...>
 ```
 
-2. User approves and applies (or delegates one contracts session).
-3. Engineer pulls latest and continues.
+2. Owning engineer applies the change in their module.
+3. Requesting engineer pulls latest and continues.
 
 No global lock process. No task collision loops.

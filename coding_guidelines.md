@@ -17,7 +17,7 @@ Mandatory execution checklist for every Codex session.
 3. Post one `type:info` line in `groupchat.md`.
 4. Edit only your owned module path.
 5. Do not use lock-claim process for unrelated paths. Directory ownership is the conflict prevention model.
-6. For `src/contracts/**` changes: post `type:request` to `to:user` in `groupchat.md` and wait approval.
+6. For cross-module type changes: post `type:request` in `groupchat.md` and coordinate with the owning engineer.
 7. If blocked by another module, continue with placeholder in your module, do not idle.
 
 ## Commit Rules
@@ -37,20 +37,12 @@ Mandatory execution checklist for every Codex session.
 
 Run relevant checks for changed scope.
 
-For native C++ modules (preferred baseline):
+All modules are native C++. Use CMake + CTest as baseline verification:
 
 ```powershell
 cmake -S <module_source> -B <build_dir> -G "Visual Studio 17 2022" -A x64
 cmake --build <build_dir> --config Release
 ctest --test-dir <build_dir> -C Release --output-on-failure
-```
-
-For transitional Python modules:
-
-```bash
-uv run pytest tests/ -x
-uv run ruff check src/ tests/
-uv run pyright src/
 ```
 
 If a command cannot run, record exactly why in `RISK`.

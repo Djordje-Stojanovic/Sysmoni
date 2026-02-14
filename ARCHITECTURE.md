@@ -7,7 +7,6 @@
 | Module | Purpose | Owned Paths |
 |---|---|---|
 | Overhead | Process, prompts, shared docs | All root `*.md` files |
-| Contracts | Shared interfaces and data contracts | `src/contracts/**` |
 | Telemetry | Data collection and sensor pipeline | `src/telemetry/**` |
 | Render | Visual primitives and effects | `src/render/**` |
 | Shell | Window, panels, interaction | `src/shell/**` |
@@ -42,9 +41,6 @@ Overhead remains shared and lean.
 - Code: `src/runtime/**`
 - Tests: `tests/test_platform/**`
 
-Shared protected surface:
-- `src/contracts/**` (user approval required for changes)
-
 ## C++ Rewrite Baseline
 
 - Product direction is now native C++.
@@ -56,41 +52,38 @@ Shared protected surface:
 
 ```text
 src/
-|-- contracts/
 |-- telemetry/
 |   `-- native/
 |-- render/
-|   |-- native/
-|   `-- widgets/
+|   `-- native/
 |-- shell/
 |   `-- native/
 `-- runtime/
-    |-- native/
-    |   |-- include/
-    |   `-- src/
-    |-- CMakeLists.txt
-    `-- README.md
+    `-- native/
+        |-- include/
+        `-- src/
 
 tests/
 |-- test_telemetry/
 |-- test_render/
 |-- test_shell/
 `-- test_platform/
-    |-- native/
-    `-- CMakeLists.txt
+    `-- native/
 ```
 
 ## Interface Contracts
 
-- SENSOR -> SHELL: snapshot/process samples via `src/contracts/**`
-- RENDER -> SHELL: widgets/theme/compositor interfaces
+Cross-module type contracts are defined as C++ headers within each module's `native/include/` directory. Coordination happens through `groupchat.md`.
+
+- SENSOR -> SHELL: telemetry snapshots via C ABI (`telemetry_engine.h`)
+- RENDER -> SHELL: visual primitives via C ABI (`aura_render.h`)
 - SENSOR -> PLATFORM: persistent telemetry stream to DVR/store
 - SHELL -> PLATFORM: runtime config, window state, platform calls
 
 ## Coordination Rules (No Lock Theater)
 
 1. Each engineer edits only their directory.
-2. `src/contracts/**` is read-only until user-approved request.
+2. Cross-module type changes are coordinated via `groupchat.md` requests.
 3. `groupchat.md` is only for cross-module requests/replies/releases.
 4. `codex_agents_logs.md` is append-only audit.
 5. No global task queue. Each engineer chooses highest-leverage next task in their module.
