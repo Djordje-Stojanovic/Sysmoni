@@ -36,6 +36,33 @@ set_tests_properties(
         WILL_FAIL TRUE
 )
 
+add_test(
+    NAME platform_cli_json_includes_disk_fields
+    COMMAND $<TARGET_FILE:aura> --json --no-persist
+)
+set_tests_properties(
+    platform_cli_json_includes_disk_fields
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"disk_read_bps\".*\"disk_write_bps\""
+)
+
+add_test(
+    NAME platform_cli_text_includes_disk_fields
+    COMMAND $<TARGET_FILE:aura> --no-persist
+)
+set_tests_properties(
+    platform_cli_text_includes_disk_fields
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "disk_read_bps=.*disk_write_bps="
+)
+
+add_test(
+    NAME platform_cli_latest_preserves_disk_fields
+    COMMAND powershell -NoProfile -ExecutionPolicy Bypass -File
+        ${CMAKE_CURRENT_SOURCE_DIR}/../cli_latest_disk_fields_test.ps1
+        -AuraExe $<TARGET_FILE:aura>
+)
+
 add_custom_command(
     TARGET platform_native_tests
     POST_BUILD

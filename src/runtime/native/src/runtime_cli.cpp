@@ -200,6 +200,8 @@ void PrintSnapshot(const aura::platform::Snapshot& snapshot, const bool output_j
         std::cout
             << "{\"cpu_percent\": " << std::fixed << std::setprecision(1) << snapshot.cpu_percent
             << ", \"memory_percent\": " << std::fixed << std::setprecision(1) << snapshot.memory_percent
+            << ", \"disk_read_bps\": " << std::fixed << std::setprecision(1) << snapshot.disk_read_bps
+            << ", \"disk_write_bps\": " << std::fixed << std::setprecision(1) << snapshot.disk_write_bps
             << ", \"timestamp\": " << std::setprecision(3) << snapshot.timestamp
             << "}" << '\n';
         return;
@@ -208,6 +210,8 @@ void PrintSnapshot(const aura::platform::Snapshot& snapshot, const bool output_j
     std::cout
         << "cpu=" << std::fixed << std::setprecision(1) << snapshot.cpu_percent << "% "
         << "mem=" << std::fixed << std::setprecision(1) << snapshot.memory_percent << "% "
+        << "disk_read_bps=" << std::fixed << std::setprecision(1) << snapshot.disk_read_bps << " "
+        << "disk_write_bps=" << std::fixed << std::setprecision(1) << snapshot.disk_write_bps << " "
         << "ts=" << std::setprecision(3) << snapshot.timestamp
         << '\n';
 }
@@ -259,6 +263,8 @@ std::vector<aura::platform::Snapshot> LoadSnapshots(
         next.timestamp = output[i].timestamp;
         next.cpu_percent = output[i].cpu_percent;
         next.memory_percent = output[i].memory_percent;
+        next.disk_read_bps = output[i].disk_read_bps;
+        next.disk_write_bps = output[i].disk_write_bps;
         snapshots.push_back(next);
     }
     return snapshots;
@@ -276,6 +282,8 @@ aura::platform::Snapshot CollectSnapshotViaApi() {
     snapshot.timestamp = raw.timestamp;
     snapshot.cpu_percent = raw.cpu_percent;
     snapshot.memory_percent = raw.memory_percent;
+    snapshot.disk_read_bps = raw.disk_read_bps;
+    snapshot.disk_write_bps = raw.disk_write_bps;
     return snapshot;
 }
 
@@ -342,6 +350,8 @@ int main(int argc, char** argv) {
                     raw.timestamp = snapshot.timestamp;
                     raw.cpu_percent = snapshot.cpu_percent;
                     raw.memory_percent = snapshot.memory_percent;
+                    raw.disk_read_bps = snapshot.disk_read_bps;
+                    raw.disk_write_bps = snapshot.disk_write_bps;
                     const int rc = aura_store_append(store, &raw, &err);
                     if (rc != AURA_OK) {
                         std::cerr << "DVR persistence disabled: "
@@ -376,6 +386,8 @@ int main(int argc, char** argv) {
             raw.timestamp = snapshot.timestamp;
             raw.cpu_percent = snapshot.cpu_percent;
             raw.memory_percent = snapshot.memory_percent;
+            raw.disk_read_bps = snapshot.disk_read_bps;
+            raw.disk_write_bps = snapshot.disk_write_bps;
             const int rc = aura_store_append(store, &raw, &err);
             if (rc != AURA_OK) {
                 std::cerr << "DVR persistence disabled: "

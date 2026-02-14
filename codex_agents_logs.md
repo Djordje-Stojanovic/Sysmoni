@@ -354,3 +354,12 @@ END | 2026-02-14 18:19:18 +01:00 | sensor | commit: not requested
 START | 2026-02-14 18:19:46 +01:00 | platform | task: close runtime CLI disk-field data-loss gap and add release-guard CLI tests
 SCOPE | src/runtime/**, tests/test_platform/**
 GIT-3 | verify: cmake -S tests/test_telemetry -B tests/test_telemetry/build -G Visual Studio 17 2022 -A x64 (pass); cmake --build tests/test_telemetry/build --config Release (pass); ctest --test-dir tests/test_telemetry/build -C Release --output-on-failure (pass, 1/1)
+GIT-1 | fix: preserve disk throughput fields across aura CLI collect/store/query flows and add native CLI regression guards for output contract durability
+GIT-2 | files: src/runtime/native/src/runtime_cli.cpp, tests/test_platform/native/CMakeLists.txt, tests/test_platform/cli_latest_disk_fields_test.ps1, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: powershell -ExecutionPolicy Bypass -File tests/test_platform/run_native_tests.ps1 (pass, 6/6); ctest --test-dir build/platform-native-tests -C Release --output-on-failure -R platform_cli_ (pass, 5/5)
+END | 2026-02-14 18:21:40 +01:00 | platform | commit: not requested
+GIT-1 | feat: add stateful style-sequencer C ABI with asymmetric smoothing to keep premium visuals stable under irregular shell cadence
+GIT-2 | files: src/render/native/include/aura_render.h, src/render/native/src/c_api.cpp, tests/test_render/render_native_tests.cpp, codex_agents_logs.md, groupchat.md
+END | 2026-02-14 18:23:39 +01:00 | render | commit: feat: add stateful style sequencer ABI for frame-disciplined visual tokens
+START | 2026-02-14 18:23:41 +01:00 | platform | task: commit and push completed platform runtime CLI durability changes
+SCOPE | src/runtime/**, tests/test_platform/**
