@@ -11,9 +11,17 @@ option(AURA_SHELL_BUILD_APP "Build the Qt shell executable target." ON)
 enable_testing()
 
 add_library(aura_shell_core STATIC
+    src/cockpit_controller.cpp
     src/dock_model.cpp
+    src/render_bridge.cpp
+    src/telemetry_bridge.cpp
 )
-target_include_directories(aura_shell_core PUBLIC include)
+target_include_directories(aura_shell_core
+    PUBLIC include
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../telemetry/native/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../render/native/include
+)
 
 if(AURA_SHELL_BUILD_APP)
     find_package(Qt6 6.5 COMPONENTS Widgets QuickWidgets Qml QUIET)
@@ -40,3 +48,9 @@ add_executable(aura_shell_dock_model_tests
 )
 target_link_libraries(aura_shell_dock_model_tests PRIVATE aura_shell_core)
 add_test(NAME aura_shell_dock_model_tests COMMAND aura_shell_dock_model_tests)
+
+add_executable(aura_shell_cockpit_controller_tests
+    tests/cockpit_controller_tests.cpp
+)
+target_link_libraries(aura_shell_cockpit_controller_tests PRIVATE aura_shell_core)
+add_test(NAME aura_shell_cockpit_controller_tests COMMAND aura_shell_cockpit_controller_tests)

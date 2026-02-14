@@ -6,11 +6,12 @@ Rectangle {
     radius: 8
 
     property real accentIntensity: 0.0
+    property real cpuPercent: 0.0
+    property real memoryPercent: 0.0
+    property string statusText: "Waiting for telemetry..."
 
-    SequentialAnimation on accentIntensity {
-        loops: Animation.Infinite
-        NumberAnimation { to: 1.0; duration: 1200; easing.type: Easing.InOutQuad }
-        NumberAnimation { to: 0.0; duration: 1200; easing.type: Easing.InOutQuad }
+    Behavior on accentIntensity {
+        NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
     }
 
     Rectangle {
@@ -34,7 +35,15 @@ Rectangle {
     }
 
     Text {
-        text: "Widgets + QML bridge active"
+        text: "CPU " + cpuPercent.toFixed(1) + "%  |  Memory " + memoryPercent.toFixed(1) + "%"
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.verticalCenter: parent.verticalCenter
+        color: "#c2dcf2"
+        font.pixelSize: 15
+    }
+
+    Text {
+        text: statusText
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 18
@@ -42,4 +51,3 @@ Rectangle {
         font.pixelSize: 13
     }
 }
-
