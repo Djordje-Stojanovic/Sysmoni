@@ -2,6 +2,10 @@
 
 > Copy-paste one launch block per Codex session. One codename per session.
 
+## Global Stack Note
+
+Aura is now C++-first. For native modules, default to CMake + CTest workflows.
+
 ## Before Launch
 
 1. Confirm module ownership in `ARCHITECTURE.md`.

@@ -17,6 +17,13 @@ Directory ownership model:
 
 No overlap. No lock loops.
 
+## C++ Rewrite Note
+
+Aura is now native C++ direction.
+
+- Use CMake + CTest as baseline verification for native modules.
+- Prefer `Visual Studio 17 2022` generator (`-A x64`) on Windows.
+
 ## One-Time Migration Prompt
 
 Use this exact launch prompt once when structure changes are needed:

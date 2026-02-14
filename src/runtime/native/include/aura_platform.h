@@ -81,6 +81,11 @@ AURA_PLATFORM_EXPORT int aura_store_append(
     aura_error_t* out_error
 );
 
+AURA_PLATFORM_EXPORT int aura_collect_snapshot(
+    aura_snapshot_t* out_snapshot,
+    aura_error_t* out_error
+);
+
 AURA_PLATFORM_EXPORT int aura_store_count(
     aura_store_t* store,
     int* out_count,

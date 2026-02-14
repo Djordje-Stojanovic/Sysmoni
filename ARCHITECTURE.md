@@ -7,11 +7,11 @@
 | Module | Purpose | Owned Paths |
 |---|---|---|
 | Overhead | Process, prompts, shared docs | All root `*.md` files |
-| Contracts | Shared dataclasses and interfaces | `src/contracts/**` |
-| Telemetry | Data collection and pipeline | `src/telemetry/**` |
+| Contracts | Shared interfaces and data contracts | `src/contracts/**` |
+| Telemetry | Data collection and sensor pipeline | `src/telemetry/**` |
 | Render | Visual primitives and effects | `src/render/**` |
 | Shell | Window, panels, interaction | `src/shell/**` |
-| Platform | Runtime, store, shipping surface | `src/runtime/**` |
+| Platform | Runtime, store, packaging surface | `src/runtime/**` |
 
 ## Part 2 - 2-3 Year Work Balance
 
@@ -39,79 +39,53 @@ Overhead remains shared and lean.
 - Tests: `tests/test_shell/**`
 
 4. **PLATFORM**
-- Code: `src/runtime/**` (platform domain path in this repo)
+- Code: `src/runtime/**`
 - Tests: `tests/test_platform/**`
 
 Shared protected surface:
 - `src/contracts/**` (user approval required for changes)
+
+## C++ Rewrite Baseline
+
+- Product direction is now native C++.
+- Platform runtime has been cut over to native C++ (`src/runtime/native/**`).
+- Platform test suite is native C++ (`tests/test_platform/native/**`).
+- Build standard: CMake + Visual Studio 2022 generator on Windows (`-A x64`).
 
 ## Target Directory Layout
 
 ```text
 src/
 |-- contracts/
-|   |-- types.py
-|   |-- signals.py
-|   `-- constants.py
 |-- telemetry/
-|   |-- poller.py
-|   |-- gpu.py
-|   |-- disk.py
-|   |-- network.py
-|   |-- thermal.py
-|   |-- battery.py
-|   |-- processes.py
-|   |-- pipeline.py
-|   |-- wmi.py
 |   `-- native/
 |-- render/
-|   |-- engine.py
-|   |-- theme.py
-|   |-- animation.py
-|   |-- compositor.py
-|   |-- shaders/
+|   |-- native/
 |   `-- widgets/
 |-- shell/
-|   |-- app.py
-|   |-- window.py
-|   |-- titlebar.py
-|   |-- dock.py
-|   |-- shortcuts.py
-|   `-- panels/
-`-- platform/   (logical module; implemented as src/runtime/ in this repo)
-    |-- main.py
-    |-- store.py
-    |-- dvr.py
-    |-- config.py
-    |-- tray.py
-    |-- autostart.py
-    |-- updater.py
-    |-- licensing.py
-    |-- crash.py
-    `-- installer/
+|   `-- native/
+`-- runtime/
+    |-- native/
+    |   |-- include/
+    |   `-- src/
+    |-- CMakeLists.txt
+    `-- README.md
+
+tests/
+|-- test_telemetry/
+|-- test_render/
+|-- test_shell/
+`-- test_platform/
+    |-- native/
+    `-- CMakeLists.txt
 ```
-
-## Migration Table
-
-| Current File | Module Owner | New Location |
-|---|---|---|
-| `src/contracts/types.py` | Contracts | unchanged |
-| `src/telemetry/poller.py` | SENSOR | unchanged |
-| `src/shell/window.py` | SHELL | unchanged |
-| `src/runtime/store.py` | PLATFORM | unchanged (platform domain path) |
-| `src/runtime/main.py` | PLATFORM | unchanged (platform domain path) |
-| `tests/test_telemetry/test_poller.py` | SENSOR | unchanged |
-| `tests/test_telemetry/test_types.py` | SENSOR | unchanged |
-| `tests/test_shell/test_window.py` | SHELL | unchanged |
-| `tests/test_platform/test_store.py` | PLATFORM | unchanged |
-| `tests/test_platform/test_main.py` | PLATFORM | unchanged |
 
 ## Interface Contracts
 
-- SENSOR -> SHELL: sensor snapshots and process samples from `src/contracts/types.py`
+- SENSOR -> SHELL: snapshot/process samples via `src/contracts/**`
 - RENDER -> SHELL: widgets/theme/compositor interfaces
 - SENSOR -> PLATFORM: persistent telemetry stream to DVR/store
-- SHELL -> PLATFORM: config, window state, tray/platform calls
+- SHELL -> PLATFORM: runtime config, window state, platform calls
 
 ## Coordination Rules (No Lock Theater)
 

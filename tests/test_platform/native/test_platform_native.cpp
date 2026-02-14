@@ -1,6 +1,7 @@
 #include "aura_platform.h"
 
 #include <cmath>
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
@@ -32,6 +33,11 @@ void ExpectNear(const double actual, const double expected, const double toleran
     }
 }
 
+double NowSeconds() {
+    using clock = std::chrono::system_clock;
+    return std::chrono::duration<double>(clock::now().time_since_epoch()).count();
+}
+
 void TestConfigNoPersist() {
     aura_config_request_t request{};
     request.no_persist = 1;
@@ -52,9 +58,10 @@ void TestStoreMemoryAppendLatestBetween() {
     ExpectEq(rc, AURA_OK, "aura_store_open :memory: should succeed");
     ExpectTrue(store != nullptr, "store pointer should be set");
 
-    aura_snapshot_t first{100.0, 10.0, 20.0};
-    aura_snapshot_t second{101.0, 11.0, 21.0};
-    aura_snapshot_t third{102.0, 12.0, 22.0};
+    const double base = NowSeconds();
+    aura_snapshot_t first{base, 10.0, 20.0};
+    aura_snapshot_t second{base + 1.0, 11.0, 21.0};
+    aura_snapshot_t third{base + 2.0, 12.0, 22.0};
 
     rc = aura_store_append(store, &first, &error);
     ExpectEq(rc, AURA_OK, "append first should succeed");
@@ -73,16 +80,16 @@ void TestStoreMemoryAppendLatestBetween() {
     rc = aura_store_latest(store, 2, latest, 2, &out_count, &error);
     ExpectEq(rc, AURA_OK, "latest should succeed");
     ExpectEq(out_count, 2, "latest count should be two");
-    ExpectNear(latest[0].timestamp, 101.0, 1e-9, "latest[0] timestamp");
-    ExpectNear(latest[1].timestamp, 102.0, 1e-9, "latest[1] timestamp");
+    ExpectNear(latest[0].timestamp, base + 1.0, 1e-9, "latest[0] timestamp");
+    ExpectNear(latest[1].timestamp, base + 2.0, 1e-9, "latest[1] timestamp");
 
     aura_snapshot_t range[3]{};
     out_count = 0;
-    rc = aura_store_between(store, 1, 100.5, 1, 102.0, range, 3, &out_count, &error);
+    rc = aura_store_between(store, 1, base + 0.5, 1, base + 2.0, range, 3, &out_count, &error);
     ExpectEq(rc, AURA_OK, "between should succeed");
     ExpectEq(out_count, 2, "between count should be two");
-    ExpectNear(range[0].timestamp, 101.0, 1e-9, "range[0] timestamp");
-    ExpectNear(range[1].timestamp, 102.0, 1e-9, "range[1] timestamp");
+    ExpectNear(range[0].timestamp, base + 1.0, 1e-9, "range[0] timestamp");
+    ExpectNear(range[1].timestamp, base + 2.0, 1e-9, "range[1] timestamp");
 
     rc = aura_store_close(store);
     ExpectEq(rc, AURA_OK, "store close should succeed");
@@ -120,9 +127,10 @@ void TestQueryTimeline() {
     int rc = aura_store_open(":memory:", 3600.0, &store, &error);
     ExpectEq(rc, AURA_OK, "store open for query timeline");
 
+    const double base = NowSeconds() - 100.0;
     for (int i = 0; i < 50; ++i) {
         aura_snapshot_t snapshot{
-            200.0 + static_cast<double>(i),
+            base + static_cast<double>(i),
             static_cast<double>(i % 15),
             40.0,
         };
@@ -135,9 +143,9 @@ void TestQueryTimeline() {
     rc = aura_dvr_query_timeline(
         store,
         1,
-        210.0,
+        base + 10.0,
         1,
-        240.0,
+        base + 40.0,
         10,
         output,
         10,
@@ -146,8 +154,8 @@ void TestQueryTimeline() {
     );
     ExpectEq(rc, AURA_OK, "query timeline should succeed");
     ExpectEq(out_count, 10, "query timeline count");
-    ExpectTrue(output[0].timestamp >= 210.0, "query timeline lower bound");
-    ExpectTrue(output[out_count - 1].timestamp <= 240.0, "query timeline upper bound");
+    ExpectTrue(output[0].timestamp >= base + 10.0, "query timeline lower bound");
+    ExpectTrue(output[out_count - 1].timestamp <= base + 40.0, "query timeline upper bound");
 
     rc = aura_store_close(store);
     ExpectEq(rc, AURA_OK, "store close query timeline");

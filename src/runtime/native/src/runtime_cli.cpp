@@ -230,6 +230,21 @@ std::vector<aura::platform::Snapshot> LoadSnapshots(
     return snapshots;
 }
 
+aura::platform::Snapshot CollectSnapshotViaApi() {
+    aura_snapshot_t raw{};
+    aura_error_t err{};
+    const int rc = aura_collect_snapshot(&raw, &err);
+    if (rc != AURA_OK) {
+        throw std::runtime_error(err.message[0] != '\0' ? err.message : "Failed to collect snapshot.");
+    }
+
+    aura::platform::Snapshot snapshot;
+    snapshot.timestamp = raw.timestamp;
+    snapshot.cpu_percent = raw.cpu_percent;
+    snapshot.memory_percent = raw.memory_percent;
+    return snapshot;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -280,7 +295,7 @@ int main(int argc, char** argv) {
         if (options.watch) {
             std::optional<int> remaining = options.count;
             while (!g_stop_requested.load()) {
-                aura::platform::Snapshot snapshot = aura::platform::CollectSystemSnapshot();
+                aura::platform::Snapshot snapshot = CollectSnapshotViaApi();
                 if (store != nullptr) {
                     aura_snapshot_t raw{};
                     raw.timestamp = snapshot.timestamp;
@@ -314,7 +329,7 @@ int main(int argc, char** argv) {
             return 0;
         }
 
-        aura::platform::Snapshot snapshot = aura::platform::CollectSystemSnapshot();
+        aura::platform::Snapshot snapshot = CollectSnapshotViaApi();
         if (store != nullptr) {
             aura_snapshot_t raw{};
             raw.timestamp = snapshot.timestamp;

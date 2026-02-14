@@ -229,6 +229,25 @@ AURA_PLATFORM_EXPORT int aura_store_append(
     }
 }
 
+AURA_PLATFORM_EXPORT int aura_collect_snapshot(
+    aura_snapshot_t* out_snapshot,
+    aura_error_t* out_error
+) {
+    if (out_snapshot == nullptr) {
+        SetError(out_error, AURA_ERR_INVALID_ARGUMENT, "out_snapshot must not be null.");
+        return AURA_ERR_INVALID_ARGUMENT;
+    }
+
+    try {
+        const Snapshot snapshot = aura::platform::CollectSystemSnapshot();
+        *out_snapshot = ToAbiSnapshot(snapshot);
+        ClearError(out_error);
+        return AURA_OK;
+    } catch (const std::exception& exc) {
+        return HandleException(exc, out_error);
+    }
+}
+
 AURA_PLATFORM_EXPORT int aura_store_count(
     aura_store_t* store,
     int* out_count,

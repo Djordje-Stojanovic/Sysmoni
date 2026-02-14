@@ -35,7 +35,17 @@ Mandatory execution checklist for every Codex session.
 
 ## Verification Rules
 
-Run relevant checks for changed scope:
+Run relevant checks for changed scope.
+
+For native C++ modules (preferred baseline):
+
+```powershell
+cmake -S <module_source> -B <build_dir> -G "Visual Studio 17 2022" -A x64
+cmake --build <build_dir> --config Release
+ctest --test-dir <build_dir> -C Release --output-on-failure
+```
+
+For transitional Python modules:
 
 ```bash
 uv run pytest tests/ -x

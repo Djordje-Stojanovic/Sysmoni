@@ -14,3 +14,11 @@ else()
 endif()
 
 add_test(NAME platform_native_tests COMMAND platform_native_tests)
+
+add_custom_command(
+    TARGET platform_native_tests
+    POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:aura_platform>
+        $<TARGET_FILE_DIR:platform_native_tests>
+)

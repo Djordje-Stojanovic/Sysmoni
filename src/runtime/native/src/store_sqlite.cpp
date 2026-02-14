@@ -1,6 +1,7 @@
 #include "platform_internal.hpp"
 
 #include <algorithm>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <mutex>
@@ -21,6 +22,25 @@ void EnsureParentDirectory(const std::string& path) {
     if (!parent.empty()) {
         std::filesystem::create_directories(parent);
     }
+}
+
+bool IsLegacySqliteFile(const std::string& path) {
+    std::ifstream input(path, std::ios::binary);
+    if (!input.is_open()) {
+        return false;
+    }
+
+    char header[16] = {};
+    input.read(header, sizeof(header));
+    if (input.gcount() < static_cast<std::streamsize>(sizeof(header))) {
+        return false;
+    }
+
+    static constexpr char kSqliteMagic[16] = {
+        'S', 'Q', 'L', 'i', 't', 'e', ' ', 'f',
+        'o', 'r', 'm', 'a', 't', ' ', '3', '\0'
+    };
+    return std::memcmp(header, kSqliteMagic, sizeof(kSqliteMagic)) == 0;
 }
 
 Snapshot ParseSnapshotLine(const std::string& line) {
@@ -61,6 +81,15 @@ class FileBackedStore final : public TelemetryStore {
         ValidatePositiveFinite(retention_seconds_, "retention_seconds");
         EnsureParentDirectory(db_path_);
         if (db_path_ != ":memory:") {
+            if (IsLegacySqliteFile(db_path_)) {
+                const std::filesystem::path source(db_path_);
+                const std::filesystem::path legacy_path = source.string() + ".legacy.sqlite";
+                std::error_code rename_error;
+                std::filesystem::rename(source, legacy_path, rename_error);
+                if (rename_error) {
+                    std::filesystem::remove(source, rename_error);
+                }
+            }
             LoadFromDisk();
             PruneExpiredLocked();
             RewriteAllLocked();
@@ -145,11 +174,22 @@ class FileBackedStore final : public TelemetryStore {
 
         std::vector<Snapshot> loaded;
         std::string line;
+        int parse_failures = 0;
         while (std::getline(input, line)) {
             if (line.empty()) {
                 continue;
             }
-            loaded.push_back(ParseSnapshotLine(line));
+            try {
+                loaded.push_back(ParseSnapshotLine(line));
+            } catch (const std::exception&) {
+                parse_failures += 1;
+            }
+        }
+        if (parse_failures > 0 && loaded.empty()) {
+            // Existing file is incompatible with current native format.
+            // Start clean instead of crashing startup.
+            snapshots_.clear();
+            return;
         }
         snapshots_ = std::move(loaded);
         std::sort(

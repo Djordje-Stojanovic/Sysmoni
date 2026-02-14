@@ -178,3 +178,12 @@ GIT-2 | files: src/telemetry/native/include/telemetry_engine.h, src/telemetry/na
 GIT-3 | verify: rg --files src/telemetry tests/test_telemetry | ? {  -like '*.py' } (pass, no python files); .\\tests\\test_telemetry\\run_native_tests.ps1 (fails: cmake missing); .\\src\\telemetry\\native\\build.ps1 (fails: cl.exe missing)
 RISK | native compile/test could not execute in this environment because CMake and MSVC Build Tools are not installed; module is source-complete but uncompiled here.
 END | 2026-02-14 00:53:38 +01:00 | sensor | commit: refactor: convert telemetry module and tests to native-only c++
+GIT-1 | docs: standardize repo guidance to c++-first workflow and stabilize native platform build/test path
+GIT-2 | files: README.md, ai.md, AGENTS.md, ARCHITECTURE.md, DISPATCH.md, PARALLEL_OPS.md, RUN_WINDOWS11.md, coding_guideliines.md, src/runtime/native/**, tests/test_platform/**, installer/windows/build_platform_native.ps1, groupchat.md
+RISK | Native CLI default persistence path write can fail under restricted sandbox environments; use --no-persist or explicit writable --db-path in such environments.
+END | 2026-02-14 01:27:08 +01:00 | platform | commit: docs: standardize c++-first workflow and stabilize native build/test path
+GIT-1 | docs: standardize repo guidance to c++-first workflow and stabilize native platform build/test path
+GIT-2 | files: README.md, ai.md, AGENTS.md, ARCHITECTURE.md, DISPATCH.md, PARALLEL_OPS.md, RUN_WINDOWS11.md, coding_guideliines.md, src/runtime/native/**, tests/test_platform/**, installer/windows/build_platform_native.ps1, groupchat.md
+GIT-3 | verify: cmake -S runtime/native -B build/platform-native-vs -G Visual Studio 17 2022 -A x64 (pass); cmake --build build/platform-native-vs --config Release (pass); aura.exe --json --no-persist (pass); cmake -S tests/test_platform -B build/platform-native-tests-vs -G Visual Studio 17 2022 -A x64 (pass); cmake --build build/platform-native-tests-vs --config Release (pass); ctest --test-dir build/platform-native-tests-vs -C Release --output-on-failure (pass)
+RISK | Native CLI default persistence path write can fail under restricted sandbox environments; use --no-persist or explicit writable --db-path in such environments.
+END | 2026-02-14 01:27:22 +01:00 | platform | commit: docs: standardize c++-first workflow and stabilize native build/test path

@@ -1,11 +1,28 @@
-# Windows 11 Run
+# Windows 11 Run (C++ Native)
+
+From repo root:
 
 ```powershell
-# one-time (if uv is missing)
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+# Verify toolchain in this shell
+cmake --version
+cl
 
-# from repo root
-uv run python src\gui\window.py
-# or the canonical module path
-uv run python src\shell\window.py
+# Build native platform runtime
+cmake -S src/runtime/native -B src/build/platform-native -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release
+cmake --build src/build/platform-native --config Release
+
+# Run CLI
+.\src\build\platform-native\Release\aura.exe --json
+
+# Run platform native tests
+cmake -S tests/test_platform -B src/build/platform-native-tests -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release
+cmake --build src/build/platform-native-tests --config Release
+ctest --test-dir src/build/platform-native-tests -C Release --output-on-failure
+```
+
+Shortcuts:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tests/test_platform/run_native_tests.ps1
+powershell -ExecutionPolicy Bypass -File installer/windows/build_platform_native.ps1
 ```
