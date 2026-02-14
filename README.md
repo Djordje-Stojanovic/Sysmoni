@@ -54,6 +54,14 @@ or:
 
 Both launchers auto-build once if `aura.exe` is missing.
 
+GUI launcher:
+
+```powershell
+.\aura-gui.cmd
+```
+
+If Qt6 is not installed yet, the launcher prints the exact `-Qt6Dir` command to fix it.
+
 Run:
 
 ```powershell
@@ -78,6 +86,12 @@ powershell -ExecutionPolicy Bypass -File tests/test_platform/run_native_tests.ps
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File installer/windows/build_platform_native.ps1
+```
+
+Shell GUI build helper:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File installer/windows/build_shell_native.ps1
 ```
 
 ## Repository Layout

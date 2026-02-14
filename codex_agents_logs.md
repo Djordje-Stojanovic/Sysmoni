@@ -217,3 +217,7 @@ GIT-1 | feat: add simple one-command aura launcher for native runtime
 GIT-2 | files: aura.cmd, aura.ps1, README.md, RUN_WINDOWS11.md
 GIT-3 | verify: cmd /c aura.cmd --json --no-persist (pass, auto-build then run)
 END | 2026-02-14 01:45:00 +01:00 | platform | commit: feat: add one-command native launcher
+GIT-1 | feat: add one-command native GUI launcher with explicit Qt6 guidance
+GIT-2 | files: aura-gui.cmd, aura-gui.ps1, installer/windows/build_shell_native.ps1, README.md, RUN_WINDOWS11.md
+GIT-3 | verify: cmd /c aura-gui.cmd (shows clear Qt6 missing guidance and exact fix command)
+END | 2026-02-14 01:48:44 +01:00 | platform | commit: feat: add simple native gui launcher path

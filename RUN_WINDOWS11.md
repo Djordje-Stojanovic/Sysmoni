@@ -6,6 +6,9 @@ From repo root:
 # fastest: auto-build + run
 .\aura.cmd --json --no-persist
 
+# fastest GUI run
+.\aura-gui.cmd
+
 # Verify toolchain in this shell
 cmake --version
 cl
@@ -28,4 +31,5 @@ Shortcuts:
 ```powershell
 powershell -ExecutionPolicy Bypass -File tests/test_platform/run_native_tests.ps1
 powershell -ExecutionPolicy Bypass -File installer/windows/build_platform_native.ps1
+powershell -ExecutionPolicy Bypass -File installer/windows/build_shell_native.ps1
 ```
