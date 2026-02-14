@@ -54,7 +54,12 @@ std::optional<std::string> ReadEnvOptional(const char* key) {
 
 std::optional<double> ParsePositiveFiniteOptional(const std::string& value, const char* source_name) {
     try {
-        const double parsed = std::stod(value);
+        const std::string trimmed = Trim(value);
+        std::size_t parsed_chars = 0;
+        const double parsed = std::stod(trimmed, &parsed_chars);
+        if (parsed_chars != trimmed.size()) {
+            throw std::runtime_error("trailing characters");
+        }
         ValidatePositiveFinite(parsed, source_name);
         return parsed;
     } catch (const std::exception&) {

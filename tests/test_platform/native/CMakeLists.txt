@@ -16,6 +16,26 @@ endif()
 
 add_test(NAME platform_native_tests COMMAND platform_native_tests)
 
+add_test(
+    NAME platform_cli_rejects_malformed_retention
+    COMMAND $<TARGET_FILE:aura> --retention-seconds 10foo --no-persist
+)
+set_tests_properties(
+    platform_cli_rejects_malformed_retention
+    PROPERTIES
+        WILL_FAIL TRUE
+)
+
+add_test(
+    NAME platform_cli_rejects_malformed_interval
+    COMMAND $<TARGET_FILE:aura> --watch --count 1 --interval 1x --no-persist
+)
+set_tests_properties(
+    platform_cli_rejects_malformed_interval
+    PROPERTIES
+        WILL_FAIL TRUE
+)
+
 add_custom_command(
     TARGET platform_native_tests
     POST_BUILD

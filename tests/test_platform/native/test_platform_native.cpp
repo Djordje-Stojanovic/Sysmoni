@@ -7,8 +7,10 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <optional>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -35,6 +37,47 @@ void ExpectNear(const double actual, const double expected, const double toleran
         Fail(message + " (actual=" + std::to_string(actual) + ", expected=" + std::to_string(expected) + ")");
     }
 }
+
+class ScopedEnvVar final {
+  public:
+    explicit ScopedEnvVar(std::string key)
+        : key_(std::move(key)) {
+        char* value = nullptr;
+        std::size_t value_length = 0;
+        const errno_t rc = _dupenv_s(&value, &value_length, key_.c_str());
+        if (rc != 0) {
+            if (value != nullptr) {
+                std::free(value);
+            }
+            Fail("failed to read env var: " + key_);
+        }
+        if (value != nullptr) {
+            has_original_ = true;
+            original_value_ = value;
+            std::free(value);
+        }
+    }
+
+    ~ScopedEnvVar() {
+        if (has_original_) {
+            (void)_putenv_s(key_.c_str(), original_value_.c_str());
+        } else {
+            (void)_putenv_s(key_.c_str(), "");
+        }
+    }
+
+    void Set(const std::string& value) {
+        const errno_t rc = _putenv_s(key_.c_str(), value.c_str());
+        if (rc != 0) {
+            Fail("failed to set env var: " + key_);
+        }
+    }
+
+  private:
+    std::string key_;
+    bool has_original_ = false;
+    std::string original_value_;
+};
 
 double NowSeconds() {
     using clock = std::chrono::system_clock;
@@ -112,6 +155,53 @@ void TestConfigNoPersist() {
     ExpectEq(rc, AURA_OK, "aura_config_resolve should succeed");
     ExpectEq(config.persistence_enabled, 0, "persistence should be disabled");
     ExpectEq(config.db_source, AURA_DB_SOURCE_DISABLED, "db source should be disabled");
+}
+
+void TestConfigRejectsMalformedEnvRetention() {
+    ScopedEnvVar retention_env("AURA_RETENTION_SECONDS");
+    retention_env.Set("30junk");
+
+    aura_config_request_t request{};
+    request.no_persist = 1;
+
+    aura_runtime_config_t config{};
+    aura_error_t error{};
+    const int rc = aura_config_resolve(&request, &config, &error);
+    ExpectTrue(rc != AURA_OK, "aura_config_resolve should reject malformed env retention");
+    ExpectTrue(error.message[0] != '\0', "error message should be populated");
+    ExpectTrue(
+        std::string(error.message).find("AURA_RETENTION_SECONDS") != std::string::npos,
+        "error should identify malformed env retention source"
+    );
+}
+
+void TestConfigRejectsMalformedTomlRetention() {
+    const std::filesystem::path config_path = BuildStorePath("bad_retention_config");
+    const std::string config_path_raw = config_path.string();
+    WriteTextFileLines(
+        config_path,
+        {
+            "[persistence]",
+            "retention_seconds = 42oops",
+        }
+    );
+
+    aura_config_request_t request{};
+    request.no_persist = 1;
+    request.config_path_override = config_path_raw.c_str();
+
+    aura_runtime_config_t config{};
+    aura_error_t error{};
+    const int rc = aura_config_resolve(&request, &config, &error);
+    ExpectTrue(rc != AURA_OK, "aura_config_resolve should reject malformed TOML retention");
+    ExpectTrue(error.message[0] != '\0', "error message should be populated");
+    ExpectTrue(
+        std::string(error.message).find("retention_seconds") != std::string::npos,
+        "error should identify malformed TOML retention field"
+    );
+
+    std::error_code remove_error;
+    std::filesystem::remove(config_path, remove_error);
 }
 
 void TestStoreMemoryAppendLatestBetween() {
@@ -413,6 +503,8 @@ void TestQueryTimeline() {
 
 int main() {
     TestConfigNoPersist();
+    TestConfigRejectsMalformedEnvRetention();
+    TestConfigRejectsMalformedTomlRetention();
     TestStoreMemoryAppendLatestBetween();
     TestStoreFilePersistenceAcrossReopen();
     TestStoreRecoveryFromStaleTmpWhenMainMissing();

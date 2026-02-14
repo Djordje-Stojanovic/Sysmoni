@@ -271,3 +271,9 @@ GIT-3 | verify: powershell -ExecutionPolicy Bypass -File tests/test_platform/run
 RISK | repo contains pre-existing dirty files outside platform ownership (src/render/**, src/telemetry/** and tests); platform changes verified but not committed to avoid cross-scope interference
 END | 2026-02-14 11:42:00 +01:00 | platform | commit: pending (awaiting user direction due unrelated dirty worktree entries)
 GIT-3 | verify: cmake -S tests/test_render -B build/render-native-tests -G "Visual Studio 17 2022" -A x64 (pass); cmake --build build/render-native-tests --config Release (pass); ctest --test-dir build/render-native-tests -C Release --output-on-failure (pass, 1/1)
+START | 2026-02-14 11:43:33 +01:00 | shell | task: implement dock-state-driven cockpit panel composition with button-based panel moves
+SCOPE | src/shell/**, tests/test_shell/**
+GIT-1 | fix: enforce strict numeric parsing for CLI/env/TOML runtime fields to stop silent misconfiguration
+GIT-2 | files: src/runtime/native/src/runtime_cli.cpp, src/runtime/native/src/config_win.cpp, tests/test_platform/native/test_platform_native.cpp, tests/test_platform/native/CMakeLists.txt, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: powershell -ExecutionPolicy Bypass -File tests/test_platform/run_native_tests.ps1 (pass, ctest 3/3); aura.exe --retention-seconds 10foo --no-persist (exit 2); AURA_RETENTION_SECONDS=30junk aura.exe --json --no-persist (exit 2)
+END | 2026-02-14 11:44:47 +01:00 | platform | commit: fix: enforce strict numeric parsing for runtime inputs and add regressions

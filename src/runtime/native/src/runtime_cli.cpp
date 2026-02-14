@@ -3,12 +3,14 @@
 
 #include <atomic>
 #include <chrono>
+#include <cctype>
 #include <cmath>
 #include <csignal>
 #include <cstring>
 #include <exception>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
@@ -45,6 +47,20 @@ struct CliOptions {
     std::optional<std::string> config_path;
 };
 
+std::string TrimCopy(std::string value) {
+    auto is_space = [](const unsigned char ch) {
+        return std::isspace(ch) != 0;
+    };
+
+    while (!value.empty() && is_space(static_cast<unsigned char>(value.front()))) {
+        value.erase(value.begin());
+    }
+    while (!value.empty() && is_space(static_cast<unsigned char>(value.back()))) {
+        value.pop_back();
+    }
+    return value;
+}
+
 void RequirePositiveFinite(const double value, const char* field_name) {
     if (!std::isfinite(value) || value <= 0.0) {
         throw std::runtime_error(std::string(field_name) + " must be a finite number greater than 0.");
@@ -52,19 +68,37 @@ void RequirePositiveFinite(const double value, const char* field_name) {
 }
 
 int ParsePositiveInt(const std::string& raw, const char* field_name) {
-    const int parsed = std::stoi(raw);
-    if (parsed <= 0) {
+    try {
+        const std::string trimmed = TrimCopy(raw);
+        std::size_t parsed_chars = 0;
+        const long long parsed = std::stoll(trimmed, &parsed_chars, 10);
+        if (parsed_chars != trimmed.size()) {
+            throw std::runtime_error("trailing characters");
+        }
+        if (parsed <= 0 || parsed > std::numeric_limits<int>::max()) {
+            throw std::runtime_error("out of range");
+        }
+        return static_cast<int>(parsed);
+    } catch (const std::exception&) {
         throw std::runtime_error(std::string(field_name) + " must be an integer greater than 0.");
     }
-    return parsed;
 }
 
 double ParseFiniteDouble(const std::string& raw, const char* field_name) {
-    const double parsed = std::stod(raw);
-    if (!std::isfinite(parsed)) {
+    try {
+        const std::string trimmed = TrimCopy(raw);
+        std::size_t parsed_chars = 0;
+        const double parsed = std::stod(trimmed, &parsed_chars);
+        if (parsed_chars != trimmed.size()) {
+            throw std::runtime_error("trailing characters");
+        }
+        if (!std::isfinite(parsed)) {
+            throw std::runtime_error("not finite");
+        }
+        return parsed;
+    } catch (const std::exception&) {
         throw std::runtime_error(std::string(field_name) + " must be a finite number.");
     }
-    return parsed;
 }
 
 void PrintUsage() {
