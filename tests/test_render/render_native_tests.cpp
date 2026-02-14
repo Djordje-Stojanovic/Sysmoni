@@ -10,6 +10,41 @@
 
 namespace {
 
+constexpr double kFloatEpsilon = 1e-9;
+
+void assert_style_tokens_ranges(const AuraRenderStyleTokens& tokens, int target_fps) {
+    assert(std::isfinite(tokens.phase));
+    assert(std::isfinite(tokens.next_delay_seconds));
+    assert(std::isfinite(tokens.accent_intensity));
+    assert(std::isfinite(tokens.accent_red));
+    assert(std::isfinite(tokens.accent_green));
+    assert(std::isfinite(tokens.accent_blue));
+    assert(std::isfinite(tokens.accent_alpha));
+    assert(std::isfinite(tokens.frost_intensity));
+    assert(std::isfinite(tokens.tint_strength));
+    assert(std::isfinite(tokens.ring_line_width));
+    assert(std::isfinite(tokens.ring_glow_strength));
+    assert(std::isfinite(tokens.cpu_alpha));
+    assert(std::isfinite(tokens.memory_alpha));
+
+    assert(tokens.phase >= 0.0 && tokens.phase < 1.0);
+    assert(tokens.next_delay_seconds >= 0.0);
+    assert(tokens.accent_intensity >= 0.0 && tokens.accent_intensity <= 1.0);
+    assert(tokens.accent_red >= 0.0 && tokens.accent_red <= 1.0);
+    assert(tokens.accent_green >= 0.0 && tokens.accent_green <= 1.0);
+    assert(tokens.accent_blue >= 0.0 && tokens.accent_blue <= 1.0);
+    assert(tokens.accent_alpha >= 0.0 && tokens.accent_alpha <= 1.0);
+    assert(tokens.frost_intensity >= 0.0 && tokens.frost_intensity <= 1.0);
+    assert(tokens.tint_strength >= 0.0 && tokens.tint_strength <= 1.0);
+    assert(tokens.ring_line_width > 0.0 && tokens.ring_line_width <= 7.0);
+    assert(tokens.ring_glow_strength >= 0.0 && tokens.ring_glow_strength <= 1.0);
+    assert(tokens.cpu_alpha >= 0.0 && tokens.cpu_alpha <= 1.0);
+    assert(tokens.memory_alpha >= 0.0 && tokens.memory_alpha <= 1.0);
+
+    const int safe_target_fps = target_fps > 0 ? target_fps : 60;
+    assert(tokens.next_delay_seconds <= (1.0 / static_cast<double>(safe_target_fps)) + 1e-6);
+}
+
 void test_metrics() {
     assert(aura_sanitize_percent(-1.0) == 0.0);
     assert(aura_sanitize_percent(42.5) == 42.5);
@@ -27,6 +62,53 @@ void test_animation() {
         aura_compose_cockpit_frame(0.2, 0.005, 35.0, 55.0, discipline, 0.5);
     assert(frame.accent_intensity >= 0.15);
     assert(frame.accent_intensity <= 0.95);
+}
+
+void test_style_tokens_nominal_ranges() {
+    AuraRenderStyleTokensInput input{};
+    input.previous_phase = 0.2;
+    input.cpu_percent = 35.0;
+    input.memory_percent = 55.0;
+    input.elapsed_since_last_frame = 0.008;
+    input.pulse_hz = 0.5;
+    input.target_fps = 60;
+    input.max_catchup_frames = 4;
+
+    const AuraRenderStyleTokens tokens = aura_compute_style_tokens(input);
+    assert_style_tokens_ranges(tokens, input.target_fps);
+}
+
+void test_style_tokens_sanitization_and_defaults() {
+    AuraRenderStyleTokensInput input{};
+    input.previous_phase = std::numeric_limits<double>::quiet_NaN();
+    input.cpu_percent = std::numeric_limits<double>::quiet_NaN();
+    input.memory_percent = std::numeric_limits<double>::infinity();
+    input.elapsed_since_last_frame = 10.0;
+    input.pulse_hz = -2.0;
+    input.target_fps = 0;
+    input.max_catchup_frames = -4;
+
+    const AuraRenderStyleTokens tokens = aura_compute_style_tokens(input);
+    assert_style_tokens_ranges(tokens, 60);
+}
+
+void test_style_tokens_phase_progression() {
+    AuraRenderStyleTokensInput input{};
+    input.previous_phase = 0.2;
+    input.cpu_percent = 45.0;
+    input.memory_percent = 60.0;
+    input.elapsed_since_last_frame = 0.01;
+    input.pulse_hz = 0.5;
+    input.target_fps = 60;
+    input.max_catchup_frames = 4;
+
+    const AuraRenderStyleTokens first = aura_compute_style_tokens(input);
+    assert(std::fabs(first.phase - 0.205) < 1e-6);
+
+    input.previous_phase = first.phase;
+    const AuraRenderStyleTokens second = aura_compute_style_tokens(input);
+    assert(std::fabs(second.phase - 0.21) < 1e-6);
+    assert(second.phase > first.phase);
 }
 
 void test_theme() {
@@ -235,6 +317,49 @@ void test_qt_hooks_sanitization_and_clamping() {
     aura_qt_hooks_destroy(hooks);
 }
 
+void test_style_tokens_match_qt_hook_outputs() {
+    QtHookProbe probe{};
+    const AuraQtRenderCallbacks callbacks = make_qt_callbacks();
+    AuraQtRenderHooks* hooks = aura_qt_hooks_create(&callbacks, &probe);
+    assert(hooks != nullptr);
+
+    AuraRenderStyleTokensInput token_input{};
+    token_input.previous_phase = 0.0;
+    token_input.cpu_percent = 35.0;
+    token_input.memory_percent = 55.0;
+    token_input.elapsed_since_last_frame = 0.008;
+    token_input.pulse_hz = 0.5;
+    token_input.target_fps = 60;
+    token_input.max_catchup_frames = 4;
+    const AuraRenderStyleTokens tokens = aura_compute_style_tokens(token_input);
+
+    AuraQtRenderFrameInput hook_input{};
+    hook_input.cpu_percent = token_input.cpu_percent;
+    hook_input.memory_percent = token_input.memory_percent;
+    hook_input.elapsed_since_last_frame = token_input.elapsed_since_last_frame;
+    hook_input.pulse_hz = token_input.pulse_hz;
+    hook_input.target_fps = token_input.target_fps;
+    hook_input.max_catchup_frames = token_input.max_catchup_frames;
+
+    assert(aura_qt_hooks_render_frame(hooks, hook_input) == 1);
+    assert_qt_stage_order(probe);
+    assert(std::fabs(probe.accent_red - tokens.accent_red) < kFloatEpsilon);
+    assert(std::fabs(probe.accent_green - tokens.accent_green) < kFloatEpsilon);
+    assert(std::fabs(probe.accent_blue - tokens.accent_blue) < kFloatEpsilon);
+    assert(std::fabs(probe.accent_alpha - tokens.accent_alpha) < kFloatEpsilon);
+    assert(std::fabs(probe.frost_intensity - tokens.frost_intensity) < kFloatEpsilon);
+    assert(std::fabs(probe.tint_strength - tokens.tint_strength) < kFloatEpsilon);
+    assert(std::fabs(probe.ring_line_width - tokens.ring_line_width) < kFloatEpsilon);
+    assert(std::fabs(probe.ring_glow_strength - tokens.ring_glow_strength) < kFloatEpsilon);
+    assert(std::fabs(probe.cpu_alpha - tokens.cpu_alpha) < kFloatEpsilon);
+    assert(std::fabs(probe.memory_alpha - tokens.memory_alpha) < kFloatEpsilon);
+
+    const double accent_from_ring = (probe.ring_line_width - 1.0) / 6.0;
+    assert(std::fabs(tokens.accent_intensity - accent_from_ring) < kFloatEpsilon);
+
+    aura_qt_hooks_destroy(hooks);
+}
+
 void test_qt_hooks_error_surface() {
     AuraQtRenderFrameInput input{};
     input.cpu_percent = 12.0;
@@ -263,12 +388,16 @@ void test_qt_hooks_error_surface() {
 int main() {
     test_metrics();
     test_animation();
+    test_style_tokens_nominal_ranges();
+    test_style_tokens_sanitization_and_defaults();
+    test_style_tokens_phase_progression();
     test_theme();
     test_formatting_and_status();
     test_widgets_backend();
     test_qt_hooks_caps_and_lifecycle();
     test_qt_hooks_callback_order_and_ranges();
     test_qt_hooks_sanitization_and_clamping();
+    test_style_tokens_match_qt_hook_outputs();
     test_qt_hooks_error_surface();
     return 0;
 }

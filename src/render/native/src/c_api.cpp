@@ -67,6 +67,35 @@ aura::render_native::QtRenderFrameInput to_internal(AuraQtRenderFrameInput input
     };
 }
 
+aura::render_native::QtRenderFrameInput to_internal(AuraRenderStyleTokensInput input) {
+    return aura::render_native::QtRenderFrameInput{
+        input.cpu_percent,
+        input.memory_percent,
+        input.elapsed_since_last_frame,
+        input.pulse_hz,
+        input.target_fps,
+        input.max_catchup_frames,
+    };
+}
+
+AuraRenderStyleTokens to_external(const aura::render_native::QtRenderStyleTokens& input) {
+    return AuraRenderStyleTokens{
+        input.phase,
+        input.next_delay_seconds,
+        input.accent_intensity,
+        input.accent_red,
+        input.accent_green,
+        input.accent_blue,
+        input.accent_alpha,
+        input.frost_intensity,
+        input.tint_strength,
+        input.ring_line_width,
+        input.ring_glow_strength,
+        input.cpu_alpha,
+        input.memory_alpha,
+    };
+}
+
 }  // namespace
 
 extern "C" {
@@ -145,6 +174,12 @@ AuraCockpitFrameState aura_compose_cockpit_frame(
         state.accent_intensity,
         state.next_delay_seconds,
     };
+}
+
+AuraRenderStyleTokens aura_compute_style_tokens(AuraRenderStyleTokensInput input) {
+    const aura::render_native::QtRenderStyleTokens tokens =
+        aura::render_native::compute_qt_style_tokens(input.previous_phase, to_internal(input));
+    return to_external(tokens);
 }
 
 void aura_blend_hex_color(

@@ -64,6 +64,32 @@ typedef struct AuraQtRenderFrameInput {
     int max_catchup_frames;
 } AuraQtRenderFrameInput;
 
+typedef struct AuraRenderStyleTokensInput {
+    double previous_phase;
+    double cpu_percent;
+    double memory_percent;
+    double elapsed_since_last_frame;
+    double pulse_hz;
+    int target_fps;
+    int max_catchup_frames;
+} AuraRenderStyleTokensInput;
+
+typedef struct AuraRenderStyleTokens {
+    double phase;
+    double next_delay_seconds;
+    double accent_intensity;
+    double accent_red;
+    double accent_green;
+    double accent_blue;
+    double accent_alpha;
+    double frost_intensity;
+    double tint_strength;
+    double ring_line_width;
+    double ring_glow_strength;
+    double cpu_alpha;
+    double memory_alpha;
+} AuraRenderStyleTokens;
+
 typedef struct AuraQtRenderBackendCaps {
     int available;
     int supports_callbacks;
@@ -100,6 +126,9 @@ AURA_RENDER_API AuraCockpitFrameState aura_compose_cockpit_frame(
     AuraFrameDiscipline discipline,
     double pulse_hz
 );
+
+AURA_RENDER_API AuraRenderStyleTokens
+aura_compute_style_tokens(AuraRenderStyleTokensInput input);
 
 AURA_RENDER_API void aura_blend_hex_color(
     const char* start,

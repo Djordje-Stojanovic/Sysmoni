@@ -63,6 +63,38 @@ QtRenderBackendCaps qt_backend_caps() {
     };
 }
 
+QtRenderStyleTokens
+compute_qt_style_tokens(double previous_phase, const QtRenderFrameInput& input) {
+    const FrameDiscipline discipline = resolve_discipline(input);
+    const double pulse_hz = resolve_pulse_hz(input.pulse_hz);
+    const CockpitFrameState frame = compose_cockpit_frame(
+        previous_phase,
+        resolve_elapsed(input.elapsed_since_last_frame),
+        sanitize_percent(input.cpu_percent),
+        sanitize_percent(input.memory_percent),
+        discipline,
+        pulse_hz
+    );
+
+    const double accent = clamp_unit(frame.accent_intensity);
+
+    QtRenderStyleTokens tokens{};
+    tokens.phase = frame.phase;
+    tokens.next_delay_seconds = sanitize_non_negative(frame.next_delay_seconds);
+    tokens.accent_intensity = accent;
+    tokens.accent_red = clamp_unit(0.12 + (accent * 0.65));
+    tokens.accent_green = clamp_unit(0.30 + (accent * 0.50));
+    tokens.accent_blue = clamp_unit(0.48 + (accent * 0.42));
+    tokens.accent_alpha = clamp_unit(0.62 + (accent * 0.33));
+    tokens.frost_intensity = clamp_unit(0.05 + (accent * 0.30));
+    tokens.tint_strength = clamp_unit(0.10 + (accent * 0.50));
+    tokens.ring_line_width = 1.0 + (accent * 6.0);
+    tokens.ring_glow_strength = clamp_unit(0.20 + (accent * 0.75));
+    tokens.cpu_alpha = compute_cpu_alpha(input.cpu_percent);
+    tokens.memory_alpha = compute_memory_alpha(input.memory_percent);
+    return tokens;
+}
+
 QtRenderHooks::QtRenderHooks(QtRenderCallbacks callbacks, void* user_data)
     : callbacks_(callbacks), user_data_(user_data) {}
 
@@ -73,42 +105,20 @@ bool QtRenderHooks::render_frame(const QtRenderFrameInput& input) {
     }
 
     try {
-        const FrameDiscipline discipline = resolve_discipline(input);
-        const double pulse_hz = resolve_pulse_hz(input.pulse_hz);
-        const CockpitFrameState frame = compose_cockpit_frame(
-            phase_,
-            resolve_elapsed(input.elapsed_since_last_frame),
-            sanitize_percent(input.cpu_percent),
-            sanitize_percent(input.memory_percent),
-            discipline,
-            pulse_hz
-        );
-
-        phase_ = frame.phase;
-        const double accent = clamp_unit(frame.accent_intensity);
-        const double accent_red = clamp_unit(0.12 + (accent * 0.65));
-        const double accent_green = clamp_unit(0.30 + (accent * 0.50));
-        const double accent_blue = clamp_unit(0.48 + (accent * 0.42));
-        const double accent_alpha = clamp_unit(0.62 + (accent * 0.33));
-
-        const double frost_intensity = clamp_unit(0.05 + (accent * 0.30));
-        const double tint_strength = clamp_unit(0.10 + (accent * 0.50));
-        const double ring_line_width = 1.0 + (accent * 6.0);
-        const double ring_glow_strength = clamp_unit(0.20 + (accent * 0.75));
-        const double cpu_alpha = compute_cpu_alpha(input.cpu_percent);
-        const double memory_alpha = compute_memory_alpha(input.memory_percent);
+        const QtRenderStyleTokens tokens = compute_qt_style_tokens(phase_, input);
+        phase_ = tokens.phase;
 
         callbacks_.begin_frame(user_data_);
         callbacks_.set_accent_rgba(
             user_data_,
-            accent_red,
-            accent_green,
-            accent_blue,
-            accent_alpha
+            tokens.accent_red,
+            tokens.accent_green,
+            tokens.accent_blue,
+            tokens.accent_alpha
         );
-        callbacks_.set_panel_frost(user_data_, frost_intensity, tint_strength);
-        callbacks_.set_ring_style(user_data_, ring_line_width, ring_glow_strength);
-        callbacks_.set_timeline_emphasis(user_data_, cpu_alpha, memory_alpha);
+        callbacks_.set_panel_frost(user_data_, tokens.frost_intensity, tokens.tint_strength);
+        callbacks_.set_ring_style(user_data_, tokens.ring_line_width, tokens.ring_glow_strength);
+        callbacks_.set_timeline_emphasis(user_data_, tokens.cpu_alpha, tokens.memory_alpha);
         callbacks_.commit_frame(user_data_);
 
         set_error("");

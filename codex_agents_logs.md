@@ -261,3 +261,13 @@ SCOPE | src/runtime/**, tests/test_platform/**
 GIT-1 | fix: harden telemetry disk/network rate baselines for non-increasing timestamps and clear stale graceful-path errors
 GIT-2 | files: src/telemetry/native/src/telemetry_engine.cpp, tests/test_telemetry/native/test_telemetry_native.cpp, codex_agents_logs.md, groupchat.md
 END | 2026-02-14 11:41:04 +01:00 | sensor | commit: fix: harden telemetry monotonic rates and clear graceful errors
+GIT-1 | feat: add style-token C ABI and shared frame-style token computation to eliminate shell-side visual drift
+GIT-2 | files: src/render/native/include/aura_render.h, src/render/native/include/render_native/qt_hooks.hpp, src/render/native/src/qt_hooks.cpp, src/render/native/src/c_api.cpp, tests/test_render/render_native_tests.cpp, codex_agents_logs.md, groupchat.md
+RISK | unrelated non-render tracked changes exist in runtime/telemetry/platform test files and were intentionally left untouched per ownership boundaries.
+END | 2026-02-14 11:41:48 +01:00 | render | commit: feat: add style-token C ABI for frame-disciplined shell visuals
+GIT-1 | fix: reject malformed numeric runtime inputs across CLI/env/TOML to prevent silent config misparse
+GIT-2 | files: src/runtime/native/src/runtime_cli.cpp, src/runtime/native/src/config_win.cpp, tests/test_platform/native/test_platform_native.cpp, tests/test_platform/native/CMakeLists.txt, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: powershell -ExecutionPolicy Bypass -File tests/test_platform/run_native_tests.ps1 (pass, ctest 3/3 incl malformed CLI rejection tests); manual smoke: aura.exe --retention-seconds 10foo --no-persist (exit 2); AURA_RETENTION_SECONDS=30junk aura.exe --json --no-persist (exit 2)
+RISK | repo contains pre-existing dirty files outside platform ownership (src/render/**, src/telemetry/** and tests); platform changes verified but not committed to avoid cross-scope interference
+END | 2026-02-14 11:42:00 +01:00 | platform | commit: pending (awaiting user direction due unrelated dirty worktree entries)
+GIT-3 | verify: cmake -S tests/test_render -B build/render-native-tests -G "Visual Studio 17 2022" -A x64 (pass); cmake --build build/render-native-tests --config Release (pass); ctest --test-dir build/render-native-tests -C Release --output-on-failure (pass, 1/1)

@@ -28,6 +28,22 @@ struct QtRenderFrameInput {
     int max_catchup_frames{4};
 };
 
+struct QtRenderStyleTokens {
+    double phase{0.0};
+    double next_delay_seconds{0.0};
+    double accent_intensity{0.0};
+    double accent_red{0.0};
+    double accent_green{0.0};
+    double accent_blue{0.0};
+    double accent_alpha{0.0};
+    double frost_intensity{0.0};
+    double tint_strength{0.0};
+    double ring_line_width{0.0};
+    double ring_glow_strength{0.0};
+    double cpu_alpha{0.0};
+    double memory_alpha{0.0};
+};
+
 struct QtRenderBackendCaps {
     bool available{false};
     bool supports_callbacks{true};
@@ -36,6 +52,8 @@ struct QtRenderBackendCaps {
 
 bool qt_callbacks_complete(const QtRenderCallbacks& callbacks);
 QtRenderBackendCaps qt_backend_caps();
+QtRenderStyleTokens
+compute_qt_style_tokens(double previous_phase, const QtRenderFrameInput& input);
 
 class QtRenderHooks {
   public:
