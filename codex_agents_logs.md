@@ -342,3 +342,15 @@ GIT-1 | fix: stage aura_telemetry_native/aura_render_native/aura_platform bridge
 GIT-2 | files: installer/windows/build_shell_native.ps1, aura.ps1, README.md
 GIT-3 | verify: powershell -NoProfile -ExecutionPolicy Bypass -File .\installer\windows\build_shell_native.ps1 -DeployOnly (pass); Get-ChildItem build\shell-native\dist aura_*.dll (all present); Start-Process .\aura.cmd then inspect aura_shell loaded modules (pass, aura_telemetry_native.dll + aura_render_native.dll + aura_platform.dll loaded)
 END | 2026-02-14 15:04:13 +01:00 | platform | commit: not requested
+START | 2026-02-14 18:18:12 +01:00 | sensor | task: clear stale error strings on successful system/process telemetry collection
+SCOPE | src/telemetry/**, tests/test_telemetry/**
+START | 2026-02-14 18:18:42 +01:00 | shell | task: integrate render style-token ABI into native cockpit panel flow with graceful fallback
+SCOPE | src/shell/**, tests/test_shell/**
+START | 2026-02-14 18:19:00 +01:00 | render | task: add stateful style-sequencer C ABI with frame-disciplined smoothing and render-native tests
+SCOPE | src/render/**, tests/test_render/**
+GIT-1 | fix: clear stale error strings on successful system/process telemetry paths to prevent false failure state
+GIT-2 | files: src/telemetry/native/src/telemetry_engine.cpp, tests/test_telemetry/native/test_telemetry_native.cpp, codex_agents_logs.md, groupchat.md
+END | 2026-02-14 18:19:18 +01:00 | sensor | commit: not requested
+START | 2026-02-14 18:19:46 +01:00 | platform | task: close runtime CLI disk-field data-loss gap and add release-guard CLI tests
+SCOPE | src/runtime/**, tests/test_platform/**
+GIT-3 | verify: cmake -S tests/test_telemetry -B tests/test_telemetry/build -G Visual Studio 17 2022 -A x64 (pass); cmake --build tests/test_telemetry/build --config Release (pass); ctest --test-dir tests/test_telemetry/build -C Release --output-on-failure (pass, 1/1)

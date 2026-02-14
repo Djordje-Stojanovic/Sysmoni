@@ -145,6 +145,7 @@ bool TelemetryEngine::CollectSystemSnapshot(
     out_snapshot->timestamp_seconds = timestamp_seconds;
     out_snapshot->cpu_percent = clamp_percent(cpu_percent);
     out_snapshot->memory_percent = clamp_percent(memory_percent);
+    clear_error(error_message);
     return true;
 }
 
@@ -232,6 +233,7 @@ bool TelemetryEngine::CollectTopProcesses(
     if (out_samples->size() > limit) {
         out_samples->resize(limit);
     }
+    clear_error(error_message);
     return true;
 }
 

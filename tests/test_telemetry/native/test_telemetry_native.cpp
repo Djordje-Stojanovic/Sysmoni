@@ -260,6 +260,38 @@ int test_system_snapshot_success() {
     return 0;
 }
 
+int test_system_error_message_clears_on_success_path() {
+    g_system_status = AURA_STATUS_ERROR;
+
+    TelemetryEngine engine(make_collectors());
+    SystemSnapshot failed_snapshot{};
+    std::string error;
+    if (expect(
+            !engine.CollectSystemSnapshot(9.0, &failed_snapshot, &error),
+            "system failure should return false"
+        )) {
+        return 1;
+    }
+    if (expect(!error.empty(), "system failure should populate error message")) {
+        return 1;
+    }
+
+    g_system_status = AURA_STATUS_OK;
+    g_system_cpu_percent = 11.0;
+    g_system_memory_percent = 22.0;
+    SystemSnapshot success_snapshot{};
+    if (expect(
+            engine.CollectSystemSnapshot(10.0, &success_snapshot, &error),
+            "system success should return true"
+        )) {
+        return 1;
+    }
+    if (expect(error.empty(), "system success should clear stale error")) {
+        return 1;
+    }
+    return 0;
+}
+
 int test_process_sort_and_limit() {
     g_process_status = AURA_STATUS_OK;
     g_process_samples.clear();
@@ -297,6 +329,47 @@ int test_process_sort_and_limit() {
         return 1;
     }
     if (expect(samples[1].pid == 5U, "second process should be pid 5")) {
+        return 1;
+    }
+    return 0;
+}
+
+int test_process_error_message_clears_on_success_path() {
+    g_process_status = AURA_STATUS_ERROR;
+    g_process_samples.clear();
+
+    TelemetryEngine engine(make_collectors());
+    std::vector<ProcessSample> failed_samples;
+    std::string error;
+    if (expect(
+            !engine.CollectTopProcesses(1, &failed_samples, &error),
+            "process failure should return false"
+        )) {
+        return 1;
+    }
+    if (expect(!error.empty(), "process failure should populate error message")) {
+        return 1;
+    }
+
+    g_process_status = AURA_STATUS_OK;
+    aura_process_sample sample{};
+    sample.pid = 101;
+    std::strncpy(sample.name, "recover", sizeof(sample.name) - 1);
+    sample.cpu_percent = 12.0;
+    sample.memory_rss_bytes = 2048;
+    g_process_samples = {sample};
+
+    std::vector<ProcessSample> recovered_samples;
+    if (expect(
+            engine.CollectTopProcesses(1, &recovered_samples, &error),
+            "process success should return true"
+        )) {
+        return 1;
+    }
+    if (expect(error.empty(), "process success should clear stale error")) {
+        return 1;
+    }
+    if (expect(recovered_samples.size() == 1U, "process success should return one sample")) {
         return 1;
     }
     return 0;
@@ -1110,7 +1183,9 @@ int main() {
     using TestCase = int (*)();
     const std::vector<TestCase> tests = {
         test_system_snapshot_success,
+        test_system_error_message_clears_on_success_path,
         test_process_sort_and_limit,
+        test_process_error_message_clears_on_success_path,
         test_process_tie_break_is_deterministic,
         test_process_empty_collection_returns_empty,
         test_process_empty_name_falls_back_to_pid,
