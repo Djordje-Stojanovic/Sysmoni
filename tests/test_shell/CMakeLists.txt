@@ -1,3 +1,15 @@
+cmake_minimum_required(VERSION 3.26)
+project(aura_shell_tests LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+set(AURA_SHELL_BUILD_APP OFF CACHE BOOL "" FORCE)
+add_subdirectory(../../src/shell/native ${CMAKE_BINARY_DIR}/shell-native)
+
+enable_testing()
+
 add_executable(aura_shell_dock_model_tests
     native/dock_model_tests.cpp
 )
