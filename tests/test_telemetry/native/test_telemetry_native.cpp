@@ -269,6 +269,87 @@ int test_disk_rate_computation() {
     return 0;
 }
 
+int test_disk_unavailable_degrades_gracefully() {
+    g_disk_status = AURA_STATUS_UNAVAILABLE;
+    g_disk_index = 0;
+    g_disk_sequence = {aura_disk_counters{500, 700, 5, 7}};
+
+    TelemetryEngine engine(make_collectors());
+    DiskSnapshot unavailable{};
+    std::string error;
+    if (expect(
+            engine.CollectDiskSnapshot(100.0, &unavailable, &error),
+            "disk unavailable should degrade gracefully"
+        )) {
+        return 1;
+    }
+    if (expect(unavailable.total_read_bytes == 0U, "disk unavailable read total should be zero")) {
+        return 1;
+    }
+    if (expect(
+            unavailable.total_write_bytes == 0U,
+            "disk unavailable write total should be zero"
+        )) {
+        return 1;
+    }
+    if (expect(
+            nearly_equal(unavailable.read_bytes_per_sec, 0.0),
+            "disk unavailable read rate should be zero"
+        )) {
+        return 1;
+    }
+    if (expect(
+            nearly_equal(unavailable.write_bytes_per_sec, 0.0),
+            "disk unavailable write rate should be zero"
+        )) {
+        return 1;
+    }
+
+    g_disk_status = AURA_STATUS_OK;
+    g_disk_index = 0;
+    g_disk_sequence = {aura_disk_counters{500, 700, 5, 7}};
+    DiskSnapshot recovered{};
+    if (expect(
+            engine.CollectDiskSnapshot(101.0, &recovered, &error),
+            "disk collection should recover after unavailable"
+        )) {
+        return 1;
+    }
+    if (expect(
+            nearly_equal(recovered.read_bytes_per_sec, 0.0),
+            "first recovered disk sample should keep zero rate"
+        )) {
+        return 1;
+    }
+    if (expect(recovered.total_read_bytes == 500U, "disk recovered read total mismatch")) {
+        return 1;
+    }
+    return 0;
+}
+
+int test_disk_error_still_fails() {
+    g_disk_status = AURA_STATUS_ERROR;
+    g_disk_index = 0;
+    g_disk_sequence.clear();
+
+    TelemetryEngine engine(make_collectors());
+    DiskSnapshot snapshot{};
+    std::string error;
+    if (expect(
+            !engine.CollectDiskSnapshot(100.0, &snapshot, &error),
+            "disk error should fail"
+        )) {
+        return 1;
+    }
+    if (expect(
+            error.find("collect_disk_counters failed") != std::string::npos,
+            "disk error message should include collector failure context"
+        )) {
+        return 1;
+    }
+    return 0;
+}
+
 int test_network_rate_computation() {
     g_network_status = AURA_STATUS_OK;
     g_network_index = 0;
@@ -294,6 +375,90 @@ int test_network_rate_computation() {
         return 1;
     }
     if (expect(nearly_equal(second.packets_recv_per_sec, 20.0), "network recv packet rate mismatch")) {
+        return 1;
+    }
+    return 0;
+}
+
+int test_network_unavailable_degrades_gracefully() {
+    g_network_status = AURA_STATUS_UNAVAILABLE;
+    g_network_index = 0;
+    g_network_sequence = {aura_network_counters{700, 900, 11, 13}};
+
+    TelemetryEngine engine(make_collectors());
+    NetworkSnapshot unavailable{};
+    std::string error;
+    if (expect(
+            engine.CollectNetworkSnapshot(100.0, &unavailable, &error),
+            "network unavailable should degrade gracefully"
+        )) {
+        return 1;
+    }
+    if (expect(
+            unavailable.total_bytes_sent == 0U,
+            "network unavailable sent total should be zero"
+        )) {
+        return 1;
+    }
+    if (expect(
+            unavailable.total_bytes_recv == 0U,
+            "network unavailable recv total should be zero"
+        )) {
+        return 1;
+    }
+    if (expect(
+            nearly_equal(unavailable.bytes_sent_per_sec, 0.0),
+            "network unavailable send rate should be zero"
+        )) {
+        return 1;
+    }
+    if (expect(
+            nearly_equal(unavailable.bytes_recv_per_sec, 0.0),
+            "network unavailable recv rate should be zero"
+        )) {
+        return 1;
+    }
+
+    g_network_status = AURA_STATUS_OK;
+    g_network_index = 0;
+    g_network_sequence = {aura_network_counters{700, 900, 11, 13}};
+    NetworkSnapshot recovered{};
+    if (expect(
+            engine.CollectNetworkSnapshot(101.0, &recovered, &error),
+            "network collection should recover after unavailable"
+        )) {
+        return 1;
+    }
+    if (expect(
+            nearly_equal(recovered.bytes_sent_per_sec, 0.0),
+            "first recovered network sample should keep zero rate"
+        )) {
+        return 1;
+    }
+    if (expect(recovered.total_bytes_sent == 700U, "network recovered sent total mismatch")) {
+        return 1;
+    }
+    return 0;
+}
+
+int test_network_error_still_fails() {
+    g_network_status = AURA_STATUS_ERROR;
+    g_network_index = 0;
+    g_network_sequence.clear();
+
+    TelemetryEngine engine(make_collectors());
+    NetworkSnapshot snapshot{};
+    std::string error;
+    if (expect(
+            !engine.CollectNetworkSnapshot(100.0, &snapshot, &error),
+            "network error should fail"
+        )) {
+        return 1;
+    }
+    if (expect(
+            error.find("collect_network_counters failed") != std::string::npos,
+            "network error message should include collector failure context"
+        )) {
         return 1;
     }
     return 0;
@@ -360,7 +525,11 @@ int main() {
         test_system_snapshot_success,
         test_process_sort_and_limit,
         test_disk_rate_computation,
+        test_disk_unavailable_degrades_gracefully,
+        test_disk_error_still_fails,
         test_network_rate_computation,
+        test_network_unavailable_degrades_gracefully,
+        test_network_error_still_fails,
         test_thermal_degrades_gracefully_when_unavailable,
         test_thermal_success,
     };

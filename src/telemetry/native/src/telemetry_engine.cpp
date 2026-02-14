@@ -258,8 +258,16 @@ bool TelemetryEngine::CollectDiskSnapshot(
         error_buffer.data(),
         error_buffer.size()
     );
+    out_snapshot->timestamp_seconds = timestamp_seconds;
+    out_snapshot->read_bytes_per_sec = 0.0;
+    out_snapshot->write_bytes_per_sec = 0.0;
+    out_snapshot->read_ops_per_sec = 0.0;
+    out_snapshot->write_ops_per_sec = 0.0;
+    out_snapshot->total_read_bytes = 0;
+    out_snapshot->total_write_bytes = 0;
+
     if (status != AURA_STATUS_OK) {
-        if (error_message != nullptr) {
+        if (status != AURA_STATUS_UNAVAILABLE && error_message != nullptr) {
             *error_message = build_status_error(
                 "collect_disk_counters",
                 status,
@@ -267,14 +275,9 @@ bool TelemetryEngine::CollectDiskSnapshot(
                 error_buffer.size()
             );
         }
-        return false;
+        return status == AURA_STATUS_UNAVAILABLE;
     }
 
-    out_snapshot->timestamp_seconds = timestamp_seconds;
-    out_snapshot->read_bytes_per_sec = 0.0;
-    out_snapshot->write_bytes_per_sec = 0.0;
-    out_snapshot->read_ops_per_sec = 0.0;
-    out_snapshot->write_ops_per_sec = 0.0;
     out_snapshot->total_read_bytes = current.read_bytes;
     out_snapshot->total_write_bytes = current.write_bytes;
 
@@ -341,8 +344,16 @@ bool TelemetryEngine::CollectNetworkSnapshot(
         error_buffer.data(),
         error_buffer.size()
     );
+    out_snapshot->timestamp_seconds = timestamp_seconds;
+    out_snapshot->bytes_sent_per_sec = 0.0;
+    out_snapshot->bytes_recv_per_sec = 0.0;
+    out_snapshot->packets_sent_per_sec = 0.0;
+    out_snapshot->packets_recv_per_sec = 0.0;
+    out_snapshot->total_bytes_sent = 0;
+    out_snapshot->total_bytes_recv = 0;
+
     if (status != AURA_STATUS_OK) {
-        if (error_message != nullptr) {
+        if (status != AURA_STATUS_UNAVAILABLE && error_message != nullptr) {
             *error_message = build_status_error(
                 "collect_network_counters",
                 status,
@@ -350,14 +361,9 @@ bool TelemetryEngine::CollectNetworkSnapshot(
                 error_buffer.size()
             );
         }
-        return false;
+        return status == AURA_STATUS_UNAVAILABLE;
     }
 
-    out_snapshot->timestamp_seconds = timestamp_seconds;
-    out_snapshot->bytes_sent_per_sec = 0.0;
-    out_snapshot->bytes_recv_per_sec = 0.0;
-    out_snapshot->packets_sent_per_sec = 0.0;
-    out_snapshot->packets_recv_per_sec = 0.0;
     out_snapshot->total_bytes_sent = current.bytes_sent;
     out_snapshot->total_bytes_recv = current.bytes_recv;
 

@@ -227,3 +227,11 @@ GIT-1 | docs: standardize cli/gui launch and qt install guidance
 GIT-2 | files: README.md, RUN_WINDOWS11.md, AGENTS.md, ai.md, coding_guideliines.md, DISPATCH.md, PARALLEL_OPS.md, aura.cmd, aura.ps1, groupchat.md, codex_agents_logs.md
 GIT-3 | verify: .\\aura.cmd --json --no-persist (pass); .\\aura.cmd --gui (pass, aura_shell process started)
 END | 2026-02-14 02:05:02 +01:00 | platform | commit: docs: standardize cli/gui launch and qt install guidance
+START | 2026-02-14 11:26:00 +01:00 | sensor | task: degrade disk/network telemetry gracefully when collectors are unavailable
+SCOPE | src/telemetry/**, tests/test_telemetry/**
+GIT-1 | fix: degrade disk/network telemetry unavailability to zeroed snapshots while preserving hard failures for collector errors
+GIT-2 | files: src/telemetry/native/src/telemetry_engine.cpp, tests/test_telemetry/native/test_telemetry_native.cpp, codex_agents_logs.md, groupchat.md
+END | 2026-02-14 11:27:59 +01:00 | sensor | commit: fix: degrade disk/network telemetry gracefully when counters are unavailable
+START | 2026-02-14 11:28:12 +01:00 | platform | task: harden native telemetry store with atomic file persistence and startup recovery tests
+SCOPE | src/runtime/**, tests/test_platform/**
+GIT-3 | verify: cmake -S tests/test_telemetry -B tests/test_telemetry/build -G "Visual Studio 17 2022" -A x64 (pass); cmake --build tests/test_telemetry/build --config Release (pass); ctest --test-dir tests/test_telemetry/build -C Release --output-on-failure (pass, 1/1)
