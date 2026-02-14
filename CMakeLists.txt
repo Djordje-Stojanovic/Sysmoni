@@ -115,11 +115,8 @@ if(AURA_BUILD_TESTS)
     target_link_libraries(render_native_tests PRIVATE aura_render_native)
     add_test(NAME render_native_tests COMMAND render_native_tests)
 
-    # -- Shell tests (already defined inline by src/shell/native) ---------
-    # The shell CMakeLists.txt defines its own test targets:
-    #   aura_shell_dock_model_tests
-    #   aura_shell_cockpit_controller_tests
-    #   aura_shell_timeline_bridge_tests
+    # -- Shell tests ------------------------------------------------------
+    add_subdirectory(tests/test_shell)
 endif()
 
 # ---- Install ------------------------------------------------------------

@@ -1,4 +1,4 @@
-# ── C++ build artifacts ──
+# Native binaries and objects
 *.obj
 *.o
 *.lib
@@ -11,7 +11,7 @@
 *.ilk
 *.exp
 
-# ── CMake ──
+# CMake
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
@@ -19,14 +19,15 @@ CTestTestfile.cmake
 Makefile
 compile_commands.json
 
-# ── Build output directories ──
+# Build outputs
 build/
 src/build/
-src/shell/native/build/
 out/
 dist/
+src/*/native/build/
+tests/*/build/
 
-# ── Visual Studio ──
+# Visual Studio
 .vs/
 *.vcxproj.user
 *.suo
@@ -38,26 +39,28 @@ x86/
 Debug/
 Release/
 
-# ── IDE/editor ──
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# ── OS files ──
-.DS_Store
-Thumbs.db
-
-# ── Local workspace config ──
-.claude/
-
-# ── Runtime artifacts ──
-*.log
-*.prof
-aura.prof
-
-# ── Python artifacts ──
+# Python and tool caches
+.venv/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.pytest_cache/
+.ruff_cache/
+.uv-cache/
+
+# Local workflow
+.claude/
+
+# Runtime artifacts
+*.log
+*.prof
+aura.prof
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

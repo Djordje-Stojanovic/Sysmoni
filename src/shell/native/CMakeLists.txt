@@ -8,8 +8,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(AURA_SHELL_BUILD_APP "Build the Qt shell executable target." ON)
 
-enable_testing()
-
 add_library(aura_shell_core STATIC
     src/cockpit_controller.cpp
     src/dock_model.cpp
@@ -44,21 +42,3 @@ if(AURA_SHELL_BUILD_APP)
         message(WARNING "Qt6 not found. Building core + tests only. Set CMAKE_PREFIX_PATH or Qt6_DIR to build aura_shell.exe.")
     endif()
 endif()
-
-add_executable(aura_shell_dock_model_tests
-    tests/dock_model_tests.cpp
-)
-target_link_libraries(aura_shell_dock_model_tests PRIVATE aura_shell_core)
-add_test(NAME aura_shell_dock_model_tests COMMAND aura_shell_dock_model_tests)
-
-add_executable(aura_shell_cockpit_controller_tests
-    tests/cockpit_controller_tests.cpp
-)
-target_link_libraries(aura_shell_cockpit_controller_tests PRIVATE aura_shell_core)
-add_test(NAME aura_shell_cockpit_controller_tests COMMAND aura_shell_cockpit_controller_tests)
-
-add_executable(aura_shell_timeline_bridge_tests
-    tests/timeline_bridge_tests.cpp
-)
-target_link_libraries(aura_shell_timeline_bridge_tests PRIVATE aura_shell_core)
-add_test(NAME aura_shell_timeline_bridge_tests COMMAND aura_shell_timeline_bridge_tests)

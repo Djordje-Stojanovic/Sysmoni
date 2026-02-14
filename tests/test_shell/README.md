@@ -3,13 +3,13 @@
 Shell is native-only C++.
 
 - Source: `src/shell/native/**`
-- Native tests: `src/shell/native/tests/**`
-- Runner: CMake + CTest
+- Native tests: `tests/test_shell/native/**`
+- Runner: root CMake + CTest
 
 ```powershell
-cmake -S src/shell/native -B src/shell/native/build -G "Visual Studio 17 2022" -A x64
-cmake --build src/shell/native/build --config Release
-ctest --test-dir src/shell/native/build -C Release --output-on-failure
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+cmake --build build --config Release
+ctest --test-dir build -C Release --output-on-failure --tests-regex "aura_shell_.*_tests"
 ```
 
 If Qt6 is unavailable, CMake still builds `aura_shell_core` and CTest binaries.

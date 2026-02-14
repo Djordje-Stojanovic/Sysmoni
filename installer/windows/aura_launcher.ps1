@@ -152,7 +152,8 @@ function Ensure-GuiArtifacts {
     }
 }
 
-$repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repoRoot = (Resolve-Path (Join-Path $scriptDir "..\..")).Path
 
 $mode = "gui"
 $forwardArgs = @()

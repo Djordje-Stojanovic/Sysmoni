@@ -112,7 +112,6 @@ powershell -ExecutionPolicy Bypass -File installer/windows/build_shell_native.ps
 ```powershell
 .\aura.cmd --json --no-persist   # CLI mode
 .\aura.cmd --gui                  # GUI mode
-.\aura-gui.cmd                    # GUI shortcut
 ```
 
 ## Technical Standards

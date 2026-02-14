@@ -25,9 +25,10 @@ installation and reconfigure to build the UI target.
 ## Test
 
 ```powershell
-cd src/shell/native
-cmake --build build --config Release --target aura_shell_dock_model_tests
-ctest --test-dir build -C Release --output-on-failure
+# From repository root
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+cmake --build build --config Release
+ctest --test-dir build -C Release --output-on-failure --tests-regex "aura_shell_.*_tests"
 ```
 
 ## CLI Args
@@ -43,5 +44,5 @@ ctest --test-dir build -C Release --output-on-failure
   docking model + native window host + QML cockpit scene.
 - Runtime launch cutover lives in the `platform` module and should call this
   binary via shell launch contracts.
-- Shell regression tests live in `src/shell/native/tests/` and are run via
-  CTest.
+- Shell regression tests live in `tests/test_shell/native/` and are run via
+  root CMake + CTest.

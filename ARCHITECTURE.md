@@ -102,7 +102,6 @@ src/
 |       |-- include/         # bridge headers
 |       |-- src/             # main.cpp, cockpit_controller.cpp, dock_model.cpp, ...
 |       |-- qml/             # CockpitScene.qml
-|       `-- tests/           # inline shell tests
 `-- runtime/
     `-- native/
         |-- include/         # C ABI header: aura_platform.h
@@ -111,6 +110,7 @@ src/
 tests/
 |-- test_telemetry/native/   # test_telemetry_native.cpp
 |-- test_render/             # render_native_tests.cpp
+|-- test_shell/native/       # shell native bridge/controller tests
 `-- test_platform/native/    # test_platform_native.cpp
 ```
 
