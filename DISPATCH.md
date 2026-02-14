@@ -6,6 +6,10 @@
 
 Aura is now C++-first. For native modules, default to CMake + CTest workflows.
 
+Windows launcher baseline for user verification:
+- `.\aura.cmd --json --no-persist`
+- `.\aura.cmd --gui`
+
 ## Before Launch
 
 1. Confirm module ownership in `ARCHITECTURE.md`.

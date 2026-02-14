@@ -34,8 +34,17 @@ ninja --version
 From repo root:
 
 ```powershell
-cmake -S src/runtime/native -B src/build/platform-native -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release
+cmake -S src/runtime/native -B src/build/platform-native -G "Visual Studio 17 2022" -A x64
 cmake --build src/build/platform-native --config Release
+```
+
+## One-Time GUI Dependency Install (Qt6)
+
+From repo root:
+
+```powershell
+uvx --from aqtinstall aqt.exe install-qt -O C:\Qt windows desktop 6.10.2 win64_msvc2022_64
+powershell -ExecutionPolicy Bypass -File installer/windows/build_shell_native.ps1 -Qt6Dir "C:\Qt\6.10.2\msvc2022_64\lib\cmake\Qt6"
 ```
 
 ## Fast Run (No Memorization)
@@ -44,6 +53,12 @@ From repo root:
 
 ```powershell
 .\aura.cmd --json --no-persist
+```
+
+Single command for GUI:
+
+```powershell
+.\aura.cmd --gui
 ```
 
 or:
@@ -71,7 +86,7 @@ Run:
 ## Test (Platform Native)
 
 ```powershell
-cmake -S tests/test_platform -B src/build/platform-native-tests -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release
+cmake -S tests/test_platform -B src/build/platform-native-tests -G "Visual Studio 17 2022" -A x64
 cmake --build src/build/platform-native-tests --config Release
 ctest --test-dir src/build/platform-native-tests -C Release --output-on-failure
 ```
@@ -112,4 +127,5 @@ tests/
 ## Notes
 
 - In this environment, Ninja may hang under some shell wrappers; Visual Studio generator is the default best-practice path.
+- For day-to-day usage, prefer `.\aura.cmd --json --no-persist` (CLI) and `.\aura.cmd --gui` (GUI).
 - Cross-module rewrites (telemetry/render/shell) continue in their owned directories.

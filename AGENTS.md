@@ -132,6 +132,20 @@ cmake --build <build_dir> --config Release
 ctest --test-dir <build_dir> -C Release --output-on-failure
 ```
 
+## Run UX Standard
+
+When validating user run experience on Windows, use the repository launchers:
+
+- CLI: `.\aura.cmd --json --no-persist`
+- GUI: `.\aura.cmd --gui`
+
+If GUI launcher reports missing Qt6, install once and rebuild shell UI:
+
+```powershell
+uvx --from aqtinstall aqt.exe install-qt -O C:\Qt windows desktop 6.10.2 win64_msvc2022_64
+powershell -ExecutionPolicy Bypass -File installer/windows/build_shell_native.ps1 -Qt6Dir "C:\Qt\6.10.2\msvc2022_64\lib\cmake\Qt6"
+```
+
 ## Performance Targets
 
 - Idle CPU overhead: `< 0.5%`

@@ -55,6 +55,15 @@ uv run pyright src/
 
 If a command cannot run, record exactly why in `RISK`.
 
+## Runtime Smoke Check (Windows)
+
+When validating end-user launch experience:
+
+```powershell
+.\aura.cmd --json --no-persist
+.\aura.cmd --gui
+```
+
 ## Message Format
 
 `groupchat.md` lines must use:

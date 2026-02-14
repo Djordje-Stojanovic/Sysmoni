@@ -16,6 +16,12 @@ Aura is now a native C++ product direction.
 - For platform work, do not reintroduce Python runtime surfaces that were removed.
 - If a Python shim is temporarily needed, document why and keep it thin.
 
+## Run Baseline (Windows)
+
+- CLI launcher: `.\aura.cmd --json --no-persist`
+- GUI launcher: `.\aura.cmd --gui`
+- If GUI dependencies are missing, install Qt6 (`msvc2022_64`) and run `installer/windows/build_shell_native.ps1`.
+
 ## Prime Behavior
 
 1. Think from fundamentals, not habit.

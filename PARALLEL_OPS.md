@@ -23,6 +23,7 @@ Aura is now native C++ direction.
 
 - Use CMake + CTest as baseline verification for native modules.
 - Prefer `Visual Studio 17 2022` generator (`-A x64`) on Windows.
+- Use `.\aura.cmd --json --no-persist` and `.\aura.cmd --gui` for user-facing smoke checks.
 
 ## One-Time Migration Prompt
 

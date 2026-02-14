@@ -221,3 +221,5 @@ GIT-1 | feat: add one-command native GUI launcher with explicit Qt6 guidance
 GIT-2 | files: aura-gui.cmd, aura-gui.ps1, installer/windows/build_shell_native.ps1, README.md, RUN_WINDOWS11.md
 GIT-3 | verify: cmd /c aura-gui.cmd (shows clear Qt6 missing guidance and exact fix command)
 END | 2026-02-14 01:48:44 +01:00 | platform | commit: feat: add simple native gui launcher path
+START | 2026-02-14 02:04:44 +01:00 | platform | task: document canonical cli/gui launch and qt install flow across user+agent docs
+SCOPE | root docs + launcher scripts for platform runtime/shell launch flow

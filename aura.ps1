@@ -7,6 +7,16 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $buildScript = Join-Path $repoRoot "installer\windows\build_platform_native.ps1"
+$guiLauncher = Join-Path $repoRoot "aura-gui.ps1"
+
+if ($RemainingArgs.Count -gt 0 -and $RemainingArgs[0] -eq "--gui") {
+    $forwardArgs = @()
+    if ($RemainingArgs.Count -gt 1) {
+        $forwardArgs = $RemainingArgs[1..($RemainingArgs.Count - 1)]
+    }
+    & $guiLauncher @forwardArgs
+    exit $LASTEXITCODE
+}
 
 $exeCandidates = @(
     (Join-Path $repoRoot "build\platform-native\dist\aura.exe"),
