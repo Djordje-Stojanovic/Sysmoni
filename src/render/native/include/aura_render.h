@@ -181,6 +181,18 @@ AURA_RENDER_API void aura_format_stream_status(
     size_t out_status_size
 );
 
+AURA_RENDER_API void aura_format_disk_rate(
+    double bytes_per_second,
+    char* out_rate,
+    size_t out_rate_size
+);
+
+AURA_RENDER_API void aura_format_network_rate(
+    double bytes_per_second,
+    char* out_rate,
+    size_t out_rate_size
+);
+
 AURA_RENDER_API AuraQtRenderBackendCaps aura_qt_hooks_backend_caps(void);
 
 AURA_RENDER_API AuraQtRenderHooks* aura_qt_hooks_create(

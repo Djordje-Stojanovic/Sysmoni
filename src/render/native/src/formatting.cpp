@@ -84,4 +84,35 @@ std::string format_process_row(
     return out.str();
 }
 
+namespace {
+
+std::string format_bytes_per_second(const char* prefix, double bytes_per_second) {
+    const double safe_value = sanitize_non_negative(bytes_per_second);
+    std::ostringstream out;
+    out << prefix << " ";
+
+    constexpr double kKB = 1024.0;
+    constexpr double kMB = 1024.0 * 1024.0;
+    constexpr double kGB = 1024.0 * 1024.0 * 1024.0;
+
+    if (safe_value >= kGB) {
+        out << std::fixed << std::setprecision(2) << (safe_value / kGB) << " GB/s";
+    } else if (safe_value >= kMB) {
+        out << std::fixed << std::setprecision(1) << (safe_value / kMB) << " MB/s";
+    } else {
+        out << std::fixed << std::setprecision(1) << (safe_value / kKB) << " KB/s";
+    }
+    return out.str();
+}
+
+}  // namespace
+
+std::string format_disk_rate(double bytes_per_second) {
+    return format_bytes_per_second("Disk", bytes_per_second);
+}
+
+std::string format_network_rate(double bytes_per_second) {
+    return format_bytes_per_second("Net", bytes_per_second);
+}
+
 }  // namespace aura::render_native

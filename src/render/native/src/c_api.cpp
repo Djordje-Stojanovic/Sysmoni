@@ -476,6 +476,34 @@ void aura_format_stream_status(
     }
 }
 
+void aura_format_disk_rate(
+    double bytes_per_second,
+    char* out_rate,
+    size_t out_rate_size
+) {
+    const bool ok = call_void_with_error("aura_format_disk_rate", [&]() {
+        const std::string value = aura::render_native::format_disk_rate(bytes_per_second);
+        write_c_string(value, out_rate, out_rate_size);
+    });
+    if (!ok) {
+        write_c_chars("Disk 0.0 KB/s", out_rate, out_rate_size);
+    }
+}
+
+void aura_format_network_rate(
+    double bytes_per_second,
+    char* out_rate,
+    size_t out_rate_size
+) {
+    const bool ok = call_void_with_error("aura_format_network_rate", [&]() {
+        const std::string value = aura::render_native::format_network_rate(bytes_per_second);
+        write_c_string(value, out_rate, out_rate_size);
+    });
+    if (!ok) {
+        write_c_chars("Net 0.0 KB/s", out_rate, out_rate_size);
+    }
+}
+
 AuraQtRenderBackendCaps aura_qt_hooks_backend_caps(void) {
     const AuraQtRenderBackendCaps fallback_caps{0, 1, kDefaultTargetFps};
     return call_with_fallback<AuraQtRenderBackendCaps>(
