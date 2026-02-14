@@ -374,3 +374,9 @@ GIT-1 | fix: preserve runtime CLI disk throughput fields end-to-end and add nati
 GIT-2 | files: src/runtime/native/src/runtime_cli.cpp, tests/test_platform/native/CMakeLists.txt, tests/test_platform/cli_latest_disk_fields_test.ps1, codex_agents_logs.md, groupchat.md
 GIT-3 | verify: powershell -ExecutionPolicy Bypass -File tests/test_platform/run_native_tests.ps1 (pass, 6/6); ctest --test-dir build/platform-native-tests -C Release --output-on-failure -R platform_cli_ (pass, 5/5)
 END | 2026-02-14 18:24:28 +01:00 | platform | commit: fix: preserve runtime CLI disk fields and guard output contract (0f35e23)
+START | 2026-02-14 20:02:30 +01:00 | platform | task: close remaining platform merge blockers and harden native runtime regressions
+SCOPE | src/runtime/**, tests/test_platform/**
+GIT-1 | fix: parse TOML inline comments in runtime config while preserving strict numeric validation
+GIT-2 | files: src/runtime/native/src/config_win.cpp, tests/test_platform/native/test_platform_native.cpp, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: cmake -S tests/test_platform -B build/platform-native-tests -G "Visual Studio 17 2022" -A x64 (pass); cmake --build build/platform-native-tests --config Release (pass); ctest --test-dir build/platform-native-tests -C Release --output-on-failure (pass, 3/3); aura.exe --config-path tmp_config.toml --no-persist with retention inline comment (pass); aura.exe --config-path tmp_db_config.toml with db_path inline comment (pass)
+END | 2026-02-14 20:07:43 +01:00 | platform | commit: fix: support TOML inline comments in runtime config parsing

@@ -25,6 +25,41 @@ std::string StripQuotes(const std::string& value) {
     return value;
 }
 
+std::string StripInlineTomlComment(const std::string& line) {
+    bool in_single_quote = false;
+    bool in_double_quote = false;
+    bool escaped = false;
+
+    for (std::size_t i = 0; i < line.size(); ++i) {
+        const char ch = line[i];
+
+        if (escaped) {
+            escaped = false;
+            continue;
+        }
+
+        if (in_double_quote && ch == '\\') {
+            escaped = true;
+            continue;
+        }
+
+        if (!in_single_quote && ch == '"') {
+            in_double_quote = !in_double_quote;
+            continue;
+        }
+        if (!in_double_quote && ch == '\'') {
+            in_single_quote = !in_single_quote;
+            continue;
+        }
+
+        if (!in_single_quote && !in_double_quote && ch == '#') {
+            return line.substr(0, i);
+        }
+    }
+
+    return line;
+}
+
 std::optional<std::string> NormalizeOptionalPath(const char* raw) {
     if (raw == nullptr) {
         return std::nullopt;
@@ -107,8 +142,8 @@ FileConfig LoadFileConfig(const std::optional<std::string>& config_path_override
     bool in_persistence = false;
     std::string line;
     while (std::getline(input, line)) {
-        const std::string trimmed = Trim(line);
-        if (trimmed.empty() || trimmed.starts_with('#')) {
+        const std::string trimmed = Trim(StripInlineTomlComment(line));
+        if (trimmed.empty()) {
             continue;
         }
         if (trimmed.front() == '[' && trimmed.back() == ']') {
