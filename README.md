@@ -113,13 +113,18 @@ powershell -ExecutionPolicy Bypass -File installer/windows/build_shell_native.ps
 
 ```text
 src/
-  contracts/
   telemetry/
+    native/
   render/
+    native/
   shell/
+    native/
   runtime/
     native/
 tests/
+  test_telemetry/
+  test_render/
+  test_shell/
   test_platform/
     native/
 ```

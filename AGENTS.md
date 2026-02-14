@@ -37,7 +37,7 @@ Your codename defines your editable scope.
 ## Ownership Rules
 
 1. Edit only your owned directory and test directory.
-2. `src/contracts/**` is read-only without user approval.
+2. Cross-module type changes require coordination via `groupchat.md`.
 3. `groupchat.md` is for cross-module requests and releases.
 4. `codex_agents_logs.md` is append-only task audit.
 5. If blocked by another module, do not wait; continue with placeholders in your own module.
@@ -59,9 +59,6 @@ Your codename defines your editable scope.
 4. `platform`
 - Code: `src/runtime/**`
 - Tests: `tests/test_platform/**`
-
-Shared:
-- `src/contracts/**` (user-approved changes only)
 
 ## No Hardcoded Task Lists
 
@@ -122,7 +119,7 @@ git push origin main
 
 ## Verification Baseline
 
-For native modules use CMake + CTest, for transitional Python modules use existing checks.
+All modules are native C++. Use CMake + CTest as baseline verification.
 
 Native baseline:
 
@@ -164,5 +161,5 @@ powershell -ExecutionPolicy Bypass -File installer/windows/build_shell_native.ps
 If you are an agent:
 1. Read `ai.md`.
 2. Read `AGENTS.md`.
-3. Read `coding_guideliines.md`.
+3. Read `coding_guidelines.md`.
 4. Execute using directory ownership model (no lock-theater).
