@@ -15,6 +15,8 @@ struct Snapshot {
     double timestamp = 0.0;
     double cpu_percent = 0.0;
     double memory_percent = 0.0;
+    double disk_read_bps = 0.0;
+    double disk_write_bps = 0.0;
 };
 
 enum class DbSource {

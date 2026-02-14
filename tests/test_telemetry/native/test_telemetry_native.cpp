@@ -20,6 +20,8 @@ using aura::telemetry::ProcessSample;
 using aura::telemetry::SystemSnapshot;
 using aura::telemetry::TelemetryEngine;
 using aura::telemetry::ThermalSnapshot;
+using aura::telemetry::PerCoreCpuSnapshot;
+using aura::telemetry::GpuSnapshot;
 
 int g_system_status = AURA_STATUS_OK;
 double g_system_cpu_percent = 12.5;
@@ -38,6 +40,12 @@ size_t g_network_index = 0;
 
 int g_thermal_status = AURA_STATUS_UNAVAILABLE;
 std::vector<aura_thermal_reading> g_thermal_sequence;
+
+int g_per_core_cpu_status = AURA_STATUS_UNAVAILABLE;
+std::vector<double> g_per_core_cpu_percents;
+
+int g_gpu_status = AURA_STATUS_UNAVAILABLE;
+aura_gpu_utilization g_gpu_data{};
 
 void write_error(char* error_buffer, size_t error_buffer_len, const char* message) {
     if (error_buffer == nullptr || error_buffer_len == 0) {
@@ -153,6 +161,45 @@ int fake_collect_thermal_readings(
     return AURA_STATUS_OK;
 }
 
+int fake_collect_per_core_cpu(
+    double* out_percents,
+    uint32_t max_cores,
+    uint32_t* out_core_count,
+    char* error_buffer,
+    size_t error_buffer_len
+) {
+    if (g_per_core_cpu_status != AURA_STATUS_OK) {
+        write_error(error_buffer, error_buffer_len, "per-core cpu unavailable");
+        if (out_core_count != nullptr) {
+            *out_core_count = 0;
+        }
+        return g_per_core_cpu_status;
+    }
+    const uint32_t count = static_cast<uint32_t>(std::min<size_t>(g_per_core_cpu_percents.size(), max_cores));
+    for (uint32_t i = 0; i < count; ++i) {
+        out_percents[i] = g_per_core_cpu_percents[i];
+    }
+    if (out_core_count != nullptr) {
+        *out_core_count = count;
+    }
+    return AURA_STATUS_OK;
+}
+
+int fake_collect_gpu_utilization(
+    aura_gpu_utilization* out_gpu,
+    char* error_buffer,
+    size_t error_buffer_len
+) {
+    if (g_gpu_status != AURA_STATUS_OK) {
+        write_error(error_buffer, error_buffer_len, "gpu unavailable");
+        return g_gpu_status;
+    }
+    if (out_gpu != nullptr) {
+        *out_gpu = g_gpu_data;
+    }
+    return AURA_STATUS_OK;
+}
+
 NativeCollectors make_collectors() {
     NativeCollectors collectors{};
     collectors.collect_system_snapshot = fake_collect_system_snapshot;
@@ -160,6 +207,8 @@ NativeCollectors make_collectors() {
     collectors.collect_disk_counters = fake_collect_disk_counters;
     collectors.collect_network_counters = fake_collect_network_counters;
     collectors.collect_thermal_readings = fake_collect_thermal_readings;
+    collectors.collect_per_core_cpu = fake_collect_per_core_cpu;
+    collectors.collect_gpu_utilization = fake_collect_gpu_utilization;
     return collectors;
 }
 
@@ -933,6 +982,128 @@ int test_thermal_error_message_clears_on_graceful_paths() {
     return 0;
 }
 
+int test_per_core_cpu_success() {
+    g_per_core_cpu_status = AURA_STATUS_OK;
+    g_per_core_cpu_percents = {25.0, 50.0, 75.0, 100.0};
+
+    TelemetryEngine engine(make_collectors());
+    PerCoreCpuSnapshot snapshot{};
+    std::string error;
+    if (expect(engine.CollectPerCoreCpu(10.0, &snapshot, &error), "per-core cpu should succeed")) {
+        return 1;
+    }
+    if (expect(snapshot.core_percents.size() == 4U, "expected 4 cores")) {
+        return 1;
+    }
+    if (expect(nearly_equal(snapshot.core_percents[0], 25.0), "core 0 mismatch")) {
+        return 1;
+    }
+    if (expect(nearly_equal(snapshot.core_percents[2], 75.0), "core 2 mismatch")) {
+        return 1;
+    }
+    if (expect(nearly_equal(snapshot.timestamp_seconds, 10.0), "per-core timestamp mismatch")) {
+        return 1;
+    }
+    return 0;
+}
+
+int test_per_core_cpu_unavailable_degrades_gracefully() {
+    g_per_core_cpu_status = AURA_STATUS_UNAVAILABLE;
+    g_per_core_cpu_percents.clear();
+
+    TelemetryEngine engine(make_collectors());
+    PerCoreCpuSnapshot snapshot{};
+    std::string error;
+    if (expect(engine.CollectPerCoreCpu(20.0, &snapshot, &error), "per-core unavailable should degrade gracefully")) {
+        return 1;
+    }
+    if (expect(snapshot.core_percents.empty(), "per-core readings should be empty when unavailable")) {
+        return 1;
+    }
+    return 0;
+}
+
+int test_per_core_cpu_null_collector_degrades_gracefully() {
+    NativeCollectors collectors = make_collectors();
+    collectors.collect_per_core_cpu = nullptr;
+
+    TelemetryEngine engine(collectors);
+    PerCoreCpuSnapshot snapshot{};
+    std::string error;
+    if (expect(engine.CollectPerCoreCpu(30.0, &snapshot, &error), "per-core null collector should degrade gracefully")) {
+        return 1;
+    }
+    if (expect(snapshot.core_percents.empty(), "per-core should be empty with null collector")) {
+        return 1;
+    }
+    return 0;
+}
+
+int test_gpu_stub_returns_unavailable_gracefully() {
+    g_gpu_status = AURA_STATUS_UNAVAILABLE;
+
+    TelemetryEngine engine(make_collectors());
+    GpuSnapshot snapshot{};
+    std::string error;
+    if (expect(engine.CollectGpuSnapshot(40.0, &snapshot, &error), "gpu unavailable should degrade gracefully")) {
+        return 1;
+    }
+    if (expect(!snapshot.available, "gpu should not be available")) {
+        return 1;
+    }
+    if (expect(nearly_equal(snapshot.gpu_percent, 0.0), "gpu percent should be zero")) {
+        return 1;
+    }
+    if (expect(nearly_equal(snapshot.timestamp_seconds, 40.0), "gpu timestamp mismatch")) {
+        return 1;
+    }
+    return 0;
+}
+
+int test_gpu_success_when_available() {
+    g_gpu_status = AURA_STATUS_OK;
+    g_gpu_data.gpu_percent = 65.0;
+    g_gpu_data.vram_percent = 40.0;
+    g_gpu_data.vram_used_bytes = 4000000000ULL;
+    g_gpu_data.vram_total_bytes = 10000000000ULL;
+
+    TelemetryEngine engine(make_collectors());
+    GpuSnapshot snapshot{};
+    std::string error;
+    if (expect(engine.CollectGpuSnapshot(50.0, &snapshot, &error), "gpu available should succeed")) {
+        return 1;
+    }
+    if (expect(snapshot.available, "gpu should be available")) {
+        return 1;
+    }
+    if (expect(nearly_equal(snapshot.gpu_percent, 65.0), "gpu percent mismatch")) {
+        return 1;
+    }
+    if (expect(nearly_equal(snapshot.vram_percent, 40.0), "vram percent mismatch")) {
+        return 1;
+    }
+    if (expect(snapshot.vram_used_bytes == 4000000000ULL, "vram used mismatch")) {
+        return 1;
+    }
+    return 0;
+}
+
+int test_gpu_null_collector_degrades_gracefully() {
+    NativeCollectors collectors = make_collectors();
+    collectors.collect_gpu_utilization = nullptr;
+
+    TelemetryEngine engine(collectors);
+    GpuSnapshot snapshot{};
+    std::string error;
+    if (expect(engine.CollectGpuSnapshot(60.0, &snapshot, &error), "gpu null collector should degrade gracefully")) {
+        return 1;
+    }
+    if (expect(!snapshot.available, "gpu should not be available with null collector")) {
+        return 1;
+    }
+    return 0;
+}
+
 }  // namespace
 
 int main() {
@@ -957,6 +1128,12 @@ int main() {
         test_thermal_degrades_gracefully_when_unavailable,
         test_thermal_success,
         test_thermal_error_message_clears_on_graceful_paths,
+        test_per_core_cpu_success,
+        test_per_core_cpu_unavailable_degrades_gracefully,
+        test_per_core_cpu_null_collector_degrades_gracefully,
+        test_gpu_stub_returns_unavailable_gracefully,
+        test_gpu_success_when_available,
+        test_gpu_null_collector_degrades_gracefully,
     };
 
     int failures = 0;

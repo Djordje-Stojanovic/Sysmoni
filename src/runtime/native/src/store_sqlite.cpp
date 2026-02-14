@@ -98,6 +98,8 @@ Snapshot ParseSnapshotLine(const std::string& line) {
     std::string ts_raw;
     std::string cpu_raw;
     std::string mem_raw;
+    std::string disk_read_raw;
+    std::string disk_write_raw;
 
     if (!std::getline(input, ts_raw, ',')) {
         throw std::runtime_error("Malformed snapshot line: missing timestamp");
@@ -105,14 +107,24 @@ Snapshot ParseSnapshotLine(const std::string& line) {
     if (!std::getline(input, cpu_raw, ',')) {
         throw std::runtime_error("Malformed snapshot line: missing cpu_percent");
     }
-    if (!std::getline(input, mem_raw)) {
+
+    Snapshot out;
+    out.disk_read_bps = 0.0;
+    out.disk_write_bps = 0.0;
+
+    if (!std::getline(input, mem_raw, ',')) {
         throw std::runtime_error("Malformed snapshot line: missing memory_percent");
     }
 
-    Snapshot out;
     out.timestamp = std::stod(ts_raw);
     out.cpu_percent = std::stod(cpu_raw);
     out.memory_percent = std::stod(mem_raw);
+
+    if (std::getline(input, disk_read_raw, ',') && std::getline(input, disk_write_raw)) {
+        out.disk_read_bps = std::stod(disk_read_raw);
+        out.disk_write_bps = std::stod(disk_write_raw);
+    }
+
     ValidateSnapshot(out);
     return out;
 }
@@ -120,7 +132,8 @@ Snapshot ParseSnapshotLine(const std::string& line) {
 std::string SerializeSnapshotLine(const Snapshot& snapshot) {
     std::ostringstream output;
     output.precision(17);
-    output << snapshot.timestamp << ',' << snapshot.cpu_percent << ',' << snapshot.memory_percent;
+    output << snapshot.timestamp << ',' << snapshot.cpu_percent << ',' << snapshot.memory_percent
+           << ',' << snapshot.disk_read_bps << ',' << snapshot.disk_write_bps;
     return output.str();
 }
 
@@ -346,12 +359,20 @@ void ValidateSnapshot(const Snapshot& snapshot) {
     ValidateFinite(snapshot.timestamp, "timestamp");
     ValidateFinite(snapshot.cpu_percent, "cpu_percent");
     ValidateFinite(snapshot.memory_percent, "memory_percent");
+    ValidateFinite(snapshot.disk_read_bps, "disk_read_bps");
+    ValidateFinite(snapshot.disk_write_bps, "disk_write_bps");
 
     if (snapshot.cpu_percent < 0.0 || snapshot.cpu_percent > 100.0) {
         throw std::runtime_error("cpu_percent must be between 0 and 100.");
     }
     if (snapshot.memory_percent < 0.0 || snapshot.memory_percent > 100.0) {
         throw std::runtime_error("memory_percent must be between 0 and 100.");
+    }
+    if (snapshot.disk_read_bps < 0.0) {
+        throw std::runtime_error("disk_read_bps must be non-negative.");
+    }
+    if (snapshot.disk_write_bps < 0.0) {
+        throw std::runtime_error("disk_write_bps must be non-negative.");
     }
 }
 

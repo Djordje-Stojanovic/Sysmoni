@@ -594,3 +594,141 @@ extern "C" int aura_collect_thermal_readings(
     );
     return AURA_STATUS_UNAVAILABLE;
 }
+
+extern "C" int aura_collect_per_core_cpu(
+    double* out_percents,
+    uint32_t max_cores,
+    uint32_t* out_core_count,
+    char* error_buffer,
+    size_t error_buffer_len
+) {
+#ifndef _WIN32
+    (void)out_percents;
+    (void)max_cores;
+    if (out_core_count != nullptr) {
+        *out_core_count = 0;
+    }
+    write_error(error_buffer, error_buffer_len, "Per-core CPU is unavailable on this platform.");
+    return AURA_STATUS_UNAVAILABLE;
+#else
+    if (out_percents == nullptr || out_core_count == nullptr || max_cores == 0) {
+        write_error(error_buffer, error_buffer_len, "Invalid per-core CPU buffer arguments.");
+        return AURA_STATUS_ERROR;
+    }
+
+    const int cpu_count = logical_cpu_count();
+    const uint32_t cores = std::min(static_cast<uint32_t>(cpu_count), max_cores);
+
+    using NtQuerySysInfoFn = LONG(WINAPI*)(ULONG, PVOID, ULONG, PULONG);
+    static NtQuerySysInfoFn nt_query = nullptr;
+    static bool nt_query_resolved = false;
+    if (!nt_query_resolved) {
+        HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+        if (ntdll != nullptr) {
+            nt_query = reinterpret_cast<NtQuerySysInfoFn>(
+                GetProcAddress(ntdll, "NtQuerySystemInformation")
+            );
+        }
+        nt_query_resolved = true;
+    }
+
+    if (nt_query == nullptr) {
+        *out_core_count = 0;
+        write_error(error_buffer, error_buffer_len, "NtQuerySystemInformation not available.");
+        return AURA_STATUS_UNAVAILABLE;
+    }
+
+    struct SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION {
+        LARGE_INTEGER IdleTime;
+        LARGE_INTEGER KernelTime;
+        LARGE_INTEGER UserTime;
+        LARGE_INTEGER Reserved1[2];
+        ULONG Reserved2;
+    };
+
+    const size_t buf_count = static_cast<size_t>(cpu_count);
+    std::vector<SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION> perf_info(buf_count);
+    ULONG return_length = 0;
+    const LONG status = nt_query(
+        8,
+        perf_info.data(),
+        static_cast<ULONG>(buf_count * sizeof(SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION)),
+        &return_length
+    );
+    if (status != 0) {
+        *out_core_count = 0;
+        write_error(error_buffer, error_buffer_len, "NtQuerySystemInformation failed.");
+        return AURA_STATUS_UNAVAILABLE;
+    }
+
+    const uint32_t returned_cores = static_cast<uint32_t>(
+        return_length / sizeof(SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION)
+    );
+    const uint32_t actual_cores = std::min(returned_cores, cores);
+
+    struct PerCoreState {
+        uint64_t idle = 0;
+        uint64_t kernel = 0;
+        uint64_t user = 0;
+    };
+    static std::vector<PerCoreState> g_per_core_state;
+    static bool g_per_core_has_previous = false;
+    static std::mutex g_per_core_mutex;
+
+    std::lock_guard<std::mutex> lock(g_per_core_mutex);
+
+    if (!g_per_core_has_previous || g_per_core_state.size() != static_cast<size_t>(actual_cores)) {
+        g_per_core_state.resize(static_cast<size_t>(actual_cores));
+        for (uint32_t i = 0; i < actual_cores; ++i) {
+            g_per_core_state[i].idle = static_cast<uint64_t>(perf_info[i].IdleTime.QuadPart);
+            g_per_core_state[i].kernel = static_cast<uint64_t>(perf_info[i].KernelTime.QuadPart);
+            g_per_core_state[i].user = static_cast<uint64_t>(perf_info[i].UserTime.QuadPart);
+            out_percents[i] = 0.0;
+        }
+        g_per_core_has_previous = true;
+        *out_core_count = actual_cores;
+        write_error(error_buffer, error_buffer_len, "");
+        return AURA_STATUS_OK;
+    }
+
+    for (uint32_t i = 0; i < actual_cores; ++i) {
+        const uint64_t idle = static_cast<uint64_t>(perf_info[i].IdleTime.QuadPart);
+        const uint64_t kernel = static_cast<uint64_t>(perf_info[i].KernelTime.QuadPart);
+        const uint64_t user = static_cast<uint64_t>(perf_info[i].UserTime.QuadPart);
+
+        const uint64_t delta_idle = idle - g_per_core_state[i].idle;
+        const uint64_t delta_kernel = kernel - g_per_core_state[i].kernel;
+        const uint64_t delta_user = user - g_per_core_state[i].user;
+        const uint64_t delta_total = delta_kernel + delta_user;
+
+        double usage = 0.0;
+        if (delta_total > 0 && delta_total >= delta_idle) {
+            usage = (static_cast<double>(delta_total - delta_idle) * 100.0) /
+                    static_cast<double>(delta_total);
+        }
+        out_percents[i] = clamp_percent(usage);
+
+        g_per_core_state[i].idle = idle;
+        g_per_core_state[i].kernel = kernel;
+        g_per_core_state[i].user = user;
+    }
+
+    *out_core_count = actual_cores;
+    write_error(error_buffer, error_buffer_len, "");
+    return AURA_STATUS_OK;
+#endif
+}
+
+extern "C" int aura_collect_gpu_utilization(
+    aura_gpu_utilization* out_gpu,
+    char* error_buffer,
+    size_t error_buffer_len
+) {
+    (void)out_gpu;
+    write_error(
+        error_buffer,
+        error_buffer_len,
+        "GPU telemetry backend is not yet implemented."
+    );
+    return AURA_STATUS_UNAVAILABLE;
+}

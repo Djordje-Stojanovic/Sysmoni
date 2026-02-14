@@ -46,6 +46,18 @@ struct aura_thermal_reading {
     uint8_t has_critical;
 };
 
+struct aura_per_core_cpu {
+    double* percents;
+    uint32_t count;
+};
+
+struct aura_gpu_utilization {
+    double gpu_percent;
+    double vram_percent;
+    uint64_t vram_used_bytes;
+    uint64_t vram_total_bytes;
+};
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -81,6 +93,20 @@ AURA_EXPORT int aura_collect_thermal_readings(
     aura_thermal_reading* readings,
     uint32_t max_samples,
     uint32_t* out_count,
+    char* error_buffer,
+    size_t error_buffer_len
+);
+
+AURA_EXPORT int aura_collect_per_core_cpu(
+    double* out_percents,
+    uint32_t max_cores,
+    uint32_t* out_core_count,
+    char* error_buffer,
+    size_t error_buffer_len
+);
+
+AURA_EXPORT int aura_collect_gpu_utilization(
+    aura_gpu_utilization* out_gpu,
     char* error_buffer,
     size_t error_buffer_len
 );
