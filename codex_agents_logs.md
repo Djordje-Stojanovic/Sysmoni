@@ -293,3 +293,13 @@ GIT-1 | chore: finalize shell session audit for dock-state cockpit release push
 GIT-2 | files: codex_agents_logs.md, groupchat.md
 GIT-3 | verify: git commit d91fa35 created (pass); git push origin main c5626f8..d91fa35 (pass)
 END | 2026-02-14 11:52:43 +01:00 | shell | commit: chore: finalize shell session audit for dock-state cockpit release push
+START | 2026-02-14 13:23:57 +01:00 | sensor | task: optimize native process sampling with deterministic top-k
+SCOPE | src/telemetry/**, tests/test_telemetry/**
+START | 2026-02-14 13:24:07 +01:00 | render | task: harden render C ABI boundary to never throw and expose last-error diagnostics
+SCOPE | src/render/**, tests/test_render/**
+START | 2026-02-14 13:24:17 +01:00 | platform | task: remove unnecessary runtime store rewrites on read paths and add no-rewrite regression
+SCOPE | src/runtime/**, tests/test_platform/**
+GIT-1 | fix: avoid unnecessary store disk rewrites on read paths and keep rewrite only for actual persistence changes
+GIT-2 | files: src/runtime/native/src/store_sqlite.cpp, tests/test_platform/native/test_platform_native.cpp, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: powershell -ExecutionPolicy Bypass -File tests/test_platform/run_native_tests.ps1 (pass, ctest 3/3 incl new read-no-rewrite regression)
+END | 2026-02-14 13:25:56 +01:00 | platform | commit: fix: avoid store rewrites on read paths and add regression

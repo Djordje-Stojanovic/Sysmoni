@@ -10,6 +10,7 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -296,6 +297,58 @@ void TestStoreFilePersistenceAcrossReopen() {
     CleanupStoreFiles(db_path);
 }
 
+void TestStoreReadQueriesDoNotRewriteWithoutPrune() {
+    const std::filesystem::path db_path = BuildStorePath("read_no_rewrite");
+    const std::string db_path_raw = db_path.string();
+    const double base = NowSeconds();
+
+    WriteTextFileLines(
+        db_path,
+        {
+            SnapshotLine(base - 1.0, 25.0, 35.0),
+            SnapshotLine(base, 26.0, 36.0),
+        }
+    );
+
+    aura_error_t error{};
+    aura_store_t* store = nullptr;
+    int rc = aura_store_open(db_path_raw.c_str(), 3600.0, &store, &error);
+    ExpectEq(rc, AURA_OK, "store open for read no-rewrite test");
+
+    const auto before_reads = std::filesystem::last_write_time(db_path);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(1100));
+    int count = 0;
+    rc = aura_store_count(store, &count, &error);
+    ExpectEq(rc, AURA_OK, "count for read no-rewrite test");
+    ExpectEq(count, 2, "count should return two entries");
+    const auto after_count = std::filesystem::last_write_time(db_path);
+    ExpectTrue(after_count == before_reads, "count should not rewrite unchanged store file");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(1100));
+    aura_snapshot_t latest[1]{};
+    int out_count = 0;
+    rc = aura_store_latest(store, 1, latest, 1, &out_count, &error);
+    ExpectEq(rc, AURA_OK, "latest for read no-rewrite test");
+    ExpectEq(out_count, 1, "latest should return one entry");
+    const auto after_latest = std::filesystem::last_write_time(db_path);
+    ExpectTrue(after_latest == before_reads, "latest should not rewrite unchanged store file");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(1100));
+    aura_snapshot_t range[2]{};
+    out_count = 0;
+    rc = aura_store_between(store, 1, base - 5.0, 1, base + 5.0, range, 2, &out_count, &error);
+    ExpectEq(rc, AURA_OK, "between for read no-rewrite test");
+    ExpectEq(out_count, 2, "between should return two entries");
+    const auto after_between = std::filesystem::last_write_time(db_path);
+    ExpectTrue(after_between == before_reads, "between should not rewrite unchanged store file");
+
+    rc = aura_store_close(store);
+    ExpectEq(rc, AURA_OK, "close read no-rewrite test store");
+
+    CleanupStoreFiles(db_path);
+}
+
 void TestStoreRecoveryFromStaleTmpWhenMainMissing() {
     const std::filesystem::path db_path = BuildStorePath("recover_tmp_missing_main");
     const std::filesystem::path tmp_path = TempStorePath(db_path);
@@ -507,6 +560,7 @@ int main() {
     TestConfigRejectsMalformedTomlRetention();
     TestStoreMemoryAppendLatestBetween();
     TestStoreFilePersistenceAcrossReopen();
+    TestStoreReadQueriesDoNotRewriteWithoutPrune();
     TestStoreRecoveryFromStaleTmpWhenMainMissing();
     TestStoreIgnoresStaleTmpWhenMainExists();
     TestLegacySqliteHeaderMigration();

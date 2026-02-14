@@ -132,6 +132,7 @@ class FileBackedStore final : public TelemetryStore {
         EnsureParentDirectory(db_path_);
         if (db_path_ != ":memory:") {
             RecoverPendingTempFile();
+            bool migrated_legacy_sqlite = false;
             if (IsLegacySqliteFile(db_path_)) {
                 const std::filesystem::path source(db_path_);
                 const std::filesystem::path legacy_path = source.string() + ".legacy.sqlite";
@@ -140,10 +141,13 @@ class FileBackedStore final : public TelemetryStore {
                 if (rename_error) {
                     std::filesystem::remove(source, rename_error);
                 }
+                migrated_legacy_sqlite = true;
             }
-            LoadFromDisk();
-            PruneExpiredLocked();
-            RewriteAllLocked();
+            const bool had_parse_failures = LoadFromDisk();
+            const bool pruned = PruneExpiredLocked();
+            if (migrated_legacy_sqlite || had_parse_failures || pruned) {
+                RewriteAllLocked();
+            }
         }
     }
 
@@ -160,8 +164,8 @@ class FileBackedStore final : public TelemetryStore {
 
     int Count() override {
         std::lock_guard<std::mutex> lock(mu_);
-        PruneExpiredLocked();
-        if (db_path_ != ":memory:") {
+        const bool pruned = PruneExpiredLocked();
+        if (pruned && db_path_ != ":memory:") {
             RewriteAllLocked();
         }
         return static_cast<int>(snapshots_.size());
@@ -173,8 +177,8 @@ class FileBackedStore final : public TelemetryStore {
         }
 
         std::lock_guard<std::mutex> lock(mu_);
-        PruneExpiredLocked();
-        if (db_path_ != ":memory:") {
+        const bool pruned = PruneExpiredLocked();
+        if (pruned && db_path_ != ":memory:") {
             RewriteAllLocked();
         }
 
@@ -197,8 +201,8 @@ class FileBackedStore final : public TelemetryStore {
         }
 
         std::lock_guard<std::mutex> lock(mu_);
-        PruneExpiredLocked();
-        if (db_path_ != ":memory:") {
+        const bool pruned = PruneExpiredLocked();
+        if (pruned && db_path_ != ":memory:") {
             RewriteAllLocked();
         }
 
@@ -243,10 +247,10 @@ class FileBackedStore final : public TelemetryStore {
         RemoveFileBestEffort(temp_path);
     }
 
-    void LoadFromDisk() {
+    bool LoadFromDisk() {
         std::ifstream input(db_path_);
         if (!input.is_open()) {
-            return;
+            return false;
         }
 
         std::vector<Snapshot> loaded;
@@ -266,7 +270,7 @@ class FileBackedStore final : public TelemetryStore {
             // Existing file is incompatible with current native format.
             // Start clean instead of crashing startup.
             snapshots_.clear();
-            return;
+            return true;
         }
         snapshots_ = std::move(loaded);
         std::sort(
@@ -282,9 +286,11 @@ class FileBackedStore final : public TelemetryStore {
                 return a.timestamp < b.timestamp;
             }
         );
+        return parse_failures > 0;
     }
 
-    void PruneExpiredLocked() {
+    bool PruneExpiredLocked() {
+        const std::size_t before = snapshots_.size();
         const double cutoff = NowUnixSeconds() - retention_seconds_;
         snapshots_.erase(
             std::remove_if(
@@ -294,6 +300,7 @@ class FileBackedStore final : public TelemetryStore {
             ),
             snapshots_.end()
         );
+        return snapshots_.size() != before;
     }
 
     void RewriteAllLocked() {
