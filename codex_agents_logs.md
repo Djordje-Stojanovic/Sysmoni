@@ -365,3 +365,12 @@ START | 2026-02-14 18:23:41 +01:00 | platform | task: commit and push completed 
 SCOPE | src/runtime/**, tests/test_platform/**
 GIT-3 | verify: cmake -S tests/test_render -B build/render-native-tests -G "Visual Studio 17 2022" -A x64 (pass); cmake --build build/render-native-tests --config Release (pass); ctest --test-dir build/render-native-tests -C Release --output-on-failure (pass, 1/1)
 END | 2026-02-14 18:24:01 +01:00 | render | commit: feat: add stateful style sequencer ABI for frame-disciplined visual tokens
+GIT-1 | feat: integrate render style-token ABI into shell cockpit flow with fallback diagnostics and QML style binding
+GIT-2 | files: src/shell/native/include/aura_shell/cockpit_types.hpp, src/shell/native/include/aura_shell/render_bridge.hpp, src/shell/native/src/render_bridge.cpp, src/shell/native/src/cockpit_controller.cpp, src/shell/native/src/main.cpp, src/shell/native/qml/CockpitScene.qml, src/shell/native/tests/cockpit_controller_tests.cpp, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: cmake -S src/shell/native -B src/shell/native/build -G "Visual Studio 17 2022" -A x64 (pass); cmake --build src/shell/native/build --config Release (pass); ctest --test-dir src/shell/native/build -C Release --output-on-failure (pass, 3/3); .\aura.cmd --gui --help (pass)
+RISK | working tree contains unrelated pre-existing changes in render scope files outside SHELL ownership and they were intentionally not modified.
+END | 2026-02-14 18:24:05 +01:00 | shell | commit: pending (not requested in this session)
+GIT-1 | fix: preserve runtime CLI disk throughput fields end-to-end and add native CLI contract regressions to prevent output/data-loss regressions
+GIT-2 | files: src/runtime/native/src/runtime_cli.cpp, tests/test_platform/native/CMakeLists.txt, tests/test_platform/cli_latest_disk_fields_test.ps1, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: powershell -ExecutionPolicy Bypass -File tests/test_platform/run_native_tests.ps1 (pass, 6/6); ctest --test-dir build/platform-native-tests -C Release --output-on-failure -R platform_cli_ (pass, 5/5)
+END | 2026-02-14 18:24:28 +01:00 | platform | commit: fix: preserve runtime CLI disk fields and guard output contract (0f35e23)
