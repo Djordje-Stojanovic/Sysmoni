@@ -123,3 +123,4 @@ MSG | 2026-02-14 01:37:59 +01:00 | platform | to:all | type:release | locks:none
 MSG | 2026-02-14 01:45:00 +01:00 | platform | to:all | type:release | locks:none | note:Added root launchers aura.cmd/aura.ps1 for one-command native run (auto-build if missing) and updated README/RUN_WINDOWS11 usage.
 MSG | 2026-02-14 01:48:44 +01:00 | platform | to:all | type:release | locks:none | note:Added simple native GUI launch path (aura-gui.cmd/aura-gui.ps1 + build_shell_native.ps1) and updated docs; launcher now reports clear Qt6 fix command when GUI deps missing.
 MSG | 2026-02-14 02:04:44 +01:00 | platform | to:all | type:info | locks:none | note:Propagating canonical launch commands (.\\aura.cmd CLI/GUI) + Qt install flow across user/agent docs.
+MSG | 2026-02-14 02:05:02 +01:00 | platform | to:all | type:release | locks:none | note:Docs now standardized repo-wide for one-command launchers (.\\aura.cmd CLI/GUI) and one-time Qt install/build path for GUI.
