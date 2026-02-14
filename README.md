@@ -52,30 +52,21 @@ powershell -ExecutionPolicy Bypass -File installer/windows/build_shell_native.ps
 From repo root:
 
 ```powershell
-.\aura.cmd --json --no-persist
+.\aura.cmd
 ```
 
-Single command for GUI:
+Single launcher, explicit modes:
 
 ```powershell
+# GUI (explicit)
 .\aura.cmd --gui
+
+# CLI
+.\aura.cmd --cli --json --no-persist
 ```
 
-or:
-
-```powershell
-.\aura.ps1 --json --no-persist
-```
-
-Both launchers auto-build once if `aura.exe` is missing.
-
-GUI launcher:
-
-```powershell
-.\aura-gui.cmd
-```
-
-If Qt6 is not installed yet, the launcher prints the exact `-Qt6Dir` command to fix it.
+`aura.cmd` now defaults to GUI with no args, and auto-repairs missing runtime files in `build\shell-native\dist` (Qt + native bridge DLLs) when possible.
+If Qt6 is not installed yet, it prints the exact `-Qt6Dir` command to fix it.
 
 Run:
 
@@ -132,5 +123,5 @@ tests/
 ## Notes
 
 - In this environment, Ninja may hang under some shell wrappers; Visual Studio generator is the default best-practice path.
-- For day-to-day usage, prefer `.\aura.cmd --json --no-persist` (CLI) and `.\aura.cmd --gui` (GUI).
+- For day-to-day usage, use `.\aura.cmd` (GUI default) and `.\aura.cmd --cli --json --no-persist` (CLI).
 - Cross-module rewrites (telemetry/render/shell) continue in their owned directories.

@@ -9,6 +9,7 @@
 #include <QMouseEvent>
 #include <QObject>
 #include <QPushButton>
+#include <QQuickItem>
 #include <QQuickWidget>
 #include <QStackedWidget>
 #include <QTabBar>
@@ -418,7 +419,9 @@ private:
             const std::size_t slot_idx = slot_index(slot);
             auto& slot_widgets = slot_widgets_[slot_idx];
 
-            slot_widgets.tab_bar->clear();
+            while (slot_widgets.tab_bar->count() > 0) {
+                slot_widgets.tab_bar->removeTab(0);
+            }
             while (slot_widgets.stack->count() > 0) {
                 slot_widgets.stack->removeWidget(slot_widgets.stack->widget(0));
             }
@@ -541,7 +544,7 @@ private:
         );
 
         if (quick_ != nullptr && quick_->rootObject() != nullptr) {
-            QObject* root = quick_->rootObject();
+            QQuickItem* root = quick_->rootObject();
             root->setProperty("accentIntensity", state.accent_intensity);
             root->setProperty("cpuPercent", state.cpu_percent);
             root->setProperty("memoryPercent", state.memory_percent);

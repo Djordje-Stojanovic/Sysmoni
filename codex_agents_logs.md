@@ -323,3 +323,22 @@ GIT-1 | feat: replace cockpit timeline placeholder with hybrid runtime-dvr and l
 GIT-2 | files: src/shell/native/src/main.cpp, src/shell/native/src/cockpit_controller.cpp, src/shell/native/src/timeline_bridge.cpp, src/shell/native/include/aura_shell/cockpit_controller.hpp, src/shell/native/include/aura_shell/cockpit_types.hpp, src/shell/native/include/aura_shell/timeline_bridge.hpp, src/shell/native/tests/cockpit_controller_tests.cpp, src/shell/native/tests/timeline_bridge_tests.cpp, src/shell/native/CMakeLists.txt, codex_agents_logs.md, groupchat.md
 GIT-3 | verify: cmake -S src/shell/native -B src/shell/native/build -G "Visual Studio 17 2022" -A x64 (pass); cmake --build src/shell/native/build --config Release (pass); ctest --test-dir src/shell/native/build -C Release --output-on-failure (pass, 3/3)
 END | 2026-02-14 13:35:32 +01:00 | shell | commit: feat: replace cockpit timeline placeholder with hybrid dvr/live flow
+START | 2026-02-14 14:39:54 +01:00 | platform | task: unify GUI startup into one reliable aura launcher with Qt runtime auto-deploy
+SCOPE | installer/windows/** + root launcher scripts
+GIT-1 | fix: unify aura launcher and auto-deploy Qt runtime so GUI start is one command and non-silent
+GIT-2 | files: aura.cmd, aura.ps1, aura-gui.cmd, aura-gui.ps1, installer/windows/build_shell_native.ps1, README.md, RUN_WINDOWS11.md
+GIT-3 | verify: .\aura.cmd --gui --help (pass, deploy-only Qt runtime staging then help output); Start-Process .\aura.cmd then Get-Process aura_shell (pass, process alive); .\aura.cmd --cli --json --watch --count 1 --no-persist (pass)
+RISK | Full shell rebuild currently fails in src/shell/native/src/main.cpp (QTabBar::clear and QQuickWidget::rootObject typing); launcher repair path now avoids forced rebuild when only runtime deployment is needed.
+END | 2026-02-14 14:45:53 +01:00 | platform | commit: not requested
+START | 2026-02-14 14:47:50 +01:00 | shell | task: unblock clean GUI rebuild by fixing shell Qt compile regressions
+SCOPE | src/shell/native/**
+GIT-1 | fix: replace unsupported QTabBar clear usage and rootObject typing to restore native shell build
+GIT-2 | files: src/shell/native/src/main.cpp
+GIT-3 | verify: powershell -NoProfile -ExecutionPolicy Bypass -File .\installer\windows\build_shell_native.ps1 (pass); .\aura.cmd --gui --help (pass); .\aura.cmd --cli --json --watch --count 1 --no-persist (pass)
+END | 2026-02-14 14:47:50 +01:00 | shell | commit: not requested
+START | 2026-02-14 15:04:13 +01:00 | platform | task: restore functional shell bridges by auto-staging telemetry/render/runtime native DLLs into gui dist
+SCOPE | installer/windows/** + root launcher runtime checks
+GIT-1 | fix: stage aura_telemetry_native/aura_render_native/aura_platform bridge DLLs during shell build/deploy to make GUI panels functional
+GIT-2 | files: installer/windows/build_shell_native.ps1, aura.ps1, README.md
+GIT-3 | verify: powershell -NoProfile -ExecutionPolicy Bypass -File .\installer\windows\build_shell_native.ps1 -DeployOnly (pass); Get-ChildItem build\shell-native\dist aura_*.dll (all present); Start-Process .\aura.cmd then inspect aura_shell loaded modules (pass, aura_telemetry_native.dll + aura_render_native.dll + aura_platform.dll loaded)
+END | 2026-02-14 15:04:13 +01:00 | platform | commit: not requested

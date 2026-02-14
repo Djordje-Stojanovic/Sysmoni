@@ -3,11 +3,14 @@
 From repo root:
 
 ```powershell
-# fastest: auto-build + run
-.\aura.cmd --json --no-persist
+# fastest GUI run: one command, no args
+.\aura.cmd
 
-# fastest GUI run (same launcher family)
+# explicit GUI mode
 .\aura.cmd --gui
+
+# CLI mode
+.\aura.cmd --cli --json --no-persist
 
 # Verify toolchain in this shell
 cmake --version
