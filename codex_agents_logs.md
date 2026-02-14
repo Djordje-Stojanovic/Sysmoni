@@ -200,3 +200,8 @@ GIT-1 | chore: remove final render python artifacts and harden native render CMa
 GIT-2 | files: src/render/**, tests/test_render/**, groupchat.md, codex_agents_logs.md
 END | 2026-02-14 01:34:48 +01:00 | render | commit: chore: finalize render module as 0-python native c++
 GIT-3 | verify: cmake -S tests/test_render -B build/render-native-tests -G "Visual Studio 17 2022" -A x64 (pass); cmake --build build/render-native-tests --config Release (pass); ctest --test-dir build/render-native-tests -C Release --output-on-failure (pass, 1/1); python artifact scan in src/render/tests/test_render -> 0 files, 0 __pycache__ dirs
+GIT-1 | chore: remove final shell python artifacts and harden native CMake flow for Qt-optional core testing
+GIT-2 | files: src/shell/native/CMakeLists.txt, src/shell/native/README.md, tests/test_shell/test_native_scaffold.py, tests/test_shell/README.md, codex_agents_logs.md, groupchat.md
+RISK | Qt6 CMake package is not installed in this environment, so aura_shell.exe UI target is skipped; core library and native tests compile and pass.
+END | 2026-02-14 01:36:26 +01:00 | shell | commit: chore: finalize shell module as 0-python native c++
+GIT-3 | verify: cmake -S src/shell/native -B src/shell/native/build -G "Visual Studio 17 2022" -A x64 (pass); cmake --build src/shell/native/build --config Release (pass); ctest --test-dir src/shell/native/build -C Release --output-on-failure (pass, 1/1); python artifact scan in src/shell and tests/test_shell -> 0 .py, 0 .pyc, 0 __pycache__
