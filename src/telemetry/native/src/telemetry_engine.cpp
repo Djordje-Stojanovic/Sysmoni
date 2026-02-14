@@ -75,6 +75,12 @@ std::string decode_fixed_utf8(const char* data, size_t data_len) {
     return decoded.substr(first_non_ws, last_non_ws - first_non_ws + 1);
 }
 
+void clear_error(std::string* error_message) {
+    if (error_message != nullptr) {
+        error_message->clear();
+    }
+}
+
 }  // namespace
 
 NativeCollectors DefaultNativeCollectors() {
@@ -275,6 +281,9 @@ bool TelemetryEngine::CollectDiskSnapshot(
                 error_buffer.size()
             );
         }
+        if (status == AURA_STATUS_UNAVAILABLE) {
+            clear_error(error_message);
+        }
         return status == AURA_STATUS_UNAVAILABLE;
     }
 
@@ -282,9 +291,12 @@ bool TelemetryEngine::CollectDiskSnapshot(
     out_snapshot->total_write_bytes = current.write_bytes;
 
     std::lock_guard<std::mutex> lock(disk_mutex_);
+    bool update_baseline = true;
     if (disk_state_.has_previous) {
         const double elapsed = timestamp_seconds - disk_state_.timestamp_seconds;
-        if (elapsed > 0.0) {
+        if (elapsed <= 0.0) {
+            update_baseline = false;
+        } else {
             const bool counters_monotonic =
                 current.read_bytes >= disk_state_.counters.read_bytes &&
                 current.write_bytes >= disk_state_.counters.write_bytes &&
@@ -307,9 +319,12 @@ bool TelemetryEngine::CollectDiskSnapshot(
         }
     }
 
-    disk_state_.has_previous = true;
-    disk_state_.timestamp_seconds = timestamp_seconds;
-    disk_state_.counters = current;
+    if (update_baseline) {
+        disk_state_.has_previous = true;
+        disk_state_.timestamp_seconds = timestamp_seconds;
+        disk_state_.counters = current;
+    }
+    clear_error(error_message);
     return true;
 }
 
@@ -361,6 +376,9 @@ bool TelemetryEngine::CollectNetworkSnapshot(
                 error_buffer.size()
             );
         }
+        if (status == AURA_STATUS_UNAVAILABLE) {
+            clear_error(error_message);
+        }
         return status == AURA_STATUS_UNAVAILABLE;
     }
 
@@ -368,9 +386,12 @@ bool TelemetryEngine::CollectNetworkSnapshot(
     out_snapshot->total_bytes_recv = current.bytes_recv;
 
     std::lock_guard<std::mutex> lock(network_mutex_);
+    bool update_baseline = true;
     if (network_state_.has_previous) {
         const double elapsed = timestamp_seconds - network_state_.timestamp_seconds;
-        if (elapsed > 0.0) {
+        if (elapsed <= 0.0) {
+            update_baseline = false;
+        } else {
             const bool counters_monotonic =
                 current.bytes_sent >= network_state_.counters.bytes_sent &&
                 current.bytes_recv >= network_state_.counters.bytes_recv &&
@@ -393,9 +414,12 @@ bool TelemetryEngine::CollectNetworkSnapshot(
         }
     }
 
-    network_state_.has_previous = true;
-    network_state_.timestamp_seconds = timestamp_seconds;
-    network_state_.counters = current;
+    if (update_baseline) {
+        network_state_.has_previous = true;
+        network_state_.timestamp_seconds = timestamp_seconds;
+        network_state_.counters = current;
+    }
+    clear_error(error_message);
     return true;
 }
 
@@ -416,6 +440,7 @@ bool TelemetryEngine::CollectThermalSnapshot(
     out_snapshot->hottest_celsius.reset();
 
     if (collectors_.collect_thermal_readings == nullptr) {
+        clear_error(error_message);
         return true;
     }
 
@@ -431,14 +456,7 @@ bool TelemetryEngine::CollectThermalSnapshot(
     );
 
     if (status != AURA_STATUS_OK) {
-        if (status != AURA_STATUS_UNAVAILABLE && error_message != nullptr) {
-            *error_message = build_status_error(
-                "collect_thermal_readings",
-                status,
-                error_buffer.data(),
-                error_buffer.size()
-            );
-        }
+        clear_error(error_message);
         return true;
     }
 
@@ -484,6 +502,7 @@ bool TelemetryEngine::CollectThermalSnapshot(
         }
     }
 
+    clear_error(error_message);
     return true;
 }
 

@@ -254,3 +254,10 @@ GIT-3 | verify: cmake -S src/shell/native -B src/shell/native/build -G "Visual S
 START | 2026-02-14 11:38:18 +01:00 | sensor | task: harden telemetry rate baselines against non-monotonic timestamps and clear stale errors
 SCOPE | src/telemetry/**, tests/test_telemetry/**
 END | 2026-02-14 11:38:20 +01:00 | shell | commit: feat: wire native shell cockpit dataflow to telemetry/render bridges
+START | 2026-02-14 11:39:06 +01:00 | render | task: add style-token C ABI and shared frame-style computation for shell integration
+SCOPE | src/render/**, tests/test_render/**
+START | 2026-02-14 11:39:09 +01:00 | platform | task: enforce strict numeric parsing for runtime CLI/env/config and add platform regressions
+SCOPE | src/runtime/**, tests/test_platform/**
+GIT-1 | fix: harden telemetry disk/network rate baselines for non-increasing timestamps and clear stale graceful-path errors
+GIT-2 | files: src/telemetry/native/src/telemetry_engine.cpp, tests/test_telemetry/native/test_telemetry_native.cpp, codex_agents_logs.md, groupchat.md
+END | 2026-02-14 11:41:04 +01:00 | sensor | commit: fix: harden telemetry monotonic rates and clear graceful errors

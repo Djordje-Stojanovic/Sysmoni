@@ -269,6 +269,56 @@ int test_disk_rate_computation() {
     return 0;
 }
 
+int test_disk_non_increasing_timestamp_keeps_baseline() {
+    g_disk_status = AURA_STATUS_OK;
+    g_disk_index = 0;
+    g_disk_sequence = {
+        aura_disk_counters{1000, 2000, 10, 20},
+        aura_disk_counters{2000, 3000, 20, 30},
+        aura_disk_counters{5000, 7000, 50, 80},
+    };
+
+    TelemetryEngine engine(make_collectors());
+    DiskSnapshot first{};
+    DiskSnapshot non_increasing{};
+    DiskSnapshot resumed{};
+    std::string error;
+    if (expect(engine.CollectDiskSnapshot(100.0, &first, &error), "disk baseline sample should succeed")) {
+        return 1;
+    }
+    if (expect(
+            engine.CollectDiskSnapshot(99.0, &non_increasing, &error),
+            "disk non-increasing timestamp sample should succeed"
+        )) {
+        return 1;
+    }
+    if (expect(
+            nearly_equal(non_increasing.read_bytes_per_sec, 0.0),
+            "non-increasing disk read rate should stay zero"
+        )) {
+        return 1;
+    }
+    if (expect(
+            engine.CollectDiskSnapshot(102.0, &resumed, &error),
+            "disk resumed sample should succeed"
+        )) {
+        return 1;
+    }
+    if (expect(nearly_equal(resumed.read_bytes_per_sec, 2000.0), "disk resumed read rate mismatch")) {
+        return 1;
+    }
+    if (expect(nearly_equal(resumed.write_bytes_per_sec, 2500.0), "disk resumed write rate mismatch")) {
+        return 1;
+    }
+    if (expect(nearly_equal(resumed.read_ops_per_sec, 20.0), "disk resumed read ops mismatch")) {
+        return 1;
+    }
+    if (expect(nearly_equal(resumed.write_ops_per_sec, 30.0), "disk resumed write ops mismatch")) {
+        return 1;
+    }
+    return 0;
+}
+
 int test_disk_unavailable_degrades_gracefully() {
     g_disk_status = AURA_STATUS_UNAVAILABLE;
     g_disk_index = 0;
@@ -327,6 +377,47 @@ int test_disk_unavailable_degrades_gracefully() {
     return 0;
 }
 
+int test_disk_error_message_clears_on_graceful_paths() {
+    g_disk_status = AURA_STATUS_ERROR;
+    g_disk_index = 0;
+    g_disk_sequence.clear();
+
+    TelemetryEngine engine(make_collectors());
+    DiskSnapshot failed{};
+    std::string error;
+    if (expect(!engine.CollectDiskSnapshot(100.0, &failed, &error), "disk error should fail")) {
+        return 1;
+    }
+    if (expect(!error.empty(), "disk error should populate error message")) {
+        return 1;
+    }
+
+    g_disk_status = AURA_STATUS_UNAVAILABLE;
+    g_disk_sequence = {aura_disk_counters{10, 20, 1, 2}};
+    DiskSnapshot unavailable{};
+    if (expect(
+            engine.CollectDiskSnapshot(101.0, &unavailable, &error),
+            "disk unavailable should return success"
+        )) {
+        return 1;
+    }
+    if (expect(error.empty(), "disk unavailable path should clear stale error")) {
+        return 1;
+    }
+
+    g_disk_status = AURA_STATUS_OK;
+    g_disk_index = 0;
+    g_disk_sequence = {aura_disk_counters{50, 70, 5, 7}};
+    DiskSnapshot recovered{};
+    if (expect(engine.CollectDiskSnapshot(102.0, &recovered, &error), "disk success should return true")) {
+        return 1;
+    }
+    if (expect(error.empty(), "disk success path should keep error empty")) {
+        return 1;
+    }
+    return 0;
+}
+
 int test_disk_error_still_fails() {
     g_disk_status = AURA_STATUS_ERROR;
     g_disk_index = 0;
@@ -375,6 +466,56 @@ int test_network_rate_computation() {
         return 1;
     }
     if (expect(nearly_equal(second.packets_recv_per_sec, 20.0), "network recv packet rate mismatch")) {
+        return 1;
+    }
+    return 0;
+}
+
+int test_network_non_increasing_timestamp_keeps_baseline() {
+    g_network_status = AURA_STATUS_OK;
+    g_network_index = 0;
+    g_network_sequence = {
+        aura_network_counters{1000, 2000, 10, 20},
+        aura_network_counters{2000, 3000, 20, 30},
+        aura_network_counters{5000, 8000, 50, 80},
+    };
+
+    TelemetryEngine engine(make_collectors());
+    NetworkSnapshot first{};
+    NetworkSnapshot non_increasing{};
+    NetworkSnapshot resumed{};
+    std::string error;
+    if (expect(engine.CollectNetworkSnapshot(200.0, &first, &error), "network baseline sample should succeed")) {
+        return 1;
+    }
+    if (expect(
+            engine.CollectNetworkSnapshot(200.0, &non_increasing, &error),
+            "network non-increasing timestamp sample should succeed"
+        )) {
+        return 1;
+    }
+    if (expect(
+            nearly_equal(non_increasing.bytes_sent_per_sec, 0.0),
+            "non-increasing network send rate should stay zero"
+        )) {
+        return 1;
+    }
+    if (expect(
+            engine.CollectNetworkSnapshot(204.0, &resumed, &error),
+            "network resumed sample should succeed"
+        )) {
+        return 1;
+    }
+    if (expect(nearly_equal(resumed.bytes_sent_per_sec, 1000.0), "network resumed send rate mismatch")) {
+        return 1;
+    }
+    if (expect(nearly_equal(resumed.bytes_recv_per_sec, 1500.0), "network resumed recv rate mismatch")) {
+        return 1;
+    }
+    if (expect(nearly_equal(resumed.packets_sent_per_sec, 10.0), "network resumed send packets mismatch")) {
+        return 1;
+    }
+    if (expect(nearly_equal(resumed.packets_recv_per_sec, 15.0), "network resumed recv packets mismatch")) {
         return 1;
     }
     return 0;
@@ -464,6 +605,50 @@ int test_network_error_still_fails() {
     return 0;
 }
 
+int test_network_error_message_clears_on_graceful_paths() {
+    g_network_status = AURA_STATUS_ERROR;
+    g_network_index = 0;
+    g_network_sequence.clear();
+
+    TelemetryEngine engine(make_collectors());
+    NetworkSnapshot failed{};
+    std::string error;
+    if (expect(!engine.CollectNetworkSnapshot(100.0, &failed, &error), "network error should fail")) {
+        return 1;
+    }
+    if (expect(!error.empty(), "network error should populate error message")) {
+        return 1;
+    }
+
+    g_network_status = AURA_STATUS_UNAVAILABLE;
+    g_network_sequence = {aura_network_counters{10, 20, 1, 2}};
+    NetworkSnapshot unavailable{};
+    if (expect(
+            engine.CollectNetworkSnapshot(101.0, &unavailable, &error),
+            "network unavailable should return success"
+        )) {
+        return 1;
+    }
+    if (expect(error.empty(), "network unavailable path should clear stale error")) {
+        return 1;
+    }
+
+    g_network_status = AURA_STATUS_OK;
+    g_network_index = 0;
+    g_network_sequence = {aura_network_counters{50, 70, 5, 7}};
+    NetworkSnapshot recovered{};
+    if (expect(
+            engine.CollectNetworkSnapshot(102.0, &recovered, &error),
+            "network success should return true"
+        )) {
+        return 1;
+    }
+    if (expect(error.empty(), "network success path should keep error empty")) {
+        return 1;
+    }
+    return 0;
+}
+
 int test_thermal_degrades_gracefully_when_unavailable() {
     g_thermal_status = AURA_STATUS_UNAVAILABLE;
     g_thermal_sequence.clear();
@@ -517,6 +702,64 @@ int test_thermal_success() {
     return 0;
 }
 
+int test_thermal_error_message_clears_on_graceful_paths() {
+    TelemetryEngine engine(make_collectors());
+    std::string error;
+
+    if (expect(
+            !engine.CollectThermalSnapshot(100.0, nullptr, &error),
+            "thermal invalid output should fail"
+        )) {
+        return 1;
+    }
+    if (expect(!error.empty(), "thermal failure should populate error message")) {
+        return 1;
+    }
+
+    g_thermal_status = AURA_STATUS_UNAVAILABLE;
+    g_thermal_sequence.clear();
+    ThermalSnapshot unavailable{};
+    if (expect(
+            engine.CollectThermalSnapshot(101.0, &unavailable, &error),
+            "thermal unavailable should degrade gracefully"
+        )) {
+        return 1;
+    }
+    if (expect(error.empty(), "thermal unavailable path should clear stale error")) {
+        return 1;
+    }
+
+    g_thermal_status = AURA_STATUS_ERROR;
+    ThermalSnapshot graceful_error{};
+    if (expect(
+            engine.CollectThermalSnapshot(102.0, &graceful_error, &error),
+            "thermal error status should degrade gracefully"
+        )) {
+        return 1;
+    }
+    if (expect(error.empty(), "thermal graceful error path should clear error")) {
+        return 1;
+    }
+
+    g_thermal_status = AURA_STATUS_OK;
+    g_thermal_sequence.clear();
+    aura_thermal_reading reading{};
+    std::strncpy(reading.label, "GPU", sizeof(reading.label) - 1);
+    reading.current_celsius = 60.0;
+    reading.has_high = 0;
+    reading.has_critical = 0;
+    g_thermal_sequence.push_back(reading);
+
+    ThermalSnapshot success{};
+    if (expect(engine.CollectThermalSnapshot(103.0, &success, &error), "thermal success should return true")) {
+        return 1;
+    }
+    if (expect(error.empty(), "thermal success path should keep error empty")) {
+        return 1;
+    }
+    return 0;
+}
+
 }  // namespace
 
 int main() {
@@ -525,13 +768,18 @@ int main() {
         test_system_snapshot_success,
         test_process_sort_and_limit,
         test_disk_rate_computation,
+        test_disk_non_increasing_timestamp_keeps_baseline,
         test_disk_unavailable_degrades_gracefully,
         test_disk_error_still_fails,
+        test_disk_error_message_clears_on_graceful_paths,
         test_network_rate_computation,
+        test_network_non_increasing_timestamp_keeps_baseline,
         test_network_unavailable_degrades_gracefully,
         test_network_error_still_fails,
+        test_network_error_message_clears_on_graceful_paths,
         test_thermal_degrades_gracefully_when_unavailable,
         test_thermal_success,
+        test_thermal_error_message_clears_on_graceful_paths,
     };
 
     int failures = 0;
