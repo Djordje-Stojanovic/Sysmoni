@@ -1,44 +1,55 @@
-__pycache__/
-*.py[cod]
-*$py.class
+# ── C++ build artifacts ──
+*.obj
+*.o
+*.lib
+*.a
+*.dll
+*.so
+*.dylib
+*.exe
+*.pdb
+*.ilk
+*.exp
 
-# Virtual environments
-.venv/
-venv/
-env/
+# ── CMake ──
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+Makefile
+compile_commands.json
 
-# Packaging/build
+# ── Build output directories ──
 build/
-dist/
-*.egg-info/
-.eggs/
-pip-wheel-metadata/
+src/build/
+out/
 
-# Tool caches
-.ruff_cache/
-.mypy_cache/
-.pytype/
-.pyright/
-.pytest_cache/
-.coverage
-.coverage.*
-htmlcov/
+# ── Visual Studio ──
+.vs/
+*.vcxproj.user
+*.suo
+*.sdf
+*.opensdf
+*.opendb
+x64/
+x86/
+Debug/
+Release/
 
-# IDE/editor
+# ── IDE/editor ──
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# OS files
+# ── OS files ──
 .DS_Store
 Thumbs.db
 
-# Local workspace config
+# ── Local workspace config ──
 .claude/
 
-# Runtime artifacts
+# ── Runtime artifacts ──
 *.log
 *.prof
 aura.prof
-
