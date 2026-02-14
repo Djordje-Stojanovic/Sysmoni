@@ -22,7 +22,9 @@ compile_commands.json
 # ── Build output directories ──
 build/
 src/build/
+src/shell/native/build/
 out/
+dist/
 
 # ── Visual Studio ──
 .vs/
