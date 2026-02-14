@@ -89,6 +89,10 @@ typedef struct AuraRenderStyleTokens {
     double ring_glow_strength;
     double cpu_alpha;
     double memory_alpha;
+    int severity_level;
+    double motion_scale;
+    int quality_hint;
+    double timeline_anomaly_alpha;
 } AuraRenderStyleTokens;
 
 typedef struct AuraStyleSequencerConfig {

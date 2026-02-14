@@ -6,7 +6,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(AURA_SHELL_BUILD_APP OFF CACHE BOOL "" FORCE)
-add_subdirectory(../../src/shell/native ${CMAKE_BINARY_DIR}/shell-native)
+if(NOT TARGET aura_shell_core)
+    add_subdirectory(../../src/shell/native ${CMAKE_BINARY_DIR}/shell-native)
+endif()
 
 enable_testing()
 

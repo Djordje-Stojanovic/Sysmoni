@@ -42,6 +42,10 @@ struct QtRenderStyleTokens {
     double ring_glow_strength{0.0};
     double cpu_alpha{0.0};
     double memory_alpha{0.0};
+    int severity_level{0};
+    double motion_scale{1.0};
+    int quality_hint{0};
+    double timeline_anomaly_alpha{0.0};
 };
 
 struct QtRenderBackendCaps {

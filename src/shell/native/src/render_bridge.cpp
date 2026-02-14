@@ -364,7 +364,8 @@ std::optional<RenderStyleTokens> RenderBridge::compute_style_tokens(
         !std::isfinite(raw.accent_alpha) || !std::isfinite(raw.frost_intensity) ||
         !std::isfinite(raw.tint_strength) || !std::isfinite(raw.ring_line_width) ||
         !std::isfinite(raw.ring_glow_strength) || !std::isfinite(raw.cpu_alpha) ||
-        !std::isfinite(raw.memory_alpha)) {
+        !std::isfinite(raw.memory_alpha) || !std::isfinite(raw.motion_scale) ||
+        !std::isfinite(raw.timeline_anomaly_alpha)) {
         error = "Render style tokens returned non-finite values.";
         return std::nullopt;
     }
@@ -397,6 +398,10 @@ std::optional<RenderStyleTokens> RenderBridge::compute_style_tokens(
     out.ring_glow_strength = clamp_unit(raw.ring_glow_strength);
     out.cpu_alpha = clamp_unit(raw.cpu_alpha);
     out.memory_alpha = clamp_unit(raw.memory_alpha);
+    out.severity_level = std::clamp(raw.severity_level, 0, 3);
+    out.motion_scale = std::clamp(raw.motion_scale, 0.60, 1.00);
+    out.quality_hint = raw.quality_hint > 0 ? 1 : 0;
+    out.timeline_anomaly_alpha = clamp_unit(raw.timeline_anomaly_alpha);
     return out;
 #else
     error = "Render bridge is only supported on Windows.";

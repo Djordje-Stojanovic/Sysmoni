@@ -38,6 +38,8 @@ void assert_style_tokens_ranges(const AuraRenderStyleTokens& tokens, int target_
     assert(std::isfinite(tokens.ring_glow_strength));
     assert(std::isfinite(tokens.cpu_alpha));
     assert(std::isfinite(tokens.memory_alpha));
+    assert(std::isfinite(tokens.motion_scale));
+    assert(std::isfinite(tokens.timeline_anomaly_alpha));
 
     assert(tokens.phase >= 0.0 && tokens.phase < 1.0);
     assert(tokens.next_delay_seconds >= 0.0);
@@ -52,9 +54,42 @@ void assert_style_tokens_ranges(const AuraRenderStyleTokens& tokens, int target_
     assert(tokens.ring_glow_strength >= 0.0 && tokens.ring_glow_strength <= 1.0);
     assert(tokens.cpu_alpha >= 0.0 && tokens.cpu_alpha <= 1.0);
     assert(tokens.memory_alpha >= 0.0 && tokens.memory_alpha <= 1.0);
+    assert(tokens.severity_level >= 0 && tokens.severity_level <= 3);
+    assert(tokens.motion_scale >= 0.60 && tokens.motion_scale <= 1.0);
+    assert(tokens.quality_hint == 0 || tokens.quality_hint == 1);
+    assert(tokens.timeline_anomaly_alpha >= 0.0 && tokens.timeline_anomaly_alpha <= 1.0);
 
     const int safe_target_fps = target_fps > 0 ? target_fps : 60;
     assert(tokens.next_delay_seconds <= (1.0 / static_cast<double>(safe_target_fps)) + 1e-6);
+}
+
+void test_style_tokens_adaptive_fields_progress_with_load() {
+    AuraRenderStyleTokensInput low_input{};
+    low_input.previous_phase = 0.0;
+    low_input.cpu_percent = 18.0;
+    low_input.memory_percent = 24.0;
+    low_input.elapsed_since_last_frame = 1.0 / 60.0;
+    low_input.pulse_hz = 0.5;
+    low_input.target_fps = 60;
+    low_input.max_catchup_frames = 4;
+    const AuraRenderStyleTokens low = aura_compute_style_tokens(low_input);
+    assert_style_tokens_ranges(low, low_input.target_fps);
+
+    AuraRenderStyleTokensInput high_input{};
+    high_input.previous_phase = low.phase;
+    high_input.cpu_percent = 96.0;
+    high_input.memory_percent = 94.0;
+    high_input.elapsed_since_last_frame = 1.0 / 60.0;
+    high_input.pulse_hz = 0.5;
+    high_input.target_fps = 60;
+    high_input.max_catchup_frames = 4;
+    const AuraRenderStyleTokens high = aura_compute_style_tokens(high_input);
+    assert_style_tokens_ranges(high, high_input.target_fps);
+
+    assert(high.severity_level >= low.severity_level);
+    assert(high.motion_scale <= low.motion_scale + 1e-9);
+    assert(high.timeline_anomaly_alpha >= low.timeline_anomaly_alpha - 1e-9);
+    assert(high.quality_hint >= low.quality_hint);
 }
 
 void test_metrics() {
@@ -1451,6 +1486,7 @@ int main() {
     test_style_tokens_nominal_ranges();
     test_style_tokens_sanitization_and_defaults();
     test_style_tokens_phase_progression();
+    test_style_tokens_adaptive_fields_progress_with_load();
     test_style_sequencer_lifecycle_and_null_safety();
     test_style_sequencer_deterministic_reset_progression();
     test_style_sequencer_asymmetric_smoothing();

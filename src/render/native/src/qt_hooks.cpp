@@ -1,5 +1,6 @@
 #include "render_native/qt_hooks.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <exception>
 #include <string>
@@ -15,6 +16,14 @@ namespace {
 constexpr int kDefaultTargetFps = 60;
 constexpr int kDefaultMaxCatchupFrames = 4;
 constexpr double kDefaultPulseHz = 0.5;
+
+struct TrendState {
+    bool initialized{false};
+    double previous_cpu_percent{0.0};
+    double previous_memory_percent{0.0};
+};
+
+thread_local TrendState g_trend_state{};
 
 FrameDiscipline resolve_discipline(const QtRenderFrameInput& input) {
     return FrameDiscipline{
@@ -45,6 +54,80 @@ double compute_cpu_alpha(double cpu_percent) {
 double compute_memory_alpha(double memory_percent) {
     const double ratio = sanitize_percent(memory_percent) / 100.0;
     return clamp_unit(0.20 + (ratio * 0.75));
+}
+
+double resolve_elapsed_positive(double value) {
+    const double elapsed = resolve_elapsed(value);
+    return elapsed > 1e-6 ? elapsed : (1.0 / static_cast<double>(kDefaultTargetFps));
+}
+
+double combined_load(double cpu_percent, double memory_percent) {
+    return 0.5 * (sanitize_percent(cpu_percent) + sanitize_percent(memory_percent));
+}
+
+double compute_slope_per_second(
+    const double cpu_percent,
+    const double memory_percent,
+    const double elapsed_since_last_frame
+) {
+    const double load = combined_load(cpu_percent, memory_percent);
+    if (!g_trend_state.initialized) {
+        g_trend_state.initialized = true;
+        g_trend_state.previous_cpu_percent = sanitize_percent(cpu_percent);
+        g_trend_state.previous_memory_percent = sanitize_percent(memory_percent);
+        return 0.0;
+    }
+
+    const double previous_load =
+        combined_load(g_trend_state.previous_cpu_percent, g_trend_state.previous_memory_percent);
+    g_trend_state.previous_cpu_percent = sanitize_percent(cpu_percent);
+    g_trend_state.previous_memory_percent = sanitize_percent(memory_percent);
+
+    const double elapsed = resolve_elapsed_positive(elapsed_since_last_frame);
+    return std::clamp((load - previous_load) / elapsed, -120.0, 120.0);
+}
+
+int compute_severity_level(const double cpu_percent, const double memory_percent, const double slope_per_second) {
+    const double load = std::max(sanitize_percent(cpu_percent), sanitize_percent(memory_percent));
+    if (load >= 92.0 || (load >= 85.0 && slope_per_second >= 8.0)) {
+        return 3;
+    }
+    if (load >= 75.0 || (load >= 65.0 && slope_per_second >= 6.0)) {
+        return 2;
+    }
+    if (load >= 50.0 || slope_per_second >= 4.0) {
+        return 1;
+    }
+    return 0;
+}
+
+double compute_motion_scale(const int severity_level, const double slope_per_second) {
+    constexpr double kSeverityScale[] = {1.00, 0.92, 0.80, 0.68};
+    const int clamped_level = std::clamp(severity_level, 0, 3);
+    const double slope_penalty = clamp_unit(std::max(0.0, slope_per_second) / 100.0) * 0.15;
+    return std::clamp(kSeverityScale[clamped_level] - slope_penalty, 0.60, 1.00);
+}
+
+int compute_quality_hint(
+    const int severity_level,
+    const double cpu_percent,
+    const double memory_percent
+) {
+    const double load = std::max(sanitize_percent(cpu_percent), sanitize_percent(memory_percent));
+    return (severity_level >= 3 || (severity_level == 2 && load >= 82.0)) ? 1 : 0;
+}
+
+double compute_timeline_anomaly_alpha(
+    const int severity_level,
+    const double cpu_percent,
+    const double memory_percent,
+    const double slope_per_second
+) {
+    const double load = std::max(sanitize_percent(cpu_percent), sanitize_percent(memory_percent));
+    const double load_score = clamp_unit((load - 55.0) / 45.0);
+    const double slope_score = clamp_unit((slope_per_second - 2.0) / 20.0);
+    const double severity_boost = static_cast<double>(std::clamp(severity_level, 0, 3)) * 0.06;
+    return clamp_unit(0.05 + (load_score * 0.55) + (slope_score * 0.40) + severity_boost);
 }
 
 }  // namespace
@@ -92,6 +175,17 @@ compute_qt_style_tokens(double previous_phase, const QtRenderFrameInput& input) 
     tokens.ring_glow_strength = clamp_unit(0.20 + (accent * 0.75));
     tokens.cpu_alpha = compute_cpu_alpha(input.cpu_percent);
     tokens.memory_alpha = compute_memory_alpha(input.memory_percent);
+    const double slope_per_second =
+        compute_slope_per_second(input.cpu_percent, input.memory_percent, input.elapsed_since_last_frame);
+    tokens.severity_level = compute_severity_level(input.cpu_percent, input.memory_percent, slope_per_second);
+    tokens.motion_scale = compute_motion_scale(tokens.severity_level, slope_per_second);
+    tokens.quality_hint = compute_quality_hint(tokens.severity_level, input.cpu_percent, input.memory_percent);
+    tokens.timeline_anomaly_alpha = compute_timeline_anomaly_alpha(
+        tokens.severity_level,
+        input.cpu_percent,
+        input.memory_percent,
+        slope_per_second
+    );
     return tokens;
 }
 

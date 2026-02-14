@@ -176,6 +176,10 @@ AuraRenderStyleTokens fallback_style_tokens(double previous_phase) {
     tokens.ring_glow_strength = aura::render_native::clamp_unit(0.20 + (accent * 0.75));
     tokens.cpu_alpha = 0.20;
     tokens.memory_alpha = 0.20;
+    tokens.severity_level = 0;
+    tokens.motion_scale = 1.0;
+    tokens.quality_hint = 0;
+    tokens.timeline_anomaly_alpha = 0.05;
     return tokens;
 }
 
@@ -327,6 +331,10 @@ AuraRenderStyleTokens to_external(const aura::render_native::QtRenderStyleTokens
         input.ring_glow_strength,
         input.cpu_alpha,
         input.memory_alpha,
+        input.severity_level,
+        input.motion_scale,
+        input.quality_hint,
+        input.timeline_anomaly_alpha,
     };
 }
 
