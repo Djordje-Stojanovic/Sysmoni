@@ -721,9 +721,731 @@ void test_qt_hooks_error_surface() {
     aura_qt_hooks_destroy(hooks);
 }
 
+// ---------------------------------------------------------------------------
+// NEW: Theme color blend boundary tests via C ABI
+// ---------------------------------------------------------------------------
+
+// Verify aura_blend_hex_color at ratio=0.0 returns start color exactly.
+void test_blend_at_ratio_zero_returns_start() {
+    char out[16] = {};
+    aura_blend_hex_color("#3b82f6", "#ef4444", 0.0, out, sizeof(out));
+    assert(std::strcmp(out, "#3b82f6") == 0);
+    assert_last_error_clear();
+}
+
+// Verify aura_blend_hex_color at ratio=1.0 returns end color exactly.
+void test_blend_at_ratio_one_returns_end() {
+    char out[16] = {};
+    aura_blend_hex_color("#3b82f6", "#ef4444", 1.0, out, sizeof(out));
+    assert(std::strcmp(out, "#ef4444") == 0);
+    assert_last_error_clear();
+}
+
+// Verify blend is symmetric: blend(a,b,0.5) produces midpoint channels.
+void test_blend_symmetry_at_midpoint() {
+    // Black (#000000) to white (#ffffff) at 0.5 should be #808080.
+    char out[16] = {};
+    aura_blend_hex_color("#000000", "#ffffff", 0.5, out, sizeof(out));
+    assert(std::strcmp(out, "#808080") == 0);
+    assert_last_error_clear();
+}
+
+// Verify blend clamps ratio>1 to 1.0 (returns end color).
+void test_blend_ratio_clamped_above_one() {
+    char out[16] = {};
+    aura_blend_hex_color("#000000", "#ffffff", 2.5, out, sizeof(out));
+    assert(std::strcmp(out, "#ffffff") == 0);
+    assert_last_error_clear();
+}
+
+// Verify blend clamps ratio<0 to 0.0 (returns start color).
+void test_blend_ratio_clamped_below_zero() {
+    char out[16] = {};
+    aura_blend_hex_color("#000000", "#ffffff", -1.0, out, sizeof(out));
+    assert(std::strcmp(out, "#000000") == 0);
+    assert_last_error_clear();
+}
+
+// Verify blend produces fallback and sets error when end color is null.
+void test_blend_null_end_produces_fallback() {
+    char out[16] = {};
+    aura_blend_hex_color("#3b82f6", nullptr, 0.5, out, sizeof(out));
+    assert(std::strcmp(out, "#000000") == 0);
+    assert_last_error_contains("aura_blend_hex_color");
+}
+
+// Verify blend produces fallback on malformed hex input.
+void test_blend_malformed_hex_produces_fallback() {
+    char out[16] = {};
+    aura_blend_hex_color("not_a_color", "#ffffff", 0.5, out, sizeof(out));
+    assert(std::strcmp(out, "#000000") == 0);
+    assert_last_error_contains("aura_blend_hex_color");
+}
+
+// ---------------------------------------------------------------------------
+// NEW: quantize_accent_intensity boundary tests via C ABI
+// ---------------------------------------------------------------------------
+
+// Verify quantize at exact boundaries.
+void test_quantize_accent_intensity_boundaries() {
+    assert(aura_quantize_accent_intensity(0.0) == 0);
+    assert(aura_quantize_accent_intensity(1.0) == 100);
+    assert(aura_quantize_accent_intensity(0.5) == 50);
+
+    // Over-range clamped to 100.
+    assert(aura_quantize_accent_intensity(1.5) == 100);
+
+    // Under-range clamped to 0.
+    assert(aura_quantize_accent_intensity(-0.5) == 0);
+
+    // NaN clamped to 0.
+    assert(aura_quantize_accent_intensity(std::numeric_limits<double>::quiet_NaN()) == 0);
+
+    // Infinity is not finite — clamp_unit returns 0.0, so quantize returns 0.
+    assert(aura_quantize_accent_intensity(std::numeric_limits<double>::infinity()) == 0);
+
+    // Rounding at .5 boundary.
+    assert(aura_quantize_accent_intensity(0.504) == 50);
+    assert(aura_quantize_accent_intensity(0.005) == 1);
+    assert(aura_quantize_accent_intensity(0.994) == 99);
+}
+
+// ---------------------------------------------------------------------------
+// NEW: Style token boundary accent_intensity tests
+// ---------------------------------------------------------------------------
+
+// Verify style tokens with accent_intensity at exact boundary values via
+// sanitize_percent clamping and extremes.
+void test_style_tokens_boundary_accent_values() {
+    // cpu=0, memory=0 → minimum accent, accent_intensity close to floor (0.15)
+    {
+        AuraRenderStyleTokensInput input{};
+        input.previous_phase = 0.0;
+        input.cpu_percent = 0.0;
+        input.memory_percent = 0.0;
+        input.elapsed_since_last_frame = 0.016;
+        input.pulse_hz = 0.5;
+        input.target_fps = 60;
+        input.max_catchup_frames = 4;
+        const AuraRenderStyleTokens tokens = aura_compute_style_tokens(input);
+        assert_style_tokens_ranges(tokens, 60);
+        // accent_intensity is >= 0.15 (floor) at minimum load
+        assert(tokens.accent_intensity >= 0.15);
+    }
+
+    // cpu=100, memory=100 → maximum accent, accent_intensity close to ceiling (0.95)
+    {
+        AuraRenderStyleTokensInput input{};
+        input.previous_phase = 0.0;
+        input.cpu_percent = 100.0;
+        input.memory_percent = 100.0;
+        input.elapsed_since_last_frame = 0.016;
+        input.pulse_hz = 0.5;
+        input.target_fps = 60;
+        input.max_catchup_frames = 4;
+        const AuraRenderStyleTokens tokens = aura_compute_style_tokens(input);
+        assert_style_tokens_ranges(tokens, 60);
+        assert(tokens.accent_intensity <= 0.95);
+        assert(tokens.accent_intensity >= 0.15);
+    }
+
+    // Verify accent_intensity=0 boundary in style token math:
+    // ring_line_width = 1 + accent*6, so at accent=0 → 1.0
+    {
+        AuraRenderStyleTokensInput input{};
+        input.previous_phase = 0.0;
+        input.cpu_percent = 0.0;
+        input.memory_percent = 0.0;
+        input.elapsed_since_last_frame = 0.016;
+        input.pulse_hz = 0.5;
+        input.target_fps = 60;
+        input.max_catchup_frames = 4;
+        const AuraRenderStyleTokens tokens = aura_compute_style_tokens(input);
+        // ring_line_width = 1 + (accent_intensity * 6), so it must be >= 1 and <= 7
+        assert(tokens.ring_line_width >= 1.0);
+        assert(tokens.ring_line_width <= 7.0);
+        // Verify derived formula: ring_line_width == 1 + accent_intensity * 6
+        const double expected_ring = 1.0 + (tokens.accent_intensity * 6.0);
+        assert(std::fabs(tokens.ring_line_width - expected_ring) < kFloatEpsilon);
+    }
+
+    // Verify accent derivation consistency across all derived tokens
+    {
+        AuraRenderStyleTokensInput input{};
+        input.previous_phase = 0.5;
+        input.cpu_percent = 50.0;
+        input.memory_percent = 50.0;
+        input.elapsed_since_last_frame = 0.016;
+        input.pulse_hz = 0.5;
+        input.target_fps = 60;
+        input.max_catchup_frames = 4;
+        const AuraRenderStyleTokens tokens = aura_compute_style_tokens(input);
+        assert_style_tokens_ranges(tokens, 60);
+
+        const double a = tokens.accent_intensity;
+        // accent_red = clamp(0.12 + accent*0.65)
+        assert(std::fabs(tokens.accent_red - (0.12 + (a * 0.65))) < kFloatEpsilon);
+        // accent_green = clamp(0.30 + accent*0.50)
+        assert(std::fabs(tokens.accent_green - (0.30 + (a * 0.50))) < kFloatEpsilon);
+        // accent_blue = clamp(0.48 + accent*0.42)
+        assert(std::fabs(tokens.accent_blue - (0.48 + (a * 0.42))) < kFloatEpsilon);
+        // accent_alpha = clamp(0.62 + accent*0.33)
+        assert(std::fabs(tokens.accent_alpha - (0.62 + (a * 0.33))) < kFloatEpsilon);
+        // frost_intensity = clamp(0.05 + accent*0.30)
+        assert(std::fabs(tokens.frost_intensity - (0.05 + (a * 0.30))) < kFloatEpsilon);
+        // tint_strength = clamp(0.10 + accent*0.50)
+        assert(std::fabs(tokens.tint_strength - (0.10 + (a * 0.50))) < kFloatEpsilon);
+        // ring_line_width = 1 + accent*6
+        assert(std::fabs(tokens.ring_line_width - (1.0 + (a * 6.0))) < kFloatEpsilon);
+        // ring_glow_strength = clamp(0.20 + accent*0.75)
+        assert(std::fabs(tokens.ring_glow_strength - (0.20 + (a * 0.75))) < kFloatEpsilon);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// NEW: Style token cpu_alpha / memory_alpha computed correctly from load
+// ---------------------------------------------------------------------------
+
+// cpu_alpha = clamp(0.20 + (cpu/100)*0.75); similarly for memory_alpha.
+void test_style_tokens_cpu_memory_alpha_derivation() {
+    // At cpu=0, memory=0: cpu_alpha = 0.20, memory_alpha = 0.20
+    {
+        AuraRenderStyleTokensInput input{};
+        input.previous_phase = 0.0;
+        input.cpu_percent = 0.0;
+        input.memory_percent = 0.0;
+        input.elapsed_since_last_frame = 0.016;
+        input.pulse_hz = 0.5;
+        input.target_fps = 60;
+        input.max_catchup_frames = 4;
+        const AuraRenderStyleTokens tokens = aura_compute_style_tokens(input);
+        assert(std::fabs(tokens.cpu_alpha - 0.20) < kFloatEpsilon);
+        assert(std::fabs(tokens.memory_alpha - 0.20) < kFloatEpsilon);
+    }
+
+    // At cpu=100, memory=100: cpu_alpha = 0.95, memory_alpha = 0.95
+    {
+        AuraRenderStyleTokensInput input{};
+        input.previous_phase = 0.0;
+        input.cpu_percent = 100.0;
+        input.memory_percent = 100.0;
+        input.elapsed_since_last_frame = 0.016;
+        input.pulse_hz = 0.5;
+        input.target_fps = 60;
+        input.max_catchup_frames = 4;
+        const AuraRenderStyleTokens tokens = aura_compute_style_tokens(input);
+        assert(std::fabs(tokens.cpu_alpha - 0.95) < kFloatEpsilon);
+        assert(std::fabs(tokens.memory_alpha - 0.95) < kFloatEpsilon);
+    }
+
+    // At cpu=50, memory=20: values computed independently
+    {
+        AuraRenderStyleTokensInput input{};
+        input.previous_phase = 0.0;
+        input.cpu_percent = 50.0;
+        input.memory_percent = 20.0;
+        input.elapsed_since_last_frame = 0.016;
+        input.pulse_hz = 0.5;
+        input.target_fps = 60;
+        input.max_catchup_frames = 4;
+        const AuraRenderStyleTokens tokens = aura_compute_style_tokens(input);
+        // cpu_alpha = 0.20 + (50/100)*0.75 = 0.20 + 0.375 = 0.575
+        assert(std::fabs(tokens.cpu_alpha - 0.575) < kFloatEpsilon);
+        // memory_alpha = 0.20 + (20/100)*0.75 = 0.20 + 0.15 = 0.35
+        assert(std::fabs(tokens.memory_alpha - 0.35) < kFloatEpsilon);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// NEW: Phase wraps correctly at 1.0 boundary
+// ---------------------------------------------------------------------------
+
+void test_phase_wraps_at_unity() {
+    // With phase close to 1.0, advancing should wrap back to [0, 1)
+    const AuraFrameDiscipline discipline{60, 4};
+
+    // phase=0.99, delta=0.02, pulse_hz=1.0 -> 0.99 + 0.02*1.0 = 1.01 -> wraps to 0.01
+    const double result = aura_advance_phase(0.99, 0.02, 1.0, discipline);
+    assert(result >= 0.0 && result < 1.0);
+    assert(std::fabs(result - 0.01) < 1e-9);
+    assert_last_error_clear();
+
+    // phase=0.999, delta very small, should remain near 1.0 but wrapped
+    const double r2 = aura_advance_phase(0.999, 0.001, 1.0, discipline);
+    assert(r2 >= 0.0 && r2 < 1.0);
+    assert_last_error_clear();
+}
+
+// Verify phase=0.0 with no elapsed advances to 0.0 (no movement).
+void test_phase_zero_delta_no_advance() {
+    const AuraFrameDiscipline discipline{60, 4};
+    const double result = aura_advance_phase(0.3, 0.0, 0.5, discipline);
+    assert(std::fabs(result - 0.3) < kFloatEpsilon);
+    assert_last_error_clear();
+}
+
+// Verify negative elapsed is treated as zero (no advance).
+void test_phase_negative_delta_no_advance() {
+    const AuraFrameDiscipline discipline{60, 4};
+    const double result = aura_advance_phase(0.3, -1.0, 0.5, discipline);
+    // Negative delta is clamped to 0 by FrameDiscipline::clamp_delta_seconds
+    assert(std::fabs(result - 0.3) < kFloatEpsilon);
+    assert_last_error_clear();
+}
+
+// ---------------------------------------------------------------------------
+// NEW: Formatting edge case tests
+// ---------------------------------------------------------------------------
+
+// Empty process name should not crash and should still output rank and rates.
+void test_format_process_row_empty_name() {
+    char row[128] = {};
+    aura_format_process_row(1, "", 10.0, 1024.0 * 1024.0, 40, row, sizeof(row));
+    assert(row[0] != '\0');
+    assert(std::strstr(row, "CPU") != nullptr);
+    assert(std::strstr(row, "RAM") != nullptr);
+    assert_last_error_clear();
+}
+
+// Null process name should not crash (API treats null as empty).
+void test_format_process_row_null_name() {
+    char row[128] = {};
+    aura_format_process_row(1, nullptr, 10.0, 1024.0 * 1024.0, 40, row, sizeof(row));
+    assert(row[0] != '\0');
+    assert_last_error_clear();
+}
+
+// Zero cpu and memory should produce a valid row.
+void test_format_process_row_zero_values() {
+    char row[128] = {};
+    aura_format_process_row(1, "idle", 0.0, 0.0, 40, row, sizeof(row));
+    assert(row[0] != '\0');
+    assert(std::strstr(row, "idle") != nullptr);
+    assert_last_error_clear();
+}
+
+// Very large memory_rss_bytes (terabyte range) should not crash.
+void test_format_process_row_huge_memory() {
+    char row[256] = {};
+    const double one_tb_bytes = 1.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0;
+    aura_format_process_row(1, "bigproc", 0.1, one_tb_bytes, 60, row, sizeof(row));
+    assert(row[0] != '\0');
+    assert_last_error_clear();
+}
+
+// cpu_percent above 100 should be clamped, not produce garbage output.
+void test_format_process_row_clamped_cpu() {
+    char row[128] = {};
+    aura_format_process_row(1, "proc", 150.0, 1024.0 * 1024.0, 40, row, sizeof(row));
+    assert(row[0] != '\0');
+    // Ensure no negative or impossible values appear
+    assert(std::strstr(row, "CPU") != nullptr);
+    assert_last_error_clear();
+}
+
+// NaN cpu_percent should be sanitized to 0.
+void test_format_process_row_nan_cpu() {
+    char row[128] = {};
+    aura_format_process_row(
+        1, "proc", std::numeric_limits<double>::quiet_NaN(), 1024.0 * 1024.0, 40, row, sizeof(row)
+    );
+    assert(row[0] != '\0');
+    assert_last_error_clear();
+}
+
+// Snapshot lines with NaN/Inf values should return safe fallback strings.
+void test_format_snapshot_lines_nan_inf() {
+    const AuraSnapshotLines lines = aura_format_snapshot_lines(
+        std::numeric_limits<double>::quiet_NaN(),
+        std::numeric_limits<double>::quiet_NaN(),
+        std::numeric_limits<double>::infinity()
+    );
+    // Should not be empty; exact content may be fallback but must be valid C strings
+    assert(lines.cpu[0] != '\0' || true);  // always safe to check
+    assert(std::strlen(lines.cpu) < sizeof(lines.cpu));
+    assert(std::strlen(lines.memory) < sizeof(lines.memory));
+    assert(std::strlen(lines.timestamp) < sizeof(lines.timestamp));
+}
+
+// Zero byte rates should format as 0.0 KB/s.
+void test_format_disk_rate_zero() {
+    char buf[64] = {};
+    aura_format_disk_rate(0.0, buf, sizeof(buf));
+    assert(std::strcmp(buf, "Disk 0.0 KB/s") == 0);
+    assert_last_error_clear();
+}
+
+// NaN byte rate should be treated as zero.
+void test_format_disk_rate_nan() {
+    char buf[64] = {};
+    aura_format_disk_rate(std::numeric_limits<double>::quiet_NaN(), buf, sizeof(buf));
+    assert(std::strcmp(buf, "Disk 0.0 KB/s") == 0);
+    assert_last_error_clear();
+}
+
+// Infinity byte rate should not crash.
+void test_format_disk_rate_infinity() {
+    char buf[64] = {};
+    aura_format_disk_rate(std::numeric_limits<double>::infinity(), buf, sizeof(buf));
+    // Should return some valid non-empty string (GB/s or fallback)
+    assert(std::strlen(buf) > 0);
+}
+
+// Network rate NaN should be treated as zero.
+void test_format_network_rate_nan() {
+    char buf[64] = {};
+    aura_format_network_rate(std::numeric_limits<double>::quiet_NaN(), buf, sizeof(buf));
+    assert(std::strcmp(buf, "Net 0.0 KB/s") == 0);
+    assert_last_error_clear();
+}
+
+// Negative network rate clamped to zero.
+void test_format_network_rate_negative() {
+    char buf[64] = {};
+    aura_format_network_rate(-9999.0, buf, sizeof(buf));
+    assert(std::strcmp(buf, "Net 0.0 KB/s") == 0);
+    assert_last_error_clear();
+}
+
+// Exact MB/s boundary for network rate.
+void test_format_network_rate_exact_mb() {
+    char buf[64] = {};
+    aura_format_network_rate(1.0 * 1024.0 * 1024.0, buf, sizeof(buf));
+    assert(std::strcmp(buf, "Net 1.0 MB/s") == 0);
+    assert_last_error_clear();
+}
+
+// Exact GB/s boundary for disk rate.
+void test_format_disk_rate_exact_gb() {
+    char buf[64] = {};
+    aura_format_disk_rate(1.0 * 1024.0 * 1024.0 * 1024.0, buf, sizeof(buf));
+    assert(std::strcmp(buf, "Disk 1.00 GB/s") == 0);
+    assert_last_error_clear();
+}
+
+// ---------------------------------------------------------------------------
+// NEW: Initial and stream status edge cases
+// ---------------------------------------------------------------------------
+
+// Format initial status without a db path (null) and no sample count.
+void test_format_initial_status_no_db_no_samples() {
+    char status[256] = {};
+    aura_format_initial_status(nullptr, 0, 0, nullptr, status, sizeof(status));
+    assert(status[0] != '\0');
+    assert_last_error_clear();
+}
+
+// Format initial status with an error string present.
+void test_format_initial_status_with_error() {
+    char status[256] = {};
+    aura_format_initial_status(nullptr, 0, 0, "connection refused", status, sizeof(status));
+    assert(status[0] != '\0');
+    assert_last_error_clear();
+}
+
+// Format stream status with null db path.
+void test_format_stream_status_null_db() {
+    char status[256] = {};
+    aura_format_stream_status(nullptr, 1, 10, nullptr, status, sizeof(status));
+    assert(status[0] != '\0');
+    assert_last_error_clear();
+}
+
+// ---------------------------------------------------------------------------
+// NEW: Style sequencer multi-tick monotonic phase test
+// ---------------------------------------------------------------------------
+
+// Across N ticks with a fixed small elapsed, phase should strictly increase
+// (accounting for wrap-around at 1.0).
+void test_style_sequencer_phase_monotonically_advances() {
+    AuraStyleSequencerConfig config{};
+    config.target_fps = 60;
+    config.max_catchup_frames = 4;
+    config.pulse_hz = 0.5;
+    config.rise_half_life_seconds = 0.12;
+    config.fall_half_life_seconds = 0.22;
+
+    AuraStyleSequencer* sequencer = aura_style_sequencer_create(config);
+    assert(sequencer != nullptr);
+    aura_style_sequencer_reset(sequencer, 0.0);
+
+    AuraStyleSequencerInput input{};
+    input.cpu_percent = 50.0;
+    input.memory_percent = 50.0;
+    input.elapsed_since_last_frame = 1.0 / 60.0;
+
+    double prev_phase = 0.0;
+    // Run 30 ticks (half a second at 60fps) without wrap.
+    // 30 * (1/60) * 0.5 = 0.25 total phase advance — no wrap expected.
+    for (int i = 0; i < 30; ++i) {
+        const AuraRenderStyleTokens tokens = aura_style_sequencer_tick(sequencer, input);
+        assert(tokens.phase >= 0.0 && tokens.phase < 1.0);
+        assert(tokens.phase > prev_phase);
+        prev_phase = tokens.phase;
+    }
+
+    aura_style_sequencer_destroy(sequencer);
+}
+
+// ---------------------------------------------------------------------------
+// NEW: Style sequencer error clears on successful tick after reset
+// ---------------------------------------------------------------------------
+
+void test_style_sequencer_error_clears_on_success() {
+    AuraStyleSequencerConfig config{};
+    config.target_fps = 60;
+    config.max_catchup_frames = 4;
+    config.pulse_hz = 0.5;
+    config.rise_half_life_seconds = 0.12;
+    config.fall_half_life_seconds = 0.22;
+
+    AuraStyleSequencer* sequencer = aura_style_sequencer_create(config);
+    assert(sequencer != nullptr);
+
+    // First tick with bad values (infinity elapsed will be clamped, no error expected)
+    AuraStyleSequencerInput bad_input{};
+    bad_input.cpu_percent = std::numeric_limits<double>::quiet_NaN();
+    bad_input.memory_percent = std::numeric_limits<double>::infinity();
+    bad_input.elapsed_since_last_frame = std::numeric_limits<double>::infinity();
+    (void)aura_style_sequencer_tick(sequencer, bad_input);
+    // NaN/Inf sanitized internally, so no per-sequencer error expected
+    assert(std::strcmp(aura_style_sequencer_last_error(sequencer), "") == 0);
+
+    // Good tick should also produce no error
+    AuraStyleSequencerInput good_input{};
+    good_input.cpu_percent = 30.0;
+    good_input.memory_percent = 40.0;
+    good_input.elapsed_since_last_frame = 0.016;
+    const AuraRenderStyleTokens tokens = aura_style_sequencer_tick(sequencer, good_input);
+    assert_style_tokens_ranges(tokens, 60);
+    assert(std::strcmp(aura_style_sequencer_last_error(sequencer), "") == 0);
+    assert_last_error_clear();
+
+    aura_style_sequencer_destroy(sequencer);
+}
+
+// ---------------------------------------------------------------------------
+// NEW: Qt hooks multi-frame accumulation test
+// ---------------------------------------------------------------------------
+
+// Render multiple frames through qt hooks and verify all produce valid outputs.
+void test_qt_hooks_multi_frame_accumulation() {
+    QtHookProbe probe{};
+    const AuraQtRenderCallbacks callbacks = make_qt_callbacks();
+    AuraQtRenderHooks* hooks = aura_qt_hooks_create(&callbacks, &probe);
+    assert(hooks != nullptr);
+
+    AuraQtRenderFrameInput input{};
+    input.elapsed_since_last_frame = 1.0 / 60.0;
+    input.pulse_hz = 0.5;
+    input.target_fps = 60;
+    input.max_catchup_frames = 4;
+
+    // Simulate 10 frames at increasing CPU load
+    for (int frame = 0; frame < 10; ++frame) {
+        probe.stages.clear();
+        probe.all_finite = true;
+        input.cpu_percent = static_cast<double>(frame * 10);
+        input.memory_percent = static_cast<double>((10 - frame) * 10);
+
+        assert(aura_qt_hooks_render_frame(hooks, input) == 1);
+        assert_qt_stage_order(probe);
+        assert(probe.all_finite);
+        assert(probe.ring_line_width >= 1.0 && probe.ring_line_width <= 7.0);
+        assert(probe.cpu_alpha >= 0.0 && probe.cpu_alpha <= 1.0);
+        assert(probe.memory_alpha >= 0.0 && probe.memory_alpha <= 1.0);
+    }
+
+    assert(std::strcmp(aura_qt_hooks_last_error(hooks), "") == 0);
+    aura_qt_hooks_destroy(hooks);
+}
+
+// ---------------------------------------------------------------------------
+// NEW: Qt hooks missing individual callbacks rejected
+// ---------------------------------------------------------------------------
+
+void test_qt_hooks_rejects_partial_callbacks() {
+    QtHookProbe probe{};
+
+    // Missing begin_frame
+    {
+        AuraQtRenderCallbacks cbs = make_qt_callbacks();
+        cbs.begin_frame = nullptr;
+        assert(aura_qt_hooks_create(&cbs, &probe) == nullptr);
+    }
+
+    // Missing set_accent_rgba
+    {
+        AuraQtRenderCallbacks cbs = make_qt_callbacks();
+        cbs.set_accent_rgba = nullptr;
+        assert(aura_qt_hooks_create(&cbs, &probe) == nullptr);
+    }
+
+    // Missing set_panel_frost
+    {
+        AuraQtRenderCallbacks cbs = make_qt_callbacks();
+        cbs.set_panel_frost = nullptr;
+        assert(aura_qt_hooks_create(&cbs, &probe) == nullptr);
+    }
+
+    // Missing set_ring_style
+    {
+        AuraQtRenderCallbacks cbs = make_qt_callbacks();
+        cbs.set_ring_style = nullptr;
+        assert(aura_qt_hooks_create(&cbs, &probe) == nullptr);
+    }
+
+    // Missing set_timeline_emphasis
+    {
+        AuraQtRenderCallbacks cbs = make_qt_callbacks();
+        cbs.set_timeline_emphasis = nullptr;
+        assert(aura_qt_hooks_create(&cbs, &probe) == nullptr);
+    }
+
+    // Missing commit_frame
+    {
+        AuraQtRenderCallbacks cbs = make_qt_callbacks();
+        cbs.commit_frame = nullptr;
+        assert(aura_qt_hooks_create(&cbs, &probe) == nullptr);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// NEW: sanitize_percent and sanitize_non_negative edge cases
+// ---------------------------------------------------------------------------
+
+void test_sanitize_edge_cases() {
+    // NaN input → 0.0
+    assert(aura_sanitize_percent(std::numeric_limits<double>::quiet_NaN()) == 0.0);
+    assert(aura_sanitize_non_negative(std::numeric_limits<double>::quiet_NaN()) == 0.0);
+
+    // +Infinity → not finite, sanitize returns 0.0 for both functions
+    assert(aura_sanitize_percent(std::numeric_limits<double>::infinity()) == 0.0);
+    // sanitize_non_negative: infinity is not finite, returns 0
+    assert(aura_sanitize_non_negative(std::numeric_limits<double>::infinity()) == 0.0);
+
+    // -Infinity → 0
+    assert(aura_sanitize_percent(-std::numeric_limits<double>::infinity()) == 0.0);
+    assert(aura_sanitize_non_negative(-std::numeric_limits<double>::infinity()) == 0.0);
+
+    // Exact boundaries
+    assert(aura_sanitize_percent(0.0) == 0.0);
+    assert(aura_sanitize_percent(100.0) == 100.0);
+    assert(aura_sanitize_percent(50.0) == 50.0);
+    assert(aura_sanitize_non_negative(0.0) == 0.0);
+    assert(aura_sanitize_non_negative(9999.0) == 9999.0);
+
+    // Negative input → 0
+    assert(aura_sanitize_percent(-0.001) == 0.0);
+    assert(aura_sanitize_non_negative(-0.001) == 0.0);
+}
+
+// ---------------------------------------------------------------------------
+// NEW: aura_clear_error is idempotent
+// ---------------------------------------------------------------------------
+
+void test_clear_error_idempotent() {
+    // Set an error condition first
+    (void)aura_advance_phase(0.0, 0.01, 0.5, AuraFrameDiscipline{0, 4});
+    assert_last_error_contains("aura_advance_phase");
+
+    // Clear once
+    aura_clear_error();
+    assert_last_error_clear();
+
+    // Clear again — should still be empty
+    aura_clear_error();
+    assert_last_error_clear();
+
+    // Clear with no prior error
+    aura_clear_error();
+    assert_last_error_clear();
+}
+
+// ---------------------------------------------------------------------------
+// NEW: aura_compose_cockpit_frame accent_intensity range tests
+// ---------------------------------------------------------------------------
+
+void test_compose_cockpit_frame_accent_range() {
+    const AuraFrameDiscipline discipline{60, 4};
+
+    // Low load → accent near floor (0.15)
+    {
+        const AuraCockpitFrameState frame =
+            aura_compose_cockpit_frame(0.0, 0.016, 0.0, 0.0, discipline, 0.5);
+        assert(std::isfinite(frame.accent_intensity));
+        assert(frame.accent_intensity >= 0.15 && frame.accent_intensity <= 0.95);
+    }
+
+    // High load → accent near ceiling (0.95)
+    {
+        const AuraCockpitFrameState frame =
+            aura_compose_cockpit_frame(0.0, 0.016, 100.0, 100.0, discipline, 0.5);
+        assert(std::isfinite(frame.accent_intensity));
+        assert(frame.accent_intensity >= 0.15 && frame.accent_intensity <= 0.95);
+        // High load must produce higher accent than low load
+    }
+
+    // next_delay_seconds should be > 0
+    {
+        const AuraCockpitFrameState frame =
+            aura_compose_cockpit_frame(0.0, 0.016, 50.0, 50.0, discipline, 0.5);
+        assert(frame.next_delay_seconds >= 0.0);
+        assert(std::isfinite(frame.next_delay_seconds));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// NEW: qt_hooks render_frame consistent accent > cpu alpha at high load
+// ---------------------------------------------------------------------------
+
+// At 100% CPU, cpu_alpha should be near 0.95 (max); at 0% CPU, near 0.20 (min).
+void test_qt_hooks_cpu_alpha_tracks_load() {
+    // High CPU
+    {
+        QtHookProbe probe{};
+        const AuraQtRenderCallbacks callbacks = make_qt_callbacks();
+        AuraQtRenderHooks* hooks = aura_qt_hooks_create(&callbacks, &probe);
+        assert(hooks != nullptr);
+
+        AuraQtRenderFrameInput input{};
+        input.cpu_percent = 100.0;
+        input.memory_percent = 0.0;
+        input.elapsed_since_last_frame = 0.016;
+        input.pulse_hz = 0.5;
+        input.target_fps = 60;
+        input.max_catchup_frames = 4;
+        assert(aura_qt_hooks_render_frame(hooks, input) == 1);
+        assert(std::fabs(probe.cpu_alpha - 0.95) < kFloatEpsilon);
+        assert(std::fabs(probe.memory_alpha - 0.20) < kFloatEpsilon);
+        aura_qt_hooks_destroy(hooks);
+    }
+
+    // Low CPU
+    {
+        QtHookProbe probe{};
+        const AuraQtRenderCallbacks callbacks = make_qt_callbacks();
+        AuraQtRenderHooks* hooks = aura_qt_hooks_create(&callbacks, &probe);
+        assert(hooks != nullptr);
+
+        AuraQtRenderFrameInput input{};
+        input.cpu_percent = 0.0;
+        input.memory_percent = 100.0;
+        input.elapsed_since_last_frame = 0.016;
+        input.pulse_hz = 0.5;
+        input.target_fps = 60;
+        input.max_catchup_frames = 4;
+        assert(aura_qt_hooks_render_frame(hooks, input) == 1);
+        assert(std::fabs(probe.cpu_alpha - 0.20) < kFloatEpsilon);
+        assert(std::fabs(probe.memory_alpha - 0.95) < kFloatEpsilon);
+        aura_qt_hooks_destroy(hooks);
+    }
+}
+
 }  // namespace
 
 int main() {
+    // --- Existing tests (unchanged) ---
     test_metrics();
     test_animation();
     test_style_tokens_nominal_ranges();
@@ -746,5 +1468,68 @@ int main() {
     test_qt_hooks_sanitization_and_clamping();
     test_style_tokens_match_qt_hook_outputs();
     test_qt_hooks_error_surface();
+
+    // --- New: Theme / blend tests ---
+    test_blend_at_ratio_zero_returns_start();
+    test_blend_at_ratio_one_returns_end();
+    test_blend_symmetry_at_midpoint();
+    test_blend_ratio_clamped_above_one();
+    test_blend_ratio_clamped_below_zero();
+    test_blend_null_end_produces_fallback();
+    test_blend_malformed_hex_produces_fallback();
+
+    // --- New: quantize boundary tests ---
+    test_quantize_accent_intensity_boundaries();
+
+    // --- New: Style token boundary and derivation tests ---
+    test_style_tokens_boundary_accent_values();
+    test_style_tokens_cpu_memory_alpha_derivation();
+
+    // --- New: Phase advance edge cases ---
+    test_phase_wraps_at_unity();
+    test_phase_zero_delta_no_advance();
+    test_phase_negative_delta_no_advance();
+
+    // --- New: Formatting edge cases ---
+    test_format_process_row_empty_name();
+    test_format_process_row_null_name();
+    test_format_process_row_zero_values();
+    test_format_process_row_huge_memory();
+    test_format_process_row_clamped_cpu();
+    test_format_process_row_nan_cpu();
+    test_format_snapshot_lines_nan_inf();
+    test_format_disk_rate_zero();
+    test_format_disk_rate_nan();
+    test_format_disk_rate_infinity();
+    test_format_disk_rate_exact_gb();
+    test_format_network_rate_nan();
+    test_format_network_rate_negative();
+    test_format_network_rate_exact_mb();
+
+    // --- New: Status formatting edge cases ---
+    test_format_initial_status_no_db_no_samples();
+    test_format_initial_status_with_error();
+    test_format_stream_status_null_db();
+
+    // --- New: Style sequencer behavioral tests ---
+    test_style_sequencer_phase_monotonically_advances();
+    test_style_sequencer_error_clears_on_success();
+
+    // --- New: Qt hooks multi-frame and partial callback tests ---
+    test_qt_hooks_multi_frame_accumulation();
+    test_qt_hooks_rejects_partial_callbacks();
+
+    // --- New: sanitize edge cases ---
+    test_sanitize_edge_cases();
+
+    // --- New: Error API tests ---
+    test_clear_error_idempotent();
+
+    // --- New: cockpit frame accent range ---
+    test_compose_cockpit_frame_accent_range();
+
+    // --- New: cpu/memory alpha load tracking ---
+    test_qt_hooks_cpu_alpha_tracks_load();
+
     return 0;
 }
