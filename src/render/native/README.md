@@ -30,3 +30,4 @@ Public C ABI header: `src/render/native/include/aura_render.h`.
 - Module is C++-only.
 - Qt Widgets + RHI backend can be enabled with `-DRENDER_NATIVE_ENABLE_QT_WIDGETS=ON`.
 - Root-level app wiring is requested in `groupchat.md` because render scope does not include root packaging files.
+- Render native tests are defined in `tests/test_render/` and run through CTest.
