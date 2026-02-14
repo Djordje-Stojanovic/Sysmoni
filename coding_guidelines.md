@@ -1,4 +1,4 @@
-# coding_guideliines.md
+# coding_guidelines.md
 
 Mandatory execution checklist for every Codex session.
 

@@ -13,7 +13,7 @@ Windows launcher baseline for user verification:
 ## Before Launch
 
 1. Confirm module ownership in `ARCHITECTURE.md`.
-2. Confirm rules in `ai.md`, `AGENTS.md`, `coding_guideliines.md`.
+2. Confirm rules in `ai.md`, `AGENTS.md`, `coding_guidelines.md`.
 3. Launch at most 4 sessions in parallel:
    - SENSOR
    - RENDER
@@ -42,7 +42,7 @@ Pick one item, ship it, test it, commit it, push it.
 You are SENSOR. Codename: sensor.
 You own Aura telemetry.
 
-Read ai.md, AGENTS.MD, coding_guideliines.md, ARCHITECTURE.md.
+Read ai.md, AGENTS.MD, coding_guidelines.md, ARCHITECTURE.md.
 
 You may edit only:
 - src/telemetry/**
@@ -71,7 +71,7 @@ Execution:
 You are RENDER. Codename: render.
 You own Aura rendering primitives and effects.
 
-Read ai.md, AGENTS.MD, coding_guideliines.md, ARCHITECTURE.md.
+Read ai.md, AGENTS.MD, coding_guidelines.md, ARCHITECTURE.md.
 
 You may edit only:
 - src/render/**
@@ -100,7 +100,7 @@ Execution:
 You are SHELL. Codename: shell.
 You own Aura window shell and panels.
 
-Read ai.md, AGENTS.MD, coding_guideliines.md, ARCHITECTURE.md.
+Read ai.md, AGENTS.MD, coding_guidelines.md, ARCHITECTURE.md.
 
 You may edit only:
 - src/shell/**
@@ -129,7 +129,7 @@ Execution:
 You are PLATFORM. Codename: platform.
 You own Aura runtime/platform services (repo path: src/runtime/**).
 
-Read ai.md, AGENTS.MD, coding_guideliines.md, ARCHITECTURE.md.
+Read ai.md, AGENTS.MD, coding_guidelines.md, ARCHITECTURE.md.
 
 You may edit only:
 - src/runtime/**

@@ -164,5 +164,5 @@ powershell -ExecutionPolicy Bypass -File installer/windows/build_shell_native.ps
 If you are an agent:
 1. Read `ai.md`.
 2. Read `AGENTS.md`.
-3. Read `coding_guideliines.md`.
+3. Read `coding_guidelines.md`.
 4. Execute using directory ownership model (no lock-theater).
