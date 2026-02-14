@@ -40,3 +40,32 @@ set_tests_properties(
     PROPERTIES
         WORKING_DIRECTORY $<TARGET_FILE_DIR:aura_telemetry_native_tests>
 )
+
+# Process ABI safety tests
+add_executable(aura_process_abi_safety_tests
+    native/test_process_abi_safety.cpp
+)
+
+target_include_directories(aura_process_abi_safety_tests PRIVATE
+    "${TELEMETRY_NATIVE_DIR}/include"
+)
+target_link_libraries(aura_process_abi_safety_tests PRIVATE aura_telemetry_native)
+
+add_custom_command(
+    TARGET aura_process_abi_safety_tests
+    POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:aura_telemetry_native>
+        $<TARGET_FILE_DIR:aura_process_abi_safety_tests>
+)
+
+add_test(
+    NAME aura_process_abi_safety_tests
+    COMMAND $<TARGET_FILE:aura_process_abi_safety_tests>
+)
+
+set_tests_properties(
+    aura_process_abi_safety_tests
+    PROPERTIES
+        WORKING_DIRECTORY $<TARGET_FILE_DIR:aura_process_abi_safety_tests>
+)
