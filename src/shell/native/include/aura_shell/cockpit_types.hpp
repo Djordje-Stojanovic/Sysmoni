@@ -31,6 +31,18 @@ struct FrameState {
     double next_delay_seconds{0.0};
 };
 
+struct TimelinePoint {
+    double timestamp{0.0};
+    double cpu_percent{0.0};
+    double memory_percent{0.0};
+};
+
+enum class TimelineSource : std::uint8_t {
+    None = 0,
+    Live = 1,
+    Dvr = 2,
+};
+
 struct CockpitUiState {
     double timestamp{0.0};
     double cpu_percent{0.0};
@@ -43,8 +55,10 @@ struct CockpitUiState {
     std::string memory_line;
     std::string timestamp_line;
     std::vector<std::string> process_rows;
+    std::vector<TimelinePoint> timeline_points;
+    TimelineSource timeline_source{TimelineSource::None};
+    std::string timeline_line;
     std::string status_line;
 };
 
 }  // namespace aura::shell
-

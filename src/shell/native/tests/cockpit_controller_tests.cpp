@@ -146,6 +146,54 @@ public:
     }
 };
 
+class FakeTimelineBridge final : public aura::shell::ITimelineBridge {
+public:
+    bool backend_available = true;
+    bool fail_query = false;
+    std::string query_error;
+    std::vector<aura::shell::TimelinePoint> next_points{
+        {1699999950.0, 20.0, 35.0},
+        {1699999955.0, 21.0, 35.5},
+        {1699999960.0, 22.0, 36.0},
+        {1699999965.0, 23.0, 36.5},
+        {1699999970.0, 24.0, 37.0},
+        {1699999975.0, 25.0, 37.5},
+        {1699999980.0, 26.0, 38.0},
+        {1699999985.0, 27.0, 38.5},
+        {1699999990.0, 28.0, 39.0},
+        {1699999995.0, 29.0, 39.5},
+    };
+    int query_count = 0;
+
+    bool available() const override {
+        return backend_available;
+    }
+
+    std::vector<aura::shell::TimelinePoint> query_recent(
+        const std::string& db_path,
+        const double /*end_timestamp*/,
+        const double /*window_seconds*/,
+        const int resolution,
+        std::string& error
+    ) override {
+        ++query_count;
+        if (!backend_available || fail_query) {
+            error = query_error.empty() ? "timeline unavailable" : query_error;
+            return {};
+        }
+        if (db_path.empty()) {
+            error = "db_path empty";
+            return {};
+        }
+        error.clear();
+        std::vector<aura::shell::TimelinePoint> output = next_points;
+        if (resolution > 0 && output.size() > static_cast<std::size_t>(resolution)) {
+            output.resize(static_cast<std::size_t>(resolution));
+        }
+        return output;
+    }
+};
+
 bool expect_true(const bool condition, const std::string& name) {
     if (!condition) {
         std::cerr << "FAILED: " << name << '\n';
@@ -158,15 +206,21 @@ bool contains(const std::string& text, const std::string& pattern) {
     return text.find(pattern) != std::string::npos;
 }
 
-bool test_happy_path() {
+bool test_happy_path_prefers_dvr() {
     auto telemetry = std::make_unique<FakeTelemetryBridge>();
     auto render = std::make_unique<FakeRenderBridge>();
+    auto timeline = std::make_unique<FakeTimelineBridge>();
 
     aura::shell::CockpitController::Config config;
     config.max_process_rows = 5U;
     config.db_path = "C:/tmp/aura.db";
 
-    aura::shell::CockpitController controller(std::move(telemetry), std::move(render), config);
+    aura::shell::CockpitController controller(
+        std::move(telemetry),
+        std::move(render),
+        std::move(timeline),
+        config
+    );
     const aura::shell::CockpitUiState state = controller.tick(1.0, 1700000000.0);
 
     bool ok = true;
@@ -177,6 +231,9 @@ bool test_happy_path() {
     ok &= expect_true(state.process_rows.size() == 2U, "happy: process rows");
     ok &= expect_true(state.accent_intensity > 0.0, "happy: accent intensity");
     ok &= expect_true(contains(state.status_line, "render=ok"), "happy: render status");
+    ok &= expect_true(state.timeline_source == aura::shell::TimelineSource::Dvr, "happy: dvr source");
+    ok &= expect_true(state.timeline_points.size() >= 8U, "happy: dvr points");
+    ok &= expect_true(contains(state.timeline_line, "timeline=dvr"), "happy: timeline line");
     return ok;
 }
 
@@ -186,8 +243,14 @@ bool test_telemetry_missing() {
     telemetry->next_snapshot = std::nullopt;
     telemetry->snapshot_error = "collector missing";
     auto render = std::make_unique<FakeRenderBridge>();
+    auto timeline = std::make_unique<FakeTimelineBridge>();
 
-    aura::shell::CockpitController controller(std::move(telemetry), std::move(render), {});
+    aura::shell::CockpitController controller(
+        std::move(telemetry),
+        std::move(render),
+        std::move(timeline),
+        {}
+    );
     const aura::shell::CockpitUiState state = controller.tick(1.0, 1700000001.0);
 
     bool ok = true;
@@ -202,8 +265,14 @@ bool test_render_missing() {
     auto telemetry = std::make_unique<FakeTelemetryBridge>();
     auto render = std::make_unique<FakeRenderBridge>();
     render->backend_available = false;
+    auto timeline = std::make_unique<FakeTimelineBridge>();
 
-    aura::shell::CockpitController controller(std::move(telemetry), std::move(render), {});
+    aura::shell::CockpitController controller(
+        std::move(telemetry),
+        std::move(render),
+        std::move(timeline),
+        {}
+    );
     const aura::shell::CockpitUiState state = controller.tick(1.0, 1700000002.0);
 
     bool ok = true;
@@ -222,8 +291,14 @@ bool test_bounds_sanitized() {
         std::numeric_limits<double>::infinity(),
     };
     auto render = std::make_unique<FakeRenderBridge>();
+    auto timeline = std::make_unique<FakeTimelineBridge>();
 
-    aura::shell::CockpitController controller(std::move(telemetry), std::move(render), {});
+    aura::shell::CockpitController controller(
+        std::move(telemetry),
+        std::move(render),
+        std::move(timeline),
+        {}
+    );
     const aura::shell::CockpitUiState state = controller.tick(1.0, 1700000003.0);
 
     bool ok = true;
@@ -234,12 +309,21 @@ bool test_bounds_sanitized() {
     return ok;
 }
 
-bool test_last_good_reused_on_telemetry_failure() {
+bool test_last_good_reused_on_telemetry_failure_preserves_timeline() {
     auto telemetry = std::make_unique<FakeTelemetryBridge>();
     auto* telemetry_ptr = telemetry.get();
     auto render = std::make_unique<FakeRenderBridge>();
+    auto timeline = std::make_unique<FakeTimelineBridge>();
 
-    aura::shell::CockpitController controller(std::move(telemetry), std::move(render), {});
+    aura::shell::CockpitController::Config config;
+    config.db_path = "C:/tmp/aura.db";
+
+    aura::shell::CockpitController controller(
+        std::move(telemetry),
+        std::move(render),
+        std::move(timeline),
+        config
+    );
     const aura::shell::CockpitUiState initial = controller.tick(1.0, 1700000004.0);
 
     telemetry_ptr->next_snapshot = std::nullopt;
@@ -252,6 +336,67 @@ bool test_last_good_reused_on_telemetry_failure() {
     ok &= expect_true(!degraded.telemetry_available, "reuse: telemetry unavailable");
     ok &= expect_true(degraded.cpu_line == initial.cpu_line, "reuse: cpu line preserved");
     ok &= expect_true(contains(degraded.status_line, "Telemetry degraded"), "reuse: status contains");
+    ok &= expect_true(degraded.timeline_source == initial.timeline_source, "reuse: timeline source preserved");
+    ok &= expect_true(degraded.timeline_points.size() == initial.timeline_points.size(), "reuse: timeline points preserved");
+    return ok;
+}
+
+bool test_falls_back_to_live_when_dvr_unavailable() {
+    auto telemetry = std::make_unique<FakeTelemetryBridge>();
+    auto render = std::make_unique<FakeRenderBridge>();
+    auto timeline = std::make_unique<FakeTimelineBridge>();
+    timeline->backend_available = false;
+
+    aura::shell::CockpitController::Config config;
+    config.db_path = "C:/tmp/aura.db";
+
+    aura::shell::CockpitController controller(
+        std::move(telemetry),
+        std::move(render),
+        std::move(timeline),
+        config
+    );
+    static_cast<void>(controller.tick(1.0, 1700000010.0));
+    const aura::shell::CockpitUiState state = controller.tick(1.0, 1700000011.0);
+
+    bool ok = true;
+    ok &= expect_true(state.timeline_source == aura::shell::TimelineSource::Live, "fallback-live: source");
+    ok &= expect_true(state.timeline_points.size() >= 2U, "fallback-live: points");
+    ok &= expect_true(contains(state.timeline_line, "timeline=live"), "fallback-live: line");
+    return ok;
+}
+
+bool test_live_ring_respects_capacity() {
+    auto telemetry = std::make_unique<FakeTelemetryBridge>();
+    auto* telemetry_ptr = telemetry.get();
+    auto render = std::make_unique<FakeRenderBridge>();
+    auto timeline = std::make_unique<FakeTimelineBridge>();
+
+    aura::shell::CockpitController::Config config;
+    config.prefer_dvr_timeline = false;
+    config.timeline_live_capacity = 3U;
+    config.timeline_window_seconds = 1000.0;
+
+    aura::shell::CockpitController controller(
+        std::move(telemetry),
+        std::move(render),
+        std::move(timeline),
+        config
+    );
+
+    aura::shell::CockpitUiState state;
+    for (int i = 0; i < 5; ++i) {
+        telemetry_ptr->next_snapshot = aura::shell::TelemetrySnapshot{
+            10.0 + static_cast<double>(i),
+            20.0 + static_cast<double>(i),
+        };
+        state = controller.tick(1.0, 1700000100.0 + static_cast<double>(i));
+    }
+
+    bool ok = true;
+    ok &= expect_true(state.timeline_source == aura::shell::TimelineSource::Live, "capacity: source");
+    ok &= expect_true(state.timeline_points.size() == 3U, "capacity: size");
+    ok &= expect_true(std::fabs(state.timeline_points.front().timestamp - 1700000102.0) < 0.0001, "capacity: front timestamp");
     return ok;
 }
 
@@ -260,7 +405,7 @@ bool test_last_good_reused_on_telemetry_failure() {
 int main() {
     int failures = 0;
 
-    if (!test_happy_path()) {
+    if (!test_happy_path_prefers_dvr()) {
         ++failures;
     }
     if (!test_telemetry_missing()) {
@@ -272,7 +417,13 @@ int main() {
     if (!test_bounds_sanitized()) {
         ++failures;
     }
-    if (!test_last_good_reused_on_telemetry_failure()) {
+    if (!test_last_good_reused_on_telemetry_failure_preserves_timeline()) {
+        ++failures;
+    }
+    if (!test_falls_back_to_live_when_dvr_unavailable()) {
+        ++failures;
+    }
+    if (!test_live_ring_respects_capacity()) {
         ++failures;
     }
 

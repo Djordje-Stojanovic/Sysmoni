@@ -29,6 +29,7 @@
 #include "aura_shell/dock_model.hpp"
 #include "aura_shell/render_bridge.hpp"
 #include "aura_shell/telemetry_bridge.hpp"
+#include "aura_shell/timeline_bridge.hpp"
 
 namespace {
 
@@ -83,6 +84,18 @@ QString panel_title(const aura::shell::PanelId panel_id) {
             return QStringLiteral("Render");
     }
     return QStringLiteral("Unknown");
+}
+
+QString timeline_source_label(const aura::shell::TimelineSource source) {
+    switch (source) {
+        case aura::shell::TimelineSource::None:
+            return QStringLiteral("none");
+        case aura::shell::TimelineSource::Live:
+            return QStringLiteral("live");
+        case aura::shell::TimelineSource::Dvr:
+            return QStringLiteral("dvr");
+    }
+    return QStringLiteral("unknown");
 }
 
 int interval_to_milliseconds(const double interval_seconds) {
@@ -168,6 +181,7 @@ public:
         controller_ = std::make_unique<aura::shell::CockpitController>(
             std::make_unique<aura::shell::TelemetryBridge>(),
             std::make_unique<aura::shell::RenderBridge>(),
+            std::make_unique<aura::shell::TimelineBridge>(),
             std::move(controller_config)
         );
 
@@ -369,10 +383,7 @@ private:
 
         {
             auto* timeline_layout = create_panel_page(PanelId::DvrTimeline, QStringLiteral("DVR Timeline"));
-            timeline_status_ = new QLabel(
-                "Timeline panel ready. Runtime timeline query hookup remains session-local placeholder in this native shell window.",
-                panel_pages_[panel_index(PanelId::DvrTimeline)]
-            );
+            timeline_status_ = new QLabel("Awaiting timeline samples...", panel_pages_[panel_index(PanelId::DvrTimeline)]);
             timeline_status_->setWordWrap(true);
             timeline_layout->addWidget(timeline_status_);
             timeline_layout->addStretch(1);
@@ -510,10 +521,7 @@ private:
         telemetry_status_->setText(QString::fromStdString(state.status_line));
         process_status_->setText(QString::fromStdString(state.status_line));
         render_status_->setText(QString::fromStdString(state.status_line));
-        timeline_status_->setText(
-            QString("Timeline panel ready. Live runtime timeline feed pending in this shell pass. status=%1")
-                .arg(QString::fromStdString(state.status_line))
-        );
+        timeline_status_->setText(QString::fromStdString(state.timeline_line));
 
         for (std::size_t i = 0; i < process_labels_.size(); ++i) {
             const QString line = i < state.process_rows.size()
@@ -523,12 +531,13 @@ private:
         }
 
         footer_status_->setText(
-            QString("interval=%1  persist=%2  db=%3  telemetry=%4  render=%5")
+            QString("interval=%1  persist=%2  db=%3  telemetry=%4  render=%5  timeline=%6")
                 .arg(config_.interval_seconds)
                 .arg(config_.persistence_enabled ? "on" : "off")
                 .arg(config_.db_path.value_or("<none>"))
                 .arg(state.telemetry_available ? "ok" : "degraded")
                 .arg(state.render_available ? "ok" : "fallback")
+                .arg(timeline_source_label(state.timeline_source))
         );
 
         if (quick_ != nullptr && quick_->rootObject() != nullptr) {
