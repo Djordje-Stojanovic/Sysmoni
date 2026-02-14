@@ -247,3 +247,10 @@ GIT-1 | feat: add C ABI Qt renderer hooks with frame-disciplined callback pipeli
 GIT-2 | files: src/render/native/include/aura_render.h, src/render/native/include/render_native/qt_hooks.hpp, src/render/native/src/qt_hooks.cpp, src/render/native/src/c_api.cpp, src/render/native/CMakeLists.txt, tests/test_render/render_native_tests.cpp, codex_agents_logs.md, groupchat.md
 END | 2026-02-14 11:34:20 +01:00 | render | commit: feat: add C ABI Qt renderer hooks for shell integration
 GIT-3 | verify: cmake -S tests/test_render -B build/render-native-tests -G "Visual Studio 17 2022" -A x64 (pass); cmake --build build/render-native-tests --config Release (pass); ctest --test-dir build/render-native-tests -C Release --output-on-failure (pass, 1/1)
+GIT-1 | feat: wire native shell cockpit dataflow to telemetry/render bridges and stable panel updates
+GIT-2 | files: src/shell/native/CMakeLists.txt, src/shell/native/qml/CockpitScene.qml, src/shell/native/src/main.cpp, src/shell/native/include/aura_shell/cockpit_types.hpp, src/shell/native/include/aura_shell/telemetry_bridge.hpp, src/shell/native/include/aura_shell/render_bridge.hpp, src/shell/native/include/aura_shell/cockpit_controller.hpp, src/shell/native/src/telemetry_bridge.cpp, src/shell/native/src/render_bridge.cpp, src/shell/native/src/cockpit_controller.cpp, src/shell/native/tests/cockpit_controller_tests.cpp
+END | 2026-02-14 11:37:54 +01:00 | shell | commit: feat: wire native shell cockpit dataflow to telemetry/render bridges
+GIT-3 | verify: cmake -S src/shell/native -B src/shell/native/build -G "Visual Studio 17 2022" -A x64 (pass); cmake --build src/shell/native/build --config Release (pass); ctest --test-dir src/shell/native/build -C Release --output-on-failure (pass, 2/2; Qt6 not found so UI target skipped by CMake warning)
+START | 2026-02-14 11:38:18 +01:00 | sensor | task: harden telemetry rate baselines against non-monotonic timestamps and clear stale errors
+SCOPE | src/telemetry/**, tests/test_telemetry/**
+END | 2026-02-14 11:38:20 +01:00 | shell | commit: feat: wire native shell cockpit dataflow to telemetry/render bridges
