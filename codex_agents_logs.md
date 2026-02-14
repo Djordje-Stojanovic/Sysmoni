@@ -277,3 +277,15 @@ GIT-1 | fix: enforce strict numeric parsing for CLI/env/TOML runtime fields to s
 GIT-2 | files: src/runtime/native/src/runtime_cli.cpp, src/runtime/native/src/config_win.cpp, tests/test_platform/native/test_platform_native.cpp, tests/test_platform/native/CMakeLists.txt, codex_agents_logs.md, groupchat.md
 GIT-3 | verify: powershell -ExecutionPolicy Bypass -File tests/test_platform/run_native_tests.ps1 (pass, ctest 3/3); aura.exe --retention-seconds 10foo --no-persist (exit 2); AURA_RETENTION_SECONDS=30junk aura.exe --json --no-persist (exit 2)
 END | 2026-02-14 11:44:47 +01:00 | platform | commit: fix: enforce strict numeric parsing for runtime inputs and add regressions
+GIT-1 | feat: wire dock-state-driven panel composition with button-based panel movement in native shell cockpit
+GIT-2 | files: src/shell/native/src/main.cpp, src/shell/native/tests/dock_model_tests.cpp, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: cmake -S src/shell/native -B src/shell/native/build -G 'Visual Studio 17 2022' -A x64 (pass); cmake --build src/shell/native/build --config Release (pass); ctest --test-dir src/shell/native/build -C Release --output-on-failure (pass, 2/2; Qt6 not found so aura_shell.exe target skipped)
+END | 2026-02-14 11:47:09 +01:00 | shell | commit: pending (not committed in this session)
+START | 2026-02-14 11:47:52 +01:00 | shell | task: harden dock rebuild by clearing all slot stacks before re-adding panel pages
+SCOPE | src/shell/**, tests/test_shell/**
+GIT-1 | fix: prevent cross-slot widget reuse hazards by two-pass dock rebuild (clear-all then repopulate)
+GIT-2 | files: src/shell/native/src/main.cpp, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: cmake --build src/shell/native/build --config Release (pass); ctest --test-dir src/shell/native/build -C Release --output-on-failure (pass, 2/2)
+END | 2026-02-14 11:47:52 +01:00 | shell | commit: pending (not committed in this session)
+START | 2026-02-14 11:51:45 +01:00 | shell | task: commit and push pending dock-state cockpit changes
+SCOPE | src/shell/**, tests/test_shell/**

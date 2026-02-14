@@ -10,6 +10,8 @@
 #include <QObject>
 #include <QPushButton>
 #include <QQuickWidget>
+#include <QStackedWidget>
+#include <QTabBar>
 #include <QTimer>
 #include <QUrl>
 #include <QVBoxLayout>
@@ -21,6 +23,7 @@
 #include <cmath>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 
 #include "aura_shell/cockpit_controller.hpp"
 #include "aura_shell/dock_model.hpp"
@@ -35,6 +38,52 @@ struct LaunchConfig {
     std::optional<QString> db_path;
     std::optional<double> retention_seconds;
 };
+
+constexpr std::size_t slot_index(const aura::shell::DockSlot slot) {
+    return static_cast<std::size_t>(slot);
+}
+
+constexpr std::size_t panel_index(const aura::shell::PanelId panel_id) {
+    return static_cast<std::size_t>(panel_id);
+}
+
+QString slot_title(const aura::shell::DockSlot slot) {
+    switch (slot) {
+        case aura::shell::DockSlot::Left:
+            return QStringLiteral("LEFT");
+        case aura::shell::DockSlot::Center:
+            return QStringLiteral("CENTER");
+        case aura::shell::DockSlot::Right:
+            return QStringLiteral("RIGHT");
+    }
+    return QStringLiteral("UNKNOWN");
+}
+
+QString slot_short_label(const aura::shell::DockSlot slot) {
+    switch (slot) {
+        case aura::shell::DockSlot::Left:
+            return QStringLiteral("L");
+        case aura::shell::DockSlot::Center:
+            return QStringLiteral("C");
+        case aura::shell::DockSlot::Right:
+            return QStringLiteral("R");
+    }
+    return QStringLiteral("?");
+}
+
+QString panel_title(const aura::shell::PanelId panel_id) {
+    switch (panel_id) {
+        case aura::shell::PanelId::TelemetryOverview:
+            return QStringLiteral("Telemetry");
+        case aura::shell::PanelId::TopProcesses:
+            return QStringLiteral("Processes");
+        case aura::shell::PanelId::DvrTimeline:
+            return QStringLiteral("Timeline");
+        case aura::shell::PanelId::RenderSurface:
+            return QStringLiteral("Render");
+    }
+    return QStringLiteral("Unknown");
+}
 
 int interval_to_milliseconds(const double interval_seconds) {
     if (!std::isfinite(interval_seconds) || interval_seconds <= 0.0) {
@@ -90,7 +139,8 @@ LaunchConfig parse_args(QCoreApplication& app) {
 
 struct SlotWidgets {
     QFrame* frame;
-    QVBoxLayout* layout;
+    QTabBar* tab_bar;
+    QStackedWidget* stack;
 };
 
 class AuraShellWindow final : public QMainWindow {
@@ -158,40 +208,20 @@ public:
         body_layout->setContentsMargins(12, 12, 12, 12);
         body_layout->setSpacing(10);
 
-        const auto left_slot = build_slot("LEFT");
-        left_cpu_ = new QLabel("CPU --", left_slot.frame);
-        left_memory_ = new QLabel("Memory --", left_slot.frame);
-        left_timestamp_ = new QLabel("Timestamp --", left_slot.frame);
-        left_slot.layout->addWidget(left_cpu_);
-        left_slot.layout->addWidget(left_memory_);
-        left_slot.layout->addWidget(left_timestamp_);
-        left_slot.layout->addStretch(1);
-
-        const auto center_slot = build_slot("CENTER");
-        center_status_ = new QLabel("Cockpit scene online", center_slot.frame);
-        center_status_->setWordWrap(true);
-
-        quick_ = new QQuickWidget(center_slot.frame);
-        quick_->setResizeMode(QQuickWidget::SizeRootObjectToView);
-        quick_->setSource(QUrl::fromLocalFile(QStringLiteral(AURA_SHELL_QML_PATH)));
-        quick_->setMinimumHeight(340);
-        center_slot.layout->addWidget(quick_);
-        center_slot.layout->addWidget(center_status_);
-
-        const auto right_slot = build_slot("RIGHT");
-        right_status_ = new QLabel("Initializing bridges...", right_slot.frame);
-        right_status_->setWordWrap(true);
-        right_slot.layout->addWidget(right_status_);
-        for (QLabel*& process_label : process_labels_) {
-            process_label = new QLabel("-", right_slot.frame);
-            process_label->setTextInteractionFlags(Qt::TextSelectableByMouse);
-            right_slot.layout->addWidget(process_label);
+        for (const auto slot : aura::shell::all_dock_slots()) {
+            const std::size_t index = slot_index(slot);
+            slot_widgets_[index] = build_slot(slot, body);
+            connect(slot_widgets_[index].tab_bar, &QTabBar::currentChanged, this, [this, slot](const int tab_index) {
+                on_tab_changed(slot, tab_index);
+            });
+            body_layout->addWidget(
+                slot_widgets_[index].frame,
+                slot == aura::shell::DockSlot::Center ? 2 : 1
+            );
         }
-        right_slot.layout->addStretch(1);
 
-        body_layout->addWidget(left_slot.frame, 1);
-        body_layout->addWidget(center_slot.frame, 2);
-        body_layout->addWidget(right_slot.frame, 1);
+        build_panel_pages();
+        rebuild_dock_slots();
         root_layout->addWidget(body, 1);
 
         footer_status_ = new QLabel(
@@ -247,17 +277,226 @@ protected:
     }
 
 private:
-    static SlotWidgets build_slot(const QString& title) {
-        auto* frame = new QFrame();
+    SlotWidgets build_slot(const aura::shell::DockSlot slot, QWidget* parent) {
+        auto* frame = new QFrame(parent);
         frame->setObjectName("slot");
         auto* layout = new QVBoxLayout(frame);
         layout->setContentsMargins(10, 10, 10, 10);
         layout->setSpacing(8);
 
-        auto* title_label = new QLabel(title, frame);
-
+        auto* title_label = new QLabel(slot_title(slot), frame);
+        auto* tab_bar = new QTabBar(frame);
+        tab_bar->setDocumentMode(true);
+        tab_bar->setExpanding(true);
+        tab_bar->setMovable(false);
+        tab_bar->setUsesScrollButtons(true);
+        auto* stack = new QStackedWidget(frame);
         layout->addWidget(title_label);
-        return {frame, layout};
+        layout->addWidget(tab_bar);
+        layout->addWidget(stack, 1);
+        return {
+            frame,
+            tab_bar,
+            stack,
+        };
+    }
+
+    QVBoxLayout* create_panel_page(const aura::shell::PanelId panel_id, const QString& title) {
+        auto* page = new QWidget(this);
+        panel_pages_[panel_index(panel_id)] = page;
+
+        auto* page_layout = new QVBoxLayout(page);
+        page_layout->setContentsMargins(0, 0, 0, 0);
+        page_layout->setSpacing(8);
+
+        auto* header_layout = new QHBoxLayout();
+        header_layout->setContentsMargins(0, 0, 0, 0);
+        header_layout->setSpacing(6);
+        header_layout->addWidget(new QLabel(title, page));
+        header_layout->addStretch(1);
+        header_layout->addWidget(new QLabel("Move", page));
+
+        for (const auto slot : aura::shell::all_dock_slots()) {
+            auto* move_button = new QPushButton(slot_short_label(slot), page);
+            connect(move_button, &QPushButton::clicked, this, [this, panel_id, slot]() {
+                move_panel_to_slot(panel_id, slot);
+            });
+            panel_move_buttons_[panel_index(panel_id)][slot_index(slot)] = move_button;
+            header_layout->addWidget(move_button);
+        }
+
+        page_layout->addLayout(header_layout);
+
+        auto* content_layout = new QVBoxLayout();
+        content_layout->setContentsMargins(0, 0, 0, 0);
+        content_layout->setSpacing(6);
+        page_layout->addLayout(content_layout, 1);
+        return content_layout;
+    }
+
+    void build_panel_pages() {
+        using aura::shell::PanelId;
+
+        {
+            auto* telemetry_layout =
+                create_panel_page(PanelId::TelemetryOverview, QStringLiteral("Telemetry Overview"));
+            telemetry_cpu_ = new QLabel("CPU --", panel_pages_[panel_index(PanelId::TelemetryOverview)]);
+            telemetry_memory_ = new QLabel("Memory --", panel_pages_[panel_index(PanelId::TelemetryOverview)]);
+            telemetry_timestamp_ = new QLabel("Timestamp --", panel_pages_[panel_index(PanelId::TelemetryOverview)]);
+            telemetry_status_ =
+                new QLabel("Awaiting telemetry snapshot...", panel_pages_[panel_index(PanelId::TelemetryOverview)]);
+            telemetry_status_->setWordWrap(true);
+
+            telemetry_layout->addWidget(telemetry_cpu_);
+            telemetry_layout->addWidget(telemetry_memory_);
+            telemetry_layout->addWidget(telemetry_timestamp_);
+            telemetry_layout->addWidget(telemetry_status_);
+            telemetry_layout->addStretch(1);
+        }
+
+        {
+            auto* processes_layout = create_panel_page(PanelId::TopProcesses, QStringLiteral("Top Processes"));
+            process_status_ = new QLabel("Waiting for process samples...", panel_pages_[panel_index(PanelId::TopProcesses)]);
+            process_status_->setWordWrap(true);
+            processes_layout->addWidget(process_status_);
+            for (QLabel*& process_label : process_labels_) {
+                process_label = new QLabel("-", panel_pages_[panel_index(PanelId::TopProcesses)]);
+                process_label->setTextInteractionFlags(Qt::TextSelectableByMouse);
+                processes_layout->addWidget(process_label);
+            }
+            processes_layout->addStretch(1);
+        }
+
+        {
+            auto* timeline_layout = create_panel_page(PanelId::DvrTimeline, QStringLiteral("DVR Timeline"));
+            timeline_status_ = new QLabel(
+                "Timeline panel ready. Runtime timeline query hookup remains session-local placeholder in this native shell window.",
+                panel_pages_[panel_index(PanelId::DvrTimeline)]
+            );
+            timeline_status_->setWordWrap(true);
+            timeline_layout->addWidget(timeline_status_);
+            timeline_layout->addStretch(1);
+        }
+
+        {
+            auto* render_layout = create_panel_page(PanelId::RenderSurface, QStringLiteral("Render Surface"));
+            quick_ = new QQuickWidget(panel_pages_[panel_index(PanelId::RenderSurface)]);
+            quick_->setResizeMode(QQuickWidget::SizeRootObjectToView);
+            quick_->setSource(QUrl::fromLocalFile(QStringLiteral(AURA_SHELL_QML_PATH)));
+            quick_->setMinimumHeight(340);
+            render_status_ = new QLabel("Cockpit scene online", panel_pages_[panel_index(PanelId::RenderSurface)]);
+            render_status_->setWordWrap(true);
+            render_layout->addWidget(quick_, 1);
+            render_layout->addWidget(render_status_);
+        }
+    }
+
+    std::optional<aura::shell::DockSlot> panel_slot(const aura::shell::PanelId panel_id) const {
+        for (const auto slot : aura::shell::all_dock_slots()) {
+            const auto& tabs = dock_state_.slot_tabs[slot_index(slot)];
+            if (std::find(tabs.begin(), tabs.end(), panel_id) != tabs.end()) {
+                return slot;
+            }
+        }
+        return std::nullopt;
+    }
+
+    void rebuild_dock_slots() {
+        syncing_tabs_ = true;
+        for (const auto slot : aura::shell::all_dock_slots()) {
+            const std::size_t slot_idx = slot_index(slot);
+            auto& slot_widgets = slot_widgets_[slot_idx];
+
+            slot_widgets.tab_bar->clear();
+            while (slot_widgets.stack->count() > 0) {
+                slot_widgets.stack->removeWidget(slot_widgets.stack->widget(0));
+            }
+        }
+
+        for (const auto slot : aura::shell::all_dock_slots()) {
+            const std::size_t slot_idx = slot_index(slot);
+            auto& slot_widgets = slot_widgets_[slot_idx];
+
+            const auto& tabs = dock_state_.slot_tabs[slot_idx];
+            for (const auto panel_id : tabs) {
+                slot_widgets.tab_bar->addTab(panel_title(panel_id));
+                QWidget* page = panel_pages_[panel_index(panel_id)];
+                if (page != nullptr) {
+                    slot_widgets.stack->addWidget(page);
+                }
+            }
+
+            if (tabs.empty()) {
+                slot_widgets.tab_bar->setCurrentIndex(-1);
+                slot_widgets.stack->setCurrentIndex(-1);
+                continue;
+            }
+
+            const int active_tab = static_cast<int>(std::min(
+                dock_state_.active_tab[slot_idx],
+                tabs.size() - 1U
+            ));
+            slot_widgets.tab_bar->setCurrentIndex(active_tab);
+            slot_widgets.stack->setCurrentIndex(active_tab);
+        }
+        syncing_tabs_ = false;
+        update_move_button_states();
+    }
+
+    void on_tab_changed(const aura::shell::DockSlot slot, const int tab_index) {
+        if (syncing_tabs_ || tab_index < 0) {
+            return;
+        }
+
+        const std::size_t slot_idx = slot_index(slot);
+        const auto tab_count = dock_state_.slot_tabs[slot_idx].size();
+        if (tab_count == 0U || static_cast<std::size_t>(tab_index) >= tab_count) {
+            return;
+        }
+
+        try {
+            dock_state_ = aura::shell::set_active_tab(dock_state_, slot, static_cast<std::size_t>(tab_index));
+        } catch (const std::invalid_argument&) {
+            return;
+        }
+
+        syncing_tabs_ = true;
+        slot_widgets_[slot_idx].stack->setCurrentIndex(tab_index);
+        syncing_tabs_ = false;
+        update_move_button_states();
+    }
+
+    void move_panel_to_slot(
+        const aura::shell::PanelId panel_id,
+        const aura::shell::DockSlot target_slot
+    ) {
+        try {
+            dock_state_ = aura::shell::move_panel(
+                dock_state_,
+                aura::shell::PanelMoveRequest{
+                    panel_id,
+                    target_slot,
+                    std::nullopt,
+                }
+            );
+        } catch (const std::invalid_argument&) {
+            return;
+        }
+        rebuild_dock_slots();
+    }
+
+    void update_move_button_states() {
+        for (const auto panel_id : aura::shell::all_panel_ids()) {
+            const std::optional<aura::shell::DockSlot> source_slot = panel_slot(panel_id);
+            for (const auto target_slot : aura::shell::all_dock_slots()) {
+                QPushButton* button = panel_move_buttons_[panel_index(panel_id)][slot_index(target_slot)];
+                if (button == nullptr) {
+                    continue;
+                }
+                const bool disable = source_slot.has_value() && *source_slot == target_slot;
+                button->setEnabled(!disable);
+            }
+        }
     }
 
     void refresh_cockpit() {
@@ -265,11 +504,16 @@ private:
             return;
         }
         const auto state = controller_->tick(config_.interval_seconds);
-        left_cpu_->setText(QString::fromStdString(state.cpu_line));
-        left_memory_->setText(QString::fromStdString(state.memory_line));
-        left_timestamp_->setText(QString::fromStdString(state.timestamp_line));
-        center_status_->setText(QString::fromStdString(state.status_line));
-        right_status_->setText(QString::fromStdString(state.status_line));
+        telemetry_cpu_->setText(QString::fromStdString(state.cpu_line));
+        telemetry_memory_->setText(QString::fromStdString(state.memory_line));
+        telemetry_timestamp_->setText(QString::fromStdString(state.timestamp_line));
+        telemetry_status_->setText(QString::fromStdString(state.status_line));
+        process_status_->setText(QString::fromStdString(state.status_line));
+        render_status_->setText(QString::fromStdString(state.status_line));
+        timeline_status_->setText(
+            QString("Timeline panel ready. Live runtime timeline feed pending in this shell pass. status=%1")
+                .arg(QString::fromStdString(state.status_line))
+        );
 
         for (std::size_t i = 0; i < process_labels_.size(); ++i) {
             const QString line = i < state.process_rows.size()
@@ -298,14 +542,21 @@ private:
 
     LaunchConfig config_{};
     std::unique_ptr<aura::shell::CockpitController> controller_;
+    aura::shell::DockState dock_state_{aura::shell::build_default_dock_state()};
+    std::array<SlotWidgets, 3> slot_widgets_{};
+    std::array<QWidget*, 4> panel_pages_{};
+    std::array<std::array<QPushButton*, 3>, 4> panel_move_buttons_{};
+    bool syncing_tabs_{false};
     QFrame* titlebar_{nullptr};
     QQuickWidget* quick_{nullptr};
     QTimer* update_timer_{nullptr};
-    QLabel* left_cpu_{nullptr};
-    QLabel* left_memory_{nullptr};
-    QLabel* left_timestamp_{nullptr};
-    QLabel* center_status_{nullptr};
-    QLabel* right_status_{nullptr};
+    QLabel* telemetry_cpu_{nullptr};
+    QLabel* telemetry_memory_{nullptr};
+    QLabel* telemetry_timestamp_{nullptr};
+    QLabel* telemetry_status_{nullptr};
+    QLabel* process_status_{nullptr};
+    QLabel* timeline_status_{nullptr};
+    QLabel* render_status_{nullptr};
     QLabel* footer_status_{nullptr};
     std::array<QLabel*, 5> process_labels_{};
     bool dragging_{false};
