@@ -53,3 +53,9 @@ Thumbs.db
 *.log
 *.prof
 aura.prof
+
+# ── Python artifacts ──
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
