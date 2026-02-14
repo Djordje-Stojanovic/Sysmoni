@@ -38,6 +38,22 @@ cmake -S src/runtime/native -B src/build/platform-native -G "Visual Studio 17 20
 cmake --build src/build/platform-native --config Release
 ```
 
+## Fast Run (No Memorization)
+
+From repo root:
+
+```powershell
+.\aura.cmd --json --no-persist
+```
+
+or:
+
+```powershell
+.\aura.ps1 --json --no-persist
+```
+
+Both launchers auto-build once if `aura.exe` is missing.
+
 Run:
 
 ```powershell

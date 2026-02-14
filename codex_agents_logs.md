@@ -213,3 +213,7 @@ GIT-1 | fix: remove residual platform python junk and harden native build/runtim
 GIT-2 | files: src/runtime/native/src/runtime_cli.cpp, src/runtime/native/src/c_api.cpp, src/runtime/native/src/config_win.cpp, src/runtime/native/README.md, tests/test_platform/CMakeLists.txt, tests/test_platform/native/CMakeLists.txt, tests/test_platform/README.md, tests/test_platform/run_native_tests.ps1, installer/windows/build_platform_native.ps1
 GIT-3 | verify: rg --files src/runtime -g *.py (none); rg --files tests/test_platform -g *.py (none); no __pycache__ under both paths; powershell -File tests/test_platform/run_native_tests.ps1 -Generator 'Visual Studio 17 2022' -Arch x64 (pass, ctest 100%); build/platform-native-vs/Release/aura.exe --json --count 1 --watch --no-persist (pass)
 END | 2026-02-14 01:37:59 +01:00 | platform | commit: fix: remove remaining platform python artifacts and harden native scripts
+GIT-1 | feat: add simple one-command aura launcher for native runtime
+GIT-2 | files: aura.cmd, aura.ps1, README.md, RUN_WINDOWS11.md
+GIT-3 | verify: cmd /c aura.cmd --json --no-persist (pass, auto-build then run)
+END | 2026-02-14 01:45:00 +01:00 | platform | commit: feat: add one-command native launcher

@@ -3,6 +3,9 @@
 From repo root:
 
 ```powershell
+# fastest: auto-build + run
+.\aura.cmd --json --no-persist
+
 # Verify toolchain in this shell
 cmake --version
 cl
