@@ -43,6 +43,45 @@ double clamp_percent_100(const double value) {
     return std::clamp(value, 0.0, 100.0);
 }
 
+int clamp_severity_level(const int value) {
+    return std::clamp(value, 0, 3);
+}
+
+int clamp_quality_hint(const int value) {
+    return value > 0 ? 1 : 0;
+}
+
+int recommended_delay_ms(const double next_delay_seconds, const int quality_hint) {
+    double delay_seconds = std::isfinite(next_delay_seconds) && next_delay_seconds > 0.0
+                               ? next_delay_seconds
+                               : (1.0 / 60.0);
+    if (quality_hint > 0) {
+        delay_seconds = std::max(delay_seconds, 1.0 / 45.0);
+    }
+    return std::clamp(static_cast<int>(std::llround(delay_seconds * 1000.0)), 16, 1000);
+}
+
+int fps_from_delay_ms(const int delay_ms) {
+    const int safe_delay_ms = std::max(1, delay_ms);
+    return std::clamp(static_cast<int>(std::lround(1000.0 / static_cast<double>(safe_delay_ms))), 1, 120);
+}
+
+int count_timeline_anomalies(const std::vector<TimelinePoint>& points) {
+    if (points.size() < 2U) {
+        return 0;
+    }
+
+    int count = 0;
+    for (std::size_t i = 1; i < points.size(); ++i) {
+        const double cpu_jump = std::fabs(points[i].cpu_percent - points[i - 1U].cpu_percent);
+        const double memory_jump = std::fabs(points[i].memory_percent - points[i - 1U].memory_percent);
+        if (cpu_jump >= 15.0 || memory_jump >= 15.0) {
+            ++count;
+        }
+    }
+    return count;
+}
+
 RenderStyleTokens fallback_style_tokens(
     const double phase,
     const double accent_intensity,
@@ -70,6 +109,10 @@ RenderStyleTokens fallback_style_tokens(
     tokens.ring_glow_strength = tokens.accent_intensity;
     tokens.cpu_alpha = clamp_unit(0.30 + clamp_percent_100(cpu_percent) / 100.0 * 0.70);
     tokens.memory_alpha = clamp_unit(0.30 + clamp_percent_100(memory_percent) / 100.0 * 0.70);
+    tokens.severity_level = 0;
+    tokens.motion_scale = 1.0;
+    tokens.quality_hint = 0;
+    tokens.timeline_anomaly_alpha = 0.05;
     return tokens;
 }
 
@@ -218,6 +261,13 @@ CockpitUiState CockpitController::tick(
                 render_error.empty() ? "Render backend unavailable." : render_error;
         }
     }
+
+    state.severity_level = clamp_severity_level(state.style_tokens.severity_level);
+    state.motion_scale = std::clamp(state.style_tokens.motion_scale, 0.60, 1.00);
+    state.quality_hint = clamp_quality_hint(state.style_tokens.quality_hint);
+    state.fps_recommended_delay_ms =
+        recommended_delay_ms(state.style_tokens.next_delay_seconds, state.quality_hint);
+    state.fps_target = fps_from_delay_ms(state.fps_recommended_delay_ms);
 
     SnapshotLines lines = fallback_snapshot_lines(state.timestamp, state.cpu_percent, state.memory_percent);
     if (state.render_available) {
@@ -369,12 +419,14 @@ std::string CockpitController::timeline_source_to_string(const TimelineSource so
 std::string CockpitController::fallback_timeline_line(
     const TimelineSource source,
     const std::size_t point_count,
+    const int anomaly_count,
     const double cpu_percent,
     const double memory_percent
 ) {
     std::ostringstream timeline;
     timeline << "timeline=" << timeline_source_to_string(source);
     timeline << " points=" << point_count;
+    timeline << " anomalies=" << std::max(0, anomaly_count);
     timeline << " cpu_now=" << std::fixed << std::setprecision(1) << clamp_percent(cpu_percent) << "%";
     timeline << " mem_now=" << std::fixed << std::setprecision(1) << clamp_percent(memory_percent) << "%";
     return timeline.str();
@@ -476,9 +528,11 @@ void CockpitController::populate_timeline_state(
         state.timeline_points.clear();
     }
 
+    state.timeline_anomaly_count = count_timeline_anomalies(state.timeline_points);
     state.timeline_line = fallback_timeline_line(
         state.timeline_source,
         state.timeline_points.size(),
+        state.timeline_anomaly_count,
         state.cpu_percent,
         state.memory_percent
     );
@@ -508,7 +562,7 @@ CockpitUiState CockpitController::degraded_from_last_state(
         state.timestamp = timestamp;
         state.telemetry_available = false;
         state.degraded = true;
-        state.status_line = "Telemetry degraded: " + reason;
+        state.status_line = "Telemetry degraded; using last-known-good state: " + reason;
         return state;
     }
 
@@ -524,8 +578,9 @@ CockpitUiState CockpitController::degraded_from_last_state(
     state.timestamp_line = lines.timestamp;
     state.process_rows.push_back("<telemetry unavailable>");
     state.timeline_source = TimelineSource::None;
-    state.timeline_line = fallback_timeline_line(TimelineSource::None, 0U, 0.0, 0.0);
-    state.status_line = "Telemetry degraded: " + reason;
+    state.timeline_anomaly_count = 0;
+    state.timeline_line = fallback_timeline_line(TimelineSource::None, 0U, 0, 0.0, 0.0);
+    state.status_line = "Telemetry degraded; live fallback active: " + reason;
     state.style_tokens = fallback_style_tokens(frame_phase_, 0.0, 0.0, 0.0);
     state.style_tokens_available = false;
     state.style_token_error = reason;

@@ -45,6 +45,10 @@ struct RenderStyleTokens {
     double ring_glow_strength{0.25};
     double cpu_alpha{0.70};
     double memory_alpha{0.70};
+    int severity_level{0};
+    double motion_scale{1.0};
+    int quality_hint{0};
+    double timeline_anomaly_alpha{0.05};
 };
 
 struct TimelinePoint {
@@ -64,6 +68,12 @@ struct CockpitUiState {
     double cpu_percent{0.0};
     double memory_percent{0.0};
     double accent_intensity{0.0};
+    int severity_level{0};
+    double motion_scale{1.0};
+    int quality_hint{0};
+    int timeline_anomaly_count{0};
+    int fps_target{60};
+    int fps_recommended_delay_ms{16};
     bool telemetry_available{false};
     bool render_available{false};
     bool degraded{false};

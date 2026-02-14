@@ -119,6 +119,10 @@ public:
         tokens.ring_glow_strength = tokens.accent_intensity;
         tokens.cpu_alpha = std::clamp(0.3 + sanitize_percent(cpu_percent) / 100.0 * 0.7, 0.0, 1.0);
         tokens.memory_alpha = std::clamp(0.3 + sanitize_percent(memory_percent) / 100.0 * 0.7, 0.0, 1.0);
+        tokens.severity_level = tokens.accent_intensity > 0.8 ? 3 : (tokens.accent_intensity > 0.6 ? 2 : 1);
+        tokens.motion_scale = tokens.severity_level >= 2 ? 0.75 : 0.95;
+        tokens.quality_hint = tokens.severity_level >= 2 ? 1 : 0;
+        tokens.timeline_anomaly_alpha = std::clamp(tokens.accent_intensity, 0.05, 1.0);
         return tokens;
     }
 
@@ -260,6 +264,8 @@ bool style_tokens_valid(const aura::shell::RenderStyleTokens& tokens) {
            std::isfinite(tokens.ring_glow_strength) &&
            std::isfinite(tokens.cpu_alpha) &&
            std::isfinite(tokens.memory_alpha) &&
+           std::isfinite(tokens.motion_scale) &&
+           std::isfinite(tokens.timeline_anomaly_alpha) &&
            tokens.phase >= 0.0 &&
            tokens.phase < 1.0 &&
            tokens.next_delay_seconds >= 0.0 &&
@@ -284,7 +290,14 @@ bool style_tokens_valid(const aura::shell::RenderStyleTokens& tokens) {
            tokens.cpu_alpha >= 0.0 &&
            tokens.cpu_alpha <= 1.0 &&
            tokens.memory_alpha >= 0.0 &&
-           tokens.memory_alpha <= 1.0;
+           tokens.memory_alpha <= 1.0 &&
+           tokens.severity_level >= 0 &&
+           tokens.severity_level <= 3 &&
+           tokens.motion_scale >= 0.60 &&
+           tokens.motion_scale <= 1.0 &&
+           (tokens.quality_hint == 0 || tokens.quality_hint == 1) &&
+           tokens.timeline_anomaly_alpha >= 0.0 &&
+           tokens.timeline_anomaly_alpha <= 1.0;
 }
 
 bool test_happy_path_prefers_dvr() {
@@ -314,6 +327,10 @@ bool test_happy_path_prefers_dvr() {
     ok &= expect_true(state.style_tokens_available, "happy: style tokens available");
     ok &= expect_true(style_tokens_valid(state.style_tokens), "happy: style token ranges");
     ok &= expect_true(state.style_token_error.empty(), "happy: no style token error");
+    ok &= expect_true(state.severity_level >= 0 && state.severity_level <= 3, "happy: severity range");
+    ok &= expect_true(state.motion_scale >= 0.60 && state.motion_scale <= 1.0, "happy: motion scale range");
+    ok &= expect_true(state.fps_target >= 1 && state.fps_target <= 120, "happy: fps target");
+    ok &= expect_true(state.fps_recommended_delay_ms >= 16, "happy: delay floor");
     ok &= expect_true(contains(state.status_line, "render=ok"), "happy: render status");
     ok &= expect_true(state.timeline_source == aura::shell::TimelineSource::Dvr, "happy: dvr source");
     ok &= expect_true(state.timeline_points.size() >= 8U, "happy: dvr points");
@@ -366,6 +383,8 @@ bool test_render_missing() {
     ok &= expect_true(!state.style_tokens_available, "render-missing: style fallback");
     ok &= expect_true(style_tokens_valid(state.style_tokens), "render-missing: style fallback ranges");
     ok &= expect_true(!state.style_token_error.empty(), "render-missing: style fallback error");
+    ok &= expect_true(state.severity_level == 0, "render-missing: default severity");
+    ok &= expect_true(state.quality_hint == 0, "render-missing: default quality");
     ok &= expect_true(contains(state.status_line, "render=fallback"), "render-missing: fallback status");
     ok &= expect_true(!state.process_rows.empty(), "render-missing: process rows");
     return ok;
@@ -509,6 +528,35 @@ bool test_live_ring_respects_capacity() {
     ok &= expect_true(state.timeline_source == aura::shell::TimelineSource::Live, "capacity: source");
     ok &= expect_true(state.timeline_points.size() == 3U, "capacity: size");
     ok &= expect_true(std::fabs(state.timeline_points.front().timestamp - 1700000102.0) < 0.0001, "capacity: front timestamp");
+    ok &= expect_true(state.timeline_anomaly_count >= 0, "capacity: anomaly count present");
+    return ok;
+}
+
+bool test_anomaly_count_detects_spikes() {
+    auto telemetry = std::make_unique<FakeTelemetryBridge>();
+    auto* telemetry_ptr = telemetry.get();
+    auto render = std::make_unique<FakeRenderBridge>();
+    auto timeline = std::make_unique<FakeTimelineBridge>();
+
+    aura::shell::CockpitController::Config config;
+    config.prefer_dvr_timeline = false;
+    config.timeline_live_capacity = 8U;
+
+    aura::shell::CockpitController controller(
+        std::move(telemetry),
+        std::move(render),
+        std::move(timeline),
+        config
+    );
+
+    static_cast<void>(controller.tick(1.0, 1700000200.0));
+    telemetry_ptr->next_snapshot = aura::shell::TelemetrySnapshot{92.0, 91.0};
+    const aura::shell::CockpitUiState state = controller.tick(1.0, 1700000201.0);
+
+    bool ok = true;
+    ok &= expect_true(state.timeline_source == aura::shell::TimelineSource::Live, "anomaly: live source");
+    ok &= expect_true(state.timeline_anomaly_count >= 1, "anomaly: count spike");
+    ok &= expect_true(contains(state.timeline_line, "anomalies="), "anomaly: line contains anomalies");
     return ok;
 }
 
@@ -539,6 +587,9 @@ int main() {
         ++failures;
     }
     if (!test_live_ring_respects_capacity()) {
+        ++failures;
+    }
+    if (!test_anomaly_count_detects_spikes()) {
         ++failures;
     }
 

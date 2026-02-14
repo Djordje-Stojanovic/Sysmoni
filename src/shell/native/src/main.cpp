@@ -126,11 +126,33 @@ QString style_mode_label(const bool style_tokens_available) {
     return style_tokens_available ? QStringLiteral("ok") : QStringLiteral("fallback");
 }
 
+QString severity_label(const int severity_level) {
+    switch (std::clamp(severity_level, 0, 3)) {
+        case 0:
+            return QStringLiteral("calm");
+        case 1:
+            return QStringLiteral("elevated");
+        case 2:
+            return QStringLiteral("hot");
+        case 3:
+            return QStringLiteral("critical");
+    }
+    return QStringLiteral("calm");
+}
+
+QString quality_label(const int quality_hint) {
+    return quality_hint > 0 ? QStringLiteral("throttled") : QStringLiteral("full");
+}
+
 int interval_to_milliseconds(const double interval_seconds) {
     if (!std::isfinite(interval_seconds) || interval_seconds <= 0.0) {
         return 1000;
     }
-    return std::max(100, static_cast<int>(std::llround(interval_seconds * 1000.0)));
+    return std::clamp(static_cast<int>(std::llround(interval_seconds * 1000.0)), 16, 2000);
+}
+
+int clamp_timer_interval_ms(const int value) {
+    return std::clamp(value, 16, 2000);
 }
 
 LaunchConfig parse_args(QCoreApplication& app) {
@@ -525,9 +547,13 @@ public:
         setMinimumSize(1100, 640);
         setWindowFlags(Qt::FramelessWindowHint | Qt::Window | Qt::WindowMinMaxButtonsHint);
         setStyleSheet(k_app_stylesheet);
+        current_interval_seconds_ =
+            (std::isfinite(config.interval_seconds) && config.interval_seconds > 0.0)
+                ? config.interval_seconds
+                : 1.0;
 
         aura::shell::CockpitController::Config controller_config;
-        controller_config.poll_interval_seconds = config.interval_seconds;
+        controller_config.poll_interval_seconds = current_interval_seconds_;
         controller_config.max_process_rows = process_labels_.size();
         if (config.db_path.has_value()) {
             controller_config.db_path = config.db_path->toStdString();
@@ -651,7 +677,7 @@ public:
         // Refresh timer
         // ---------------------------------------------------------------
         update_timer_ = new QTimer(this);
-        update_timer_->setInterval(interval_to_milliseconds(config_.interval_seconds));
+        update_timer_->setInterval(interval_to_milliseconds(current_interval_seconds_));
         connect(update_timer_, &QTimer::timeout, this, [this]() {
             refresh_cockpit();
         });
@@ -1016,7 +1042,7 @@ private:
         if (!controller_) {
             return;
         }
-        const auto state = controller_->tick(config_.interval_seconds);
+        const auto state = controller_->tick(current_interval_seconds_);
 
         telemetry_cpu_->setText(QString::fromStdString(state.cpu_line));
         telemetry_memory_->setText(QString::fromStdString(state.memory_line));
@@ -1035,14 +1061,18 @@ private:
 
         // Footer — compact status summary
         QString footer_text =
-            QString("interval=%1  persist=%2  db=%3  telemetry=%4  render=%5  timeline=%6  style=%7")
-                .arg(config_.interval_seconds)
+            QString("interval=%1s  persist=%2  db=%3  telemetry=%4  render=%5  timeline=%6  style=%7  sev=%8  quality=%9  fps=%10  anomalies=%11")
+                .arg(current_interval_seconds_, 0, 'f', 3)
                 .arg(config_.persistence_enabled ? "on" : "off")
                 .arg(config_.db_path.value_or("<none>"))
                 .arg(state.telemetry_available ? "ok" : "degraded")
                 .arg(state.render_available ? "ok" : "fallback")
                 .arg(timeline_source_label(state.timeline_source))
-                .arg(style_mode_label(state.style_tokens_available));
+                .arg(style_mode_label(state.style_tokens_available))
+                .arg(severity_label(state.severity_level))
+                .arg(quality_label(state.quality_hint))
+                .arg(state.fps_target)
+                .arg(state.timeline_anomaly_count);
         if (!state.style_token_error.empty()) {
             QString error_text = QString::fromStdString(state.style_token_error);
             if (error_text.size() > 56) {
@@ -1068,7 +1098,19 @@ private:
             root->setProperty("ringGlowStrength", state.style_tokens.ring_glow_strength);
             root->setProperty("cpuAlpha", state.style_tokens.cpu_alpha);
             root->setProperty("memoryAlpha", state.style_tokens.memory_alpha);
+            root->setProperty("severityLevel", state.severity_level);
+            root->setProperty("motionScale", state.motion_scale);
+            root->setProperty("qualityHint", state.quality_hint);
+            root->setProperty("timelineAnomalyAlpha", state.style_tokens.timeline_anomaly_alpha);
             root->setProperty("statusText", QString::fromStdString(state.status_line));
+        }
+
+        if (update_timer_ != nullptr) {
+            const int recommended_interval = clamp_timer_interval_ms(state.fps_recommended_delay_ms);
+            if (update_timer_->interval() != recommended_interval) {
+                update_timer_->setInterval(recommended_interval);
+            }
+            current_interval_seconds_ = static_cast<double>(recommended_interval) / 1000.0;
         }
     }
 
@@ -1076,6 +1118,7 @@ private:
     // Member data
     // -----------------------------------------------------------------------
     LaunchConfig config_{};
+    double current_interval_seconds_{1.0};
     std::unique_ptr<aura::shell::CockpitController> controller_;
     aura::shell::DockState dock_state_{aura::shell::build_default_dock_state()};
     std::array<SlotWidgets, 3> slot_widgets_{};

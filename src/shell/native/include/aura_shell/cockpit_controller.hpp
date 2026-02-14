@@ -53,6 +53,7 @@ private:
     static std::string fallback_timeline_line(
         TimelineSource source,
         std::size_t point_count,
+        int anomaly_count,
         double cpu_percent,
         double memory_percent
     );

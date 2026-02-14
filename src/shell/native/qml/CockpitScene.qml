@@ -20,6 +20,10 @@ Rectangle {
     property real ringGlowStrength: 0.25
     property real cpuAlpha: 0.70
     property real memoryAlpha: 0.70
+    property int severityLevel: 0
+    property real motionScale: 1.0
+    property int qualityHint: 0
+    property real timelineAnomalyAlpha: 0.05
     property string statusText: "Waiting for telemetry..."
 
     // ── Smoothed animated values used by Canvas gauges ───────────────────────
@@ -27,13 +31,13 @@ Rectangle {
     property real smoothMem: 0.0
 
     Behavior on smoothCpu {
-        NumberAnimation { duration: 600; easing.type: Easing.OutCubic }
+        NumberAnimation { duration: Math.max(120, Math.round(600 * root.motionScale)); easing.type: Easing.OutCubic }
     }
     Behavior on smoothMem {
-        NumberAnimation { duration: 600; easing.type: Easing.OutCubic }
+        NumberAnimation { duration: Math.max(120, Math.round(600 * root.motionScale)); easing.type: Easing.OutCubic }
     }
     Behavior on accentIntensity {
-        NumberAnimation { duration: 400; easing.type: Easing.OutCubic }
+        NumberAnimation { duration: Math.max(80, Math.round(400 * root.motionScale)); easing.type: Easing.OutCubic }
     }
 
     onCpuPercentChanged:    { smoothCpu = cpuPercent;    cpuSparkCanvas.pushSample(cpuPercent) }
@@ -41,6 +45,13 @@ Rectangle {
 
     // ── Derived accent color helpers ─────────────────────────────────────────
     function accentColor(alpha) {
+        return Qt.rgba(accentRed, accentGreen, accentBlue, alpha)
+    }
+
+    function severityColor(level, alpha) {
+        if (level >= 3) return Qt.rgba(0.93, 0.27, 0.27, alpha)
+        if (level === 2) return Qt.rgba(0.96, 0.62, 0.04, alpha)
+        if (level === 1) return Qt.rgba(0.93, 0.73, 0.12, alpha)
         return Qt.rgba(accentRed, accentGreen, accentBlue, alpha)
     }
 
@@ -113,6 +124,22 @@ Rectangle {
         border.width: 1
         border.color: Qt.rgba(root.accentRed, root.accentGreen, root.accentBlue,
                               0.12 + root.accentIntensity * 0.10)
+    }
+
+    Rectangle {
+        anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: 14; rightMargin: 14; topMargin: 10 }
+        height: 2
+        radius: 1
+        color: root.severityColor(root.severityLevel, 0.30 + root.accentIntensity * 0.20)
+        opacity: root.qualityHint > 0 ? 0.65 : 1.0
+    }
+
+    Rectangle {
+        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: 18; rightMargin: 18; bottomMargin: 14 }
+        height: 3
+        radius: 2
+        color: root.severityColor(root.severityLevel, Math.max(0.08, root.timelineAnomalyAlpha))
+        opacity: root.timelineAnomalyAlpha
     }
 
     // =========================================================================
@@ -493,7 +520,8 @@ Rectangle {
 
                 function pushSample(val) {
                     samples.push(val)
-                    if (samples.length > 120) samples.shift()
+                    var cap = root.qualityHint > 0 ? 80 : 120
+                    if (samples.length > cap) samples.shift()
                     requestPaint()
                 }
 
@@ -603,7 +631,8 @@ Rectangle {
 
                 function pushSample(val) {
                     samples.push(val)
-                    if (samples.length > 120) samples.shift()
+                    var cap = root.qualityHint > 0 ? 80 : 120
+                    if (samples.length > cap) samples.shift()
                     requestPaint()
                 }
 
@@ -707,8 +736,8 @@ Rectangle {
                 SequentialAnimation on opacity {
                     running: true
                     loops: Animation.Infinite
-                    NumberAnimation { to: 0.25; duration: 900; easing.type: Easing.InOutSine }
-                    NumberAnimation { to: 1.00; duration: 900; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: 0.25; duration: Math.max(160, Math.round(900 * root.motionScale)); easing.type: Easing.InOutSine }
+                    NumberAnimation { to: 1.00; duration: Math.max(160, Math.round(900 * root.motionScale)); easing.type: Easing.InOutSine }
                 }
             }
 
