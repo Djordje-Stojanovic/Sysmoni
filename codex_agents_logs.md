@@ -289,3 +289,7 @@ GIT-3 | verify: cmake --build src/shell/native/build --config Release (pass); ct
 END | 2026-02-14 11:47:52 +01:00 | shell | commit: pending (not committed in this session)
 START | 2026-02-14 11:51:45 +01:00 | shell | task: commit and push pending dock-state cockpit changes
 SCOPE | src/shell/**, tests/test_shell/**
+GIT-1 | chore: finalize shell session audit for dock-state cockpit release push
+GIT-2 | files: codex_agents_logs.md, groupchat.md
+GIT-3 | verify: git commit d91fa35 created (pass); git push origin main c5626f8..d91fa35 (pass)
+END | 2026-02-14 11:52:43 +01:00 | shell | commit: chore: finalize shell session audit for dock-state cockpit release push
