@@ -58,6 +58,7 @@ class FakeRenderBridge final : public aura::shell::IRenderBridge {
 public:
     bool backend_available = true;
     bool fail_compose = false;
+    bool fail_style_tokens = false;
     bool fail_lines = false;
     bool fail_rows = false;
     bool fail_status = false;
@@ -90,6 +91,35 @@ public:
         frame.accent_intensity = std::clamp((cpu_percent + memory_percent) / 200.0, 0.0, 1.0);
         frame.next_delay_seconds = 1.0 / 60.0;
         return frame;
+    }
+
+    std::optional<aura::shell::RenderStyleTokens> compute_style_tokens(
+        const double previous_phase,
+        const double elapsed_since_last_frame,
+        const double cpu_percent,
+        const double memory_percent,
+        std::string& error
+    ) const override {
+        if (!backend_available || fail_style_tokens) {
+            error = "style tokens failed";
+            return std::nullopt;
+        }
+        error.clear();
+        aura::shell::RenderStyleTokens tokens;
+        tokens.phase = std::fmod(previous_phase + std::max(0.0, elapsed_since_last_frame), 1.0);
+        tokens.next_delay_seconds = 1.0 / 60.0;
+        tokens.accent_intensity = std::clamp((cpu_percent + memory_percent) / 200.0, 0.0, 1.0);
+        tokens.accent_red = std::clamp(0.2 + tokens.accent_intensity * 0.4, 0.0, 1.0);
+        tokens.accent_green = std::clamp(0.4 + tokens.accent_intensity * 0.3, 0.0, 1.0);
+        tokens.accent_blue = std::clamp(0.7 + tokens.accent_intensity * 0.2, 0.0, 1.0);
+        tokens.accent_alpha = std::clamp(0.2 + tokens.accent_intensity * 0.4, 0.0, 1.0);
+        tokens.frost_intensity = std::clamp(0.2 + tokens.accent_intensity * 0.7, 0.0, 1.0);
+        tokens.tint_strength = std::clamp(0.3 + tokens.accent_intensity * 0.5, 0.0, 1.0);
+        tokens.ring_line_width = std::clamp(1.0 + tokens.accent_intensity * 6.0, 1.0, 7.0);
+        tokens.ring_glow_strength = tokens.accent_intensity;
+        tokens.cpu_alpha = std::clamp(0.3 + sanitize_percent(cpu_percent) / 100.0 * 0.7, 0.0, 1.0);
+        tokens.memory_alpha = std::clamp(0.3 + sanitize_percent(memory_percent) / 100.0 * 0.7, 0.0, 1.0);
+        return tokens;
     }
 
     std::optional<aura::shell::SnapshotLines> format_snapshot_lines(
@@ -143,6 +173,16 @@ public:
             value += " warning=" + *stream_error;
         }
         return value;
+    }
+
+    std::string last_error_text() const override {
+        if (!backend_available) {
+            return "render unavailable";
+        }
+        if (fail_style_tokens) {
+            return "style tokens failed";
+        }
+        return {};
     }
 };
 
@@ -206,6 +246,47 @@ bool contains(const std::string& text, const std::string& pattern) {
     return text.find(pattern) != std::string::npos;
 }
 
+bool style_tokens_valid(const aura::shell::RenderStyleTokens& tokens) {
+    return std::isfinite(tokens.phase) &&
+           std::isfinite(tokens.next_delay_seconds) &&
+           std::isfinite(tokens.accent_intensity) &&
+           std::isfinite(tokens.accent_red) &&
+           std::isfinite(tokens.accent_green) &&
+           std::isfinite(tokens.accent_blue) &&
+           std::isfinite(tokens.accent_alpha) &&
+           std::isfinite(tokens.frost_intensity) &&
+           std::isfinite(tokens.tint_strength) &&
+           std::isfinite(tokens.ring_line_width) &&
+           std::isfinite(tokens.ring_glow_strength) &&
+           std::isfinite(tokens.cpu_alpha) &&
+           std::isfinite(tokens.memory_alpha) &&
+           tokens.phase >= 0.0 &&
+           tokens.phase < 1.0 &&
+           tokens.next_delay_seconds >= 0.0 &&
+           tokens.accent_intensity >= 0.0 &&
+           tokens.accent_intensity <= 1.0 &&
+           tokens.accent_red >= 0.0 &&
+           tokens.accent_red <= 1.0 &&
+           tokens.accent_green >= 0.0 &&
+           tokens.accent_green <= 1.0 &&
+           tokens.accent_blue >= 0.0 &&
+           tokens.accent_blue <= 1.0 &&
+           tokens.accent_alpha >= 0.0 &&
+           tokens.accent_alpha <= 1.0 &&
+           tokens.frost_intensity >= 0.0 &&
+           tokens.frost_intensity <= 1.0 &&
+           tokens.tint_strength >= 0.0 &&
+           tokens.tint_strength <= 1.0 &&
+           tokens.ring_line_width >= 1.0 &&
+           tokens.ring_line_width <= 7.0 &&
+           tokens.ring_glow_strength >= 0.0 &&
+           tokens.ring_glow_strength <= 1.0 &&
+           tokens.cpu_alpha >= 0.0 &&
+           tokens.cpu_alpha <= 1.0 &&
+           tokens.memory_alpha >= 0.0 &&
+           tokens.memory_alpha <= 1.0;
+}
+
 bool test_happy_path_prefers_dvr() {
     auto telemetry = std::make_unique<FakeTelemetryBridge>();
     auto render = std::make_unique<FakeRenderBridge>();
@@ -230,6 +311,9 @@ bool test_happy_path_prefers_dvr() {
     ok &= expect_true(!state.cpu_line.empty(), "happy: cpu line populated");
     ok &= expect_true(state.process_rows.size() == 2U, "happy: process rows");
     ok &= expect_true(state.accent_intensity > 0.0, "happy: accent intensity");
+    ok &= expect_true(state.style_tokens_available, "happy: style tokens available");
+    ok &= expect_true(style_tokens_valid(state.style_tokens), "happy: style token ranges");
+    ok &= expect_true(state.style_token_error.empty(), "happy: no style token error");
     ok &= expect_true(contains(state.status_line, "render=ok"), "happy: render status");
     ok &= expect_true(state.timeline_source == aura::shell::TimelineSource::Dvr, "happy: dvr source");
     ok &= expect_true(state.timeline_points.size() >= 8U, "happy: dvr points");
@@ -279,8 +363,36 @@ bool test_render_missing() {
     ok &= expect_true(state.telemetry_available, "render-missing: telemetry available");
     ok &= expect_true(!state.render_available, "render-missing: render unavailable");
     ok &= expect_true(state.degraded, "render-missing: degraded");
+    ok &= expect_true(!state.style_tokens_available, "render-missing: style fallback");
+    ok &= expect_true(style_tokens_valid(state.style_tokens), "render-missing: style fallback ranges");
+    ok &= expect_true(!state.style_token_error.empty(), "render-missing: style fallback error");
     ok &= expect_true(contains(state.status_line, "render=fallback"), "render-missing: fallback status");
     ok &= expect_true(!state.process_rows.empty(), "render-missing: process rows");
+    return ok;
+}
+
+bool test_style_tokens_fallback_when_style_call_fails() {
+    auto telemetry = std::make_unique<FakeTelemetryBridge>();
+    auto render = std::make_unique<FakeRenderBridge>();
+    render->fail_style_tokens = true;
+    auto timeline = std::make_unique<FakeTimelineBridge>();
+
+    aura::shell::CockpitController controller(
+        std::move(telemetry),
+        std::move(render),
+        std::move(timeline),
+        {}
+    );
+    const aura::shell::CockpitUiState state = controller.tick(1.0, 1700000002.5);
+
+    bool ok = true;
+    ok &= expect_true(state.telemetry_available, "style-fallback: telemetry available");
+    ok &= expect_true(state.render_available, "style-fallback: render still available");
+    ok &= expect_true(state.degraded, "style-fallback: degraded");
+    ok &= expect_true(!state.style_tokens_available, "style-fallback: style fallback active");
+    ok &= expect_true(style_tokens_valid(state.style_tokens), "style-fallback: style fallback ranges");
+    ok &= expect_true(contains(state.style_token_error, "style tokens failed"), "style-fallback: error");
+    ok &= expect_true(contains(state.status_line, "warning=style tokens failed"), "style-fallback: status warning");
     return ok;
 }
 
@@ -417,6 +529,9 @@ int main() {
     if (!test_bounds_sanitized()) {
         ++failures;
     }
+    if (!test_style_tokens_fallback_when_style_call_fails()) {
+        ++failures;
+    }
     if (!test_last_good_reused_on_telemetry_failure_preserves_timeline()) {
         ++failures;
     }
@@ -434,4 +549,3 @@ int main() {
     std::cerr << failures << " cockpit controller tests failed." << '\n';
     return 1;
 }
-

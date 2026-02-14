@@ -31,6 +31,22 @@ struct FrameState {
     double next_delay_seconds{0.0};
 };
 
+struct RenderStyleTokens {
+    double phase{0.0};
+    double next_delay_seconds{1.0 / 60.0};
+    double accent_intensity{0.0};
+    double accent_red{0.20};
+    double accent_green{0.45};
+    double accent_blue{0.75};
+    double accent_alpha{0.20};
+    double frost_intensity{0.25};
+    double tint_strength{0.35};
+    double ring_line_width{2.0};
+    double ring_glow_strength{0.25};
+    double cpu_alpha{0.70};
+    double memory_alpha{0.70};
+};
+
 struct TimelinePoint {
     double timestamp{0.0};
     double cpu_percent{0.0};
@@ -59,6 +75,9 @@ struct CockpitUiState {
     TimelineSource timeline_source{TimelineSource::None};
     std::string timeline_line;
     std::string status_line;
+    RenderStyleTokens style_tokens;
+    bool style_tokens_available{false};
+    std::string style_token_error;
 };
 
 }  // namespace aura::shell

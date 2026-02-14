@@ -99,6 +99,10 @@ QString timeline_source_label(const aura::shell::TimelineSource source) {
     return QStringLiteral("unknown");
 }
 
+QString style_mode_label(const bool style_tokens_available) {
+    return style_tokens_available ? QStringLiteral("ok") : QStringLiteral("fallback");
+}
+
 int interval_to_milliseconds(const double interval_seconds) {
     if (!std::isfinite(interval_seconds) || interval_seconds <= 0.0) {
         return 1000;
@@ -533,21 +537,39 @@ private:
             process_labels_[i]->setText(line);
         }
 
-        footer_status_->setText(
-            QString("interval=%1  persist=%2  db=%3  telemetry=%4  render=%5  timeline=%6")
+        QString footer_text =
+            QString("interval=%1  persist=%2  db=%3  telemetry=%4  render=%5  timeline=%6  style=%7")
                 .arg(config_.interval_seconds)
                 .arg(config_.persistence_enabled ? "on" : "off")
                 .arg(config_.db_path.value_or("<none>"))
                 .arg(state.telemetry_available ? "ok" : "degraded")
                 .arg(state.render_available ? "ok" : "fallback")
                 .arg(timeline_source_label(state.timeline_source))
-        );
+                .arg(style_mode_label(state.style_tokens_available));
+        if (!state.style_token_error.empty()) {
+            QString error_text = QString::fromStdString(state.style_token_error);
+            if (error_text.size() > 56) {
+                error_text = error_text.left(53) + "...";
+            }
+            footer_text += QString("  style_err=%1").arg(error_text);
+        }
+        footer_status_->setText(footer_text);
 
         if (quick_ != nullptr && quick_->rootObject() != nullptr) {
             QQuickItem* root = quick_->rootObject();
             root->setProperty("accentIntensity", state.accent_intensity);
             root->setProperty("cpuPercent", state.cpu_percent);
             root->setProperty("memoryPercent", state.memory_percent);
+            root->setProperty("accentRed", state.style_tokens.accent_red);
+            root->setProperty("accentGreen", state.style_tokens.accent_green);
+            root->setProperty("accentBlue", state.style_tokens.accent_blue);
+            root->setProperty("accentAlpha", state.style_tokens.accent_alpha);
+            root->setProperty("frostIntensity", state.style_tokens.frost_intensity);
+            root->setProperty("tintStrength", state.style_tokens.tint_strength);
+            root->setProperty("ringLineWidth", state.style_tokens.ring_line_width);
+            root->setProperty("ringGlowStrength", state.style_tokens.ring_glow_strength);
+            root->setProperty("cpuAlpha", state.style_tokens.cpu_alpha);
+            root->setProperty("memoryAlpha", state.style_tokens.memory_alpha);
             root->setProperty("statusText", QString::fromStdString(state.status_line));
         }
     }

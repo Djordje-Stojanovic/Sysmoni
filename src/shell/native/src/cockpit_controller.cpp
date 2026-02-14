@@ -29,6 +29,50 @@ std::string optional_or(const std::optional<std::string>& value, const std::stri
     return fallback;
 }
 
+double clamp_unit(const double value) {
+    if (!std::isfinite(value)) {
+        return 0.0;
+    }
+    return std::clamp(value, 0.0, 1.0);
+}
+
+double clamp_percent_100(const double value) {
+    if (!std::isfinite(value)) {
+        return 0.0;
+    }
+    return std::clamp(value, 0.0, 100.0);
+}
+
+RenderStyleTokens fallback_style_tokens(
+    const double phase,
+    const double accent_intensity,
+    const double cpu_percent,
+    const double memory_percent
+) {
+    RenderStyleTokens tokens;
+    if (!std::isfinite(phase)) {
+        tokens.phase = 0.0;
+    } else {
+        tokens.phase = std::fmod(phase, 1.0);
+    }
+    if (tokens.phase < 0.0) {
+        tokens.phase += 1.0;
+    }
+    tokens.next_delay_seconds = 1.0 / 60.0;
+    tokens.accent_intensity = clamp_unit(accent_intensity);
+    tokens.accent_red = clamp_unit(0.20 + tokens.accent_intensity * 0.50);
+    tokens.accent_green = clamp_unit(0.45 + tokens.accent_intensity * 0.25);
+    tokens.accent_blue = 0.75;
+    tokens.accent_alpha = clamp_unit(0.15 + tokens.accent_intensity * 0.35);
+    tokens.frost_intensity = clamp_unit(0.25 + tokens.accent_intensity * 0.55);
+    tokens.tint_strength = clamp_unit(0.35 + tokens.accent_intensity * 0.45);
+    tokens.ring_line_width = std::clamp(1.0 + (tokens.accent_intensity * 6.0), 1.0, 7.0);
+    tokens.ring_glow_strength = tokens.accent_intensity;
+    tokens.cpu_alpha = clamp_unit(0.30 + clamp_percent_100(cpu_percent) / 100.0 * 0.70);
+    tokens.memory_alpha = clamp_unit(0.30 + clamp_percent_100(memory_percent) / 100.0 * 0.70);
+    return tokens;
+}
+
 }  // namespace
 
 CockpitController::CockpitController(
@@ -111,7 +155,7 @@ CockpitUiState CockpitController::tick(
     }
 
     std::string render_error;
-    if (render_backend_available) {
+    if (state.render_available) {
         const auto frame = render_bridge_->compose_frame(
             frame_phase_,
             elapsed_since_last_frame,
@@ -129,6 +173,30 @@ CockpitUiState CockpitController::tick(
         }
     }
 
+    if (state.render_available) {
+        const auto style_tokens = render_bridge_->compute_style_tokens(
+            frame_phase_,
+            elapsed_since_last_frame,
+            state.cpu_percent,
+            state.memory_percent,
+            render_error
+        );
+        if (style_tokens.has_value()) {
+            state.style_tokens = *style_tokens;
+            state.style_tokens_available = true;
+            frame_phase_ = state.style_tokens.phase;
+            state.accent_intensity = clamp_unit(state.style_tokens.accent_intensity);
+        } else {
+            state.degraded = true;
+            state.style_token_error =
+                render_error.empty() ? render_bridge_->last_error_text() : render_error;
+            if (state.style_token_error.empty()) {
+                state.style_token_error = "Render style token computation failed.";
+            }
+            stream_error = optional_or(stream_error, state.style_token_error);
+        }
+    }
+
     if (!state.render_available) {
         frame_phase_ = std::fmod(frame_phase_ + std::max(0.0, elapsed_since_last_frame), 1.0);
         state.accent_intensity = std::clamp(
@@ -136,6 +204,19 @@ CockpitUiState CockpitController::tick(
             0.0,
             1.0
         );
+    }
+
+    if (!state.style_tokens_available) {
+        state.style_tokens = fallback_style_tokens(
+            frame_phase_,
+            state.accent_intensity,
+            state.cpu_percent,
+            state.memory_percent
+        );
+        if (state.style_token_error.empty() && !state.render_available) {
+            state.style_token_error =
+                render_error.empty() ? "Render backend unavailable." : render_error;
+        }
     }
 
     SnapshotLines lines = fallback_snapshot_lines(state.timestamp, state.cpu_percent, state.memory_percent);
@@ -445,6 +526,9 @@ CockpitUiState CockpitController::degraded_from_last_state(
     state.timeline_source = TimelineSource::None;
     state.timeline_line = fallback_timeline_line(TimelineSource::None, 0U, 0.0, 0.0);
     state.status_line = "Telemetry degraded: " + reason;
+    state.style_tokens = fallback_style_tokens(frame_phase_, 0.0, 0.0, 0.0);
+    state.style_tokens_available = false;
+    state.style_token_error = reason;
     return state;
 }
 

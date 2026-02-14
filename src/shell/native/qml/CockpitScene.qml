@@ -9,6 +9,16 @@ Rectangle {
     property real accentIntensity: 0.0
     property real cpuPercent: 0.0
     property real memoryPercent: 0.0
+    property real accentRed: 0.20
+    property real accentGreen: 0.45
+    property real accentBlue: 0.75
+    property real accentAlpha: 0.20
+    property real frostIntensity: 0.25
+    property real tintStrength: 0.35
+    property real ringLineWidth: 2.0
+    property real ringGlowStrength: 0.25
+    property real cpuAlpha: 0.70
+    property real memoryAlpha: 0.70
     property string statusText: "Waiting for telemetry..."
 
     Behavior on accentIntensity {
@@ -46,12 +56,12 @@ Rectangle {
                 height: width
                 radius: width / 2
                 color: "transparent"
-                border.width: 6 + (root.accentIntensity * 4)
+                border.width: root.ringLineWidth
                 border.color: Qt.rgba(
-                    0.25 + (root.cpuPercent / 100.0) * 0.55,
-                    0.55 - (root.cpuPercent / 100.0) * 0.30,
-                    0.80 - (root.cpuPercent / 100.0) * 0.40,
-                    0.90
+                    root.accentRed,
+                    root.accentGreen,
+                    root.accentBlue,
+                    Math.min(1.0, root.cpuAlpha + root.ringGlowStrength * 0.20)
                 )
 
                 Behavior on border.width {
@@ -97,12 +107,12 @@ Rectangle {
                 height: width
                 radius: width / 2
                 color: "transparent"
-                border.width: 6 + (root.accentIntensity * 4)
+                border.width: root.ringLineWidth
                 border.color: Qt.rgba(
-                    0.30 + (root.memoryPercent / 100.0) * 0.45,
-                    0.45,
-                    0.70 + (root.memoryPercent / 100.0) * 0.15,
-                    0.90
+                    root.accentRed,
+                    root.accentGreen,
+                    root.accentBlue,
+                    Math.min(1.0, root.memoryAlpha + root.ringGlowStrength * 0.20)
                 )
 
                 Behavior on border.width {
@@ -144,7 +154,7 @@ Rectangle {
         anchors.topMargin: 16
         width: parent.width * 0.75
         height: 1
-        color: Qt.rgba(0.30, 0.55, 0.78, 0.30 + root.accentIntensity * 0.20)
+        color: Qt.rgba(root.accentRed, root.accentGreen, root.accentBlue, 0.20 + root.frostIntensity * 0.40)
     }
 
     Text {
@@ -165,12 +175,7 @@ Rectangle {
         anchors.fill: parent
         color: "transparent"
         border.width: 2
-        border.color: Qt.rgba(
-            0.20 + root.accentIntensity * 0.50,
-            0.45 + root.accentIntensity * 0.25,
-            0.75,
-            0.15 + root.accentIntensity * 0.35
-        )
+        border.color: Qt.rgba(root.accentRed, root.accentGreen, root.accentBlue, root.accentAlpha)
         radius: root.radius
 
         Behavior on border.color {

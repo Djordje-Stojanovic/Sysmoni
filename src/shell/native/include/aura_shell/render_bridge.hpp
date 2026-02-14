@@ -22,6 +22,14 @@ public:
         std::string& error
     ) const = 0;
 
+    virtual std::optional<RenderStyleTokens> compute_style_tokens(
+        double previous_phase,
+        double elapsed_since_last_frame,
+        double cpu_percent,
+        double memory_percent,
+        std::string& error
+    ) const = 0;
+
     virtual std::optional<SnapshotLines> format_snapshot_lines(
         double timestamp,
         double cpu_percent,
@@ -44,6 +52,8 @@ public:
         const std::optional<std::string>& stream_error,
         std::string& error
     ) const = 0;
+
+    virtual std::string last_error_text() const = 0;
 };
 
 class RenderBridge final : public IRenderBridge {
@@ -72,6 +82,14 @@ public:
         std::string& error
     ) const override;
 
+    std::optional<RenderStyleTokens> compute_style_tokens(
+        double previous_phase,
+        double elapsed_since_last_frame,
+        double cpu_percent,
+        double memory_percent,
+        std::string& error
+    ) const override;
+
     std::optional<std::string> format_process_row(
         int rank,
         const std::string& name,
@@ -88,6 +106,8 @@ public:
         std::string& error
     ) const override;
 
+    std::string last_error_text() const override;
+
     std::string loaded_path() const;
     std::string load_error() const;
 
@@ -97,4 +117,3 @@ private:
 };
 
 }  // namespace aura::shell
-
