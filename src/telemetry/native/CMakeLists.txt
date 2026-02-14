@@ -15,4 +15,5 @@ target_link_libraries(aura_telemetry_native PRIVATE iphlpapi psapi)
 
 set_target_properties(aura_telemetry_native PROPERTIES
     OUTPUT_NAME "aura_telemetry_native"
+    WINDOWS_EXPORT_ALL_SYMBOLS ON
 )

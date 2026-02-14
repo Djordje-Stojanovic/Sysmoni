@@ -22,7 +22,21 @@ target_include_directories(aura_telemetry_native_tests PRIVATE
 )
 target_link_libraries(aura_telemetry_native_tests PRIVATE aura_telemetry_native)
 
+add_custom_command(
+    TARGET aura_telemetry_native_tests
+    POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:aura_telemetry_native>
+        $<TARGET_FILE_DIR:aura_telemetry_native_tests>
+)
+
 add_test(
     NAME aura_telemetry_native_tests
-    COMMAND aura_telemetry_native_tests
+    COMMAND $<TARGET_FILE:aura_telemetry_native_tests>
+)
+
+set_tests_properties(
+    aura_telemetry_native_tests
+    PROPERTIES
+        WORKING_DIRECTORY $<TARGET_FILE_DIR:aura_telemetry_native_tests>
 )

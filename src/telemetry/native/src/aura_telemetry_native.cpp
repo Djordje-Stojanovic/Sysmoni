@@ -13,14 +13,16 @@
 #include <vector>
 
 #ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #include <windows.h>
 
 #include <iphlpapi.h>
 #include <psapi.h>
 #include <tlhelp32.h>
 #include <winioctl.h>
-#include <winsock2.h>
 
 #pragma comment(lib, "iphlpapi.lib")
 #pragma comment(lib, "psapi.lib")

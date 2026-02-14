@@ -164,13 +164,13 @@ bool TelemetryEngine::CollectTopProcesses(
         return false;
     }
 
-    const uint32_t bounded_limit = std::min(limit, kMaxProcessSamples);
-    std::vector<aura_process_sample> raw_samples(static_cast<size_t>(bounded_limit));
+    const uint32_t collect_capacity = kMaxProcessSamples;
+    std::vector<aura_process_sample> raw_samples(static_cast<size_t>(collect_capacity));
     uint32_t out_count = 0;
     std::array<char, 512> error_buffer{};
     const int status = collectors_.collect_processes(
         raw_samples.data(),
-        bounded_limit,
+        collect_capacity,
         &out_count,
         error_buffer.data(),
         error_buffer.size()
@@ -187,7 +187,7 @@ bool TelemetryEngine::CollectTopProcesses(
         return false;
     }
 
-    const uint32_t bounded_count = std::min(out_count, bounded_limit);
+    const uint32_t bounded_count = std::min(out_count, collect_capacity);
     out_samples->clear();
     out_samples->reserve(static_cast<size_t>(bounded_count));
     for (uint32_t i = 0; i < bounded_count; ++i) {
