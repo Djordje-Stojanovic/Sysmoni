@@ -57,7 +57,7 @@ private:
         double cpu_percent,
         double memory_percent
     );
-    void append_live_timeline_point(double timestamp, double cpu_percent, double memory_percent);
+    void append_live_timeline_point(double timestamp, double cpu_percent, double memory_percent, double gpu_percent);
     std::vector<TimelinePoint> copy_live_timeline_window(double now_timestamp) const;
     void populate_timeline_state(CockpitUiState& state, std::optional<std::string>& stream_error);
     std::string fallback_status_line(const std::optional<std::string>& error) const;

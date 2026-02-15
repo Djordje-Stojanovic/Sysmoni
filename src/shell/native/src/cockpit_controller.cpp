@@ -75,7 +75,8 @@ int count_timeline_anomalies(const std::vector<TimelinePoint>& points) {
     for (std::size_t i = 1; i < points.size(); ++i) {
         const double cpu_jump = std::fabs(points[i].cpu_percent - points[i - 1U].cpu_percent);
         const double memory_jump = std::fabs(points[i].memory_percent - points[i - 1U].memory_percent);
-        if (cpu_jump >= 15.0 || memory_jump >= 15.0) {
+        const double gpu_jump = std::fabs(points[i].gpu_percent - points[i - 1U].gpu_percent);
+        if (cpu_jump >= 15.0 || memory_jump >= 15.0 || gpu_jump >= 15.0) {
             ++count;
         }
     }
@@ -485,12 +486,14 @@ std::string CockpitController::fallback_timeline_line(
 void CockpitController::append_live_timeline_point(
     const double timestamp,
     const double cpu_percent,
-    const double memory_percent
+    const double memory_percent,
+    const double gpu_percent
 ) {
     TimelinePoint next;
     next.timestamp = timestamp;
     next.cpu_percent = clamp_percent(cpu_percent);
     next.memory_percent = clamp_percent(memory_percent);
+    next.gpu_percent = clamp_percent(gpu_percent);
     live_timeline_points_.push_back(next);
 
     if (live_timeline_points_.size() > config_.timeline_live_capacity) {
@@ -528,7 +531,7 @@ void CockpitController::populate_timeline_state(
     CockpitUiState& state,
     std::optional<std::string>& stream_error
 ) {
-    append_live_timeline_point(state.timestamp, state.cpu_percent, state.memory_percent);
+    append_live_timeline_point(state.timestamp, state.cpu_percent, state.memory_percent, state.gpu.gpu_percent);
     const std::vector<TimelinePoint> live_points = copy_live_timeline_window(state.timestamp);
 
     const bool has_db_path = config_.db_path.has_value() && !config_.db_path->empty();

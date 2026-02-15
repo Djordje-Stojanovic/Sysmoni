@@ -32,6 +32,7 @@ if(AURA_SHELL_BUILD_APP)
         )
         target_compile_definitions(aura_shell PRIVATE
             AURA_SHELL_QML_PATH="${CMAKE_CURRENT_SOURCE_DIR}/qml/CockpitScene.qml"
+            AURA_SHELL_TIMELINE_QML_PATH="${CMAKE_CURRENT_SOURCE_DIR}/qml/TimelineScene.qml"
         )
         target_link_libraries(aura_shell PRIVATE
             aura_shell_core
