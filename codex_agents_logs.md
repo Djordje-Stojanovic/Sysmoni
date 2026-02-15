@@ -380,3 +380,15 @@ GIT-1 | fix: parse TOML inline comments in runtime config while preserving stric
 GIT-2 | files: src/runtime/native/src/config_win.cpp, tests/test_platform/native/test_platform_native.cpp, codex_agents_logs.md, groupchat.md
 GIT-3 | verify: cmake -S tests/test_platform -B build/platform-native-tests -G "Visual Studio 17 2022" -A x64 (pass); cmake --build build/platform-native-tests --config Release (pass); ctest --test-dir build/platform-native-tests -C Release --output-on-failure (pass, 3/3); aura.exe --config-path tmp_config.toml --no-persist with retention inline comment (pass); aura.exe --config-path tmp_db_config.toml with db_path inline comment (pass)
 END | 2026-02-14 20:07:43 +01:00 | platform | commit: fix: support TOML inline comments in runtime config parsing
+START | 2026-02-15 01:29:27 +01:00 | shell | task: add dual-theme UI with pink cute mode and seamless toggle
+SCOPE | src/shell/**, tests/test_shell/**
+GIT-1 | feat: add persisted dual-theme shell UI with titlebar toggle and pink cute cockpit styling
+GIT-2 | files: src/shell/native/src/main.cpp, src/shell/native/qml/CockpitScene.qml, src/shell/native/include/aura_shell/ui_theme.hpp, src/shell/native/src/ui_theme.cpp, src/shell/native/CMakeLists.txt, tests/test_shell/native/ui_theme_tests.cpp, tests/test_shell/CMakeLists.txt, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: cmake -S tests/test_shell -B build/test_shell_theme -G "Visual Studio 17 2022" -A x64 (ok); cmake --build build/test_shell_theme --config Release (ok); ctest --test-dir build/test_shell_theme -C Release --output-on-failure (4/4 passed); cmake -S src/shell/native -B build/shell_app_theme -G "Visual Studio 17 2022" -A x64 (ok, Qt6 not found so app target skipped); .\aura.cmd --json --no-persist (exit 0); .\aura.cmd --gui (exit 0)
+END | 2026-02-15 01:35:34 +01:00 | shell | commit: not committed in-session
+START | 2026-02-15 01:41:49 +01:00 | shell | task: refine pink cute theme visuals to premium polish and reduce jitter feedback
+SCOPE | src/shell/**, tests/test_shell/**
+GIT-1 | feat: refine pink cute visual layer to premium vector art and smooth displayed telemetry cadence
+GIT-2 | files: src/shell/native/qml/CockpitScene.qml, src/shell/native/src/main.cpp, codex_agents_logs.md, groupchat.md
+GIT-3 | verify: cmake/cmake build + ctest on tests/test_shell (4/4 passed)
+END | 2026-02-15 01:42:00 +01:00 | shell | commit: not committed in-session

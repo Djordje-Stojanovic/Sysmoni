@@ -29,3 +29,9 @@ add_executable(aura_shell_timeline_bridge_tests
 )
 target_link_libraries(aura_shell_timeline_bridge_tests PRIVATE aura_shell_core)
 add_test(NAME aura_shell_timeline_bridge_tests COMMAND aura_shell_timeline_bridge_tests)
+
+add_executable(aura_shell_ui_theme_tests
+    native/ui_theme_tests.cpp
+)
+target_link_libraries(aura_shell_ui_theme_tests PRIVATE aura_shell_core)
+add_test(NAME aura_shell_ui_theme_tests COMMAND aura_shell_ui_theme_tests)

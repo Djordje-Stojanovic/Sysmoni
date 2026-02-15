@@ -14,6 +14,7 @@ add_library(aura_shell_core STATIC
     src/render_bridge.cpp
     src/telemetry_bridge.cpp
     src/timeline_bridge.cpp
+    src/ui_theme.cpp
 )
 target_include_directories(aura_shell_core
     PUBLIC include

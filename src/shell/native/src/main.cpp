@@ -13,6 +13,7 @@
 #include <QQuickItem>
 #include <QQuickWidget>
 #include <QScrollArea>
+#include <QSettings>
 #include <QSizePolicy>
 #include <QStackedWidget>
 #include <QTabBar>
@@ -34,6 +35,7 @@
 #include "aura_shell/render_bridge.hpp"
 #include "aura_shell/telemetry_bridge.hpp"
 #include "aura_shell/timeline_bridge.hpp"
+#include "aura_shell/ui_theme.hpp"
 
 namespace {
 
@@ -148,11 +150,11 @@ int interval_to_milliseconds(const double interval_seconds) {
     if (!std::isfinite(interval_seconds) || interval_seconds <= 0.0) {
         return 1000;
     }
-    return std::clamp(static_cast<int>(std::llround(interval_seconds * 1000.0)), 16, 2000);
+    return std::clamp(static_cast<int>(std::llround(interval_seconds * 1000.0)), 1000, 2000);
 }
 
 int clamp_timer_interval_ms(const int value) {
-    return std::clamp(value, 16, 2000);
+    return std::clamp(value, 1000, 2000);
 }
 
 LaunchConfig parse_args(QCoreApplication& app) {
@@ -209,7 +211,7 @@ struct SlotWidgets {
 // ---------------------------------------------------------------------------
 // Comprehensive application stylesheet
 // ---------------------------------------------------------------------------
-static const QString k_app_stylesheet = QStringLiteral(
+static const QString k_app_stylesheet_dark_blue = QStringLiteral(
     // --- Application-wide base ---
     "* {"
     "    font-family: 'Segoe UI';"
@@ -292,6 +294,28 @@ static const QString k_app_stylesheet = QStringLiteral(
     "QPushButton#closeBtn:pressed {"
     "    background: #b91c1c;"
     "    color: #ffffff;"
+    "}"
+
+    // --- Theme switch in title bar ---
+    "QPushButton#themeToggleBtn {"
+    "    background: #0f1a2e;"
+    "    color: #8badc4;"
+    "    border: 1px solid #1e3350;"
+    "    border-radius: 6px;"
+    "    min-height: 24px;"
+    "    padding: 0px 10px;"
+    "    font-size: 10px;"
+    "    font-weight: 600;"
+    "}"
+    "QPushButton#themeToggleBtn:hover {"
+    "    background: #162238;"
+    "    color: #e0ecf7;"
+    "    border-color: #3b82f6;"
+    "}"
+    "QPushButton#themeToggleBtn:pressed {"
+    "    background: #1e3350;"
+    "    color: #60a5fa;"
+    "    border-color: #3b82f6;"
     "}"
 
     // --- Dock slot frames ---
@@ -534,6 +558,28 @@ static const QString k_app_stylesheet = QStringLiteral(
     "}"
 );
 
+constexpr const char* k_theme_mode_setting_key = "ui/theme_mode";
+
+QString build_app_stylesheet(const aura::shell::UiThemeMode mode) {
+    if (mode == aura::shell::UiThemeMode::DarkBlue) {
+        return k_app_stylesheet_dark_blue;
+    }
+
+    QString pink = k_app_stylesheet_dark_blue;
+    pink.replace("#060b14", "#190914");
+    pink.replace("#0a1221", "#2a1021");
+    pink.replace("#0f1a2e", "#35162a");
+    pink.replace("#162238", "#46203a");
+    pink.replace("#1e3350", "#6c2d55");
+    pink.replace("#2a4a6e", "#91406f");
+    pink.replace("#3b82f6", "#ff68a8");
+    pink.replace("#60a5fa", "#ff92c5");
+    pink.replace("#e0ecf7", "#ffeaf4");
+    pink.replace("#8badc4", "#ffc6df");
+    pink.replace("#4d6d87", "#d887b1");
+    return pink;
+}
+
 // ---------------------------------------------------------------------------
 // AuraShellWindow
 // ---------------------------------------------------------------------------
@@ -543,10 +589,15 @@ public:
     explicit AuraShellWindow(const LaunchConfig& config, QWidget* parent = nullptr)
         : QMainWindow(parent),
           config_(config) {
+        current_theme_mode_ = aura::shell::ui_theme_mode_from_key(
+            settings_.value(k_theme_mode_setting_key, QStringLiteral("dark_blue"))
+                .toString()
+                .toStdString()
+        );
         setWindowTitle("Aura | Native Shell");
         setMinimumSize(1100, 640);
         setWindowFlags(Qt::FramelessWindowHint | Qt::Window | Qt::WindowMinMaxButtonsHint);
-        setStyleSheet(k_app_stylesheet);
+        setStyleSheet(build_app_stylesheet(current_theme_mode_));
         current_interval_seconds_ =
             (std::isfinite(config.interval_seconds) && config.interval_seconds > 0.0)
                 ? config.interval_seconds
@@ -591,6 +642,14 @@ public:
         subtitle_label->setObjectName("titleSubtitle");
         title_layout->addWidget(subtitle_label);
 
+        theme_toggle_btn_ = new QPushButton(titlebar_);
+        theme_toggle_btn_->setObjectName("themeToggleBtn");
+        theme_toggle_btn_->setFocusPolicy(Qt::NoFocus);
+        theme_toggle_btn_->setCursor(Qt::ArrowCursor);
+        theme_toggle_btn_->setToolTip("Switch between blue and pink cute themes");
+        title_layout->addWidget(theme_toggle_btn_);
+        title_layout->addSpacing(8);
+
         title_layout->addStretch(1);
 
         // Window-control buttons with Unicode glyphs
@@ -623,6 +682,9 @@ public:
             }
         });
         connect(close_btn, &QPushButton::clicked, this, &QWidget::close);
+        connect(theme_toggle_btn_, &QPushButton::clicked, this, [this]() {
+            apply_theme(aura::shell::toggle_ui_theme_mode(current_theme_mode_), true);
+        });
 
         title_layout->addWidget(min_btn);
         title_layout->addSpacing(2);
@@ -682,6 +744,7 @@ public:
             refresh_cockpit();
         });
         update_timer_->start();
+        apply_theme(current_theme_mode_, false);
         refresh_cockpit();
     }
 
@@ -716,6 +779,31 @@ protected:
     }
 
 private:
+    void sync_theme_to_qml() {
+        if (quick_ == nullptr || quick_->rootObject() == nullptr) {
+            return;
+        }
+        QQuickItem* root = quick_->rootObject();
+        root->setProperty(
+            "themeMode",
+            QString::fromStdString(aura::shell::ui_theme_mode_key(current_theme_mode_))
+        );
+    }
+
+    void apply_theme(const aura::shell::UiThemeMode mode, const bool persist) {
+        current_theme_mode_ = mode;
+        setStyleSheet(build_app_stylesheet(current_theme_mode_));
+        if (theme_toggle_btn_ != nullptr) {
+            theme_toggle_btn_->setText(QString::fromStdString(aura::shell::ui_theme_mode_label(mode)));
+        }
+        if (persist) {
+            settings_.setValue(
+                k_theme_mode_setting_key,
+                QString::fromStdString(aura::shell::ui_theme_mode_key(current_theme_mode_))
+            );
+        }
+        sync_theme_to_qml();
+    }
     // -----------------------------------------------------------------------
     // build_slot  —  creates one of the three dock-slot frames
     // -----------------------------------------------------------------------
@@ -1061,7 +1149,7 @@ private:
 
         // Footer — compact status summary
         QString footer_text =
-            QString("interval=%1s  persist=%2  db=%3  telemetry=%4  render=%5  timeline=%6  style=%7  sev=%8  quality=%9  fps=%10  anomalies=%11")
+            QString("interval=%1s  persist=%2  db=%3  telemetry=%4  render=%5  timeline=%6  style=%7  sev=%8  quality=%9  fps=%10  anomalies=%11  theme=%12")
                 .arg(current_interval_seconds_, 0, 'f', 3)
                 .arg(config_.persistence_enabled ? "on" : "off")
                 .arg(config_.db_path.value_or("<none>"))
@@ -1072,7 +1160,8 @@ private:
                 .arg(severity_label(state.severity_level))
                 .arg(quality_label(state.quality_hint))
                 .arg(state.fps_target)
-                .arg(state.timeline_anomaly_count);
+                .arg(state.timeline_anomaly_count)
+                .arg(QString::fromStdString(aura::shell::ui_theme_mode_key(current_theme_mode_)));
         if (!state.style_token_error.empty()) {
             QString error_text = QString::fromStdString(state.style_token_error);
             if (error_text.size() > 56) {
@@ -1103,14 +1192,14 @@ private:
             root->setProperty("qualityHint", state.quality_hint);
             root->setProperty("timelineAnomalyAlpha", state.style_tokens.timeline_anomaly_alpha);
             root->setProperty("statusText", QString::fromStdString(state.status_line));
+            root->setProperty(
+                "themeMode",
+                QString::fromStdString(aura::shell::ui_theme_mode_key(current_theme_mode_))
+            );
         }
 
         if (update_timer_ != nullptr) {
-            const int recommended_interval = clamp_timer_interval_ms(state.fps_recommended_delay_ms);
-            if (update_timer_->interval() != recommended_interval) {
-                update_timer_->setInterval(recommended_interval);
-            }
-            current_interval_seconds_ = static_cast<double>(recommended_interval) / 1000.0;
+            current_interval_seconds_ = static_cast<double>(update_timer_->interval()) / 1000.0;
         }
     }
 
@@ -1118,6 +1207,8 @@ private:
     // Member data
     // -----------------------------------------------------------------------
     LaunchConfig config_{};
+    QSettings settings_{QStringLiteral("Aura"), QStringLiteral("AuraShell")};
+    aura::shell::UiThemeMode current_theme_mode_{aura::shell::UiThemeMode::DarkBlue};
     double current_interval_seconds_{1.0};
     std::unique_ptr<aura::shell::CockpitController> controller_;
     aura::shell::DockState dock_state_{aura::shell::build_default_dock_state()};
@@ -1126,6 +1217,7 @@ private:
     std::array<std::array<QPushButton*, 3>, 4> panel_move_buttons_{};
     bool syncing_tabs_{false};
     QFrame* titlebar_{nullptr};
+    QPushButton* theme_toggle_btn_{nullptr};
     QQuickWidget* quick_{nullptr};
     QTimer* update_timer_{nullptr};
     QLabel* telemetry_cpu_{nullptr};

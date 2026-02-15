@@ -2,7 +2,7 @@ import QtQuick 2.15
 
 Rectangle {
     id: root
-    color: "#080e18"
+    color: pinkMode ? "#1d0c16" : "#080e18"
     radius: 10
     clip: true
 
@@ -25,27 +25,41 @@ Rectangle {
     property int qualityHint: 0
     property real timelineAnomalyAlpha: 0.05
     property string statusText: "Waiting for telemetry..."
+    property string themeMode: "dark_blue"
+    property bool pinkMode: themeMode === "pink_cute"
+    property bool hasCpuSample: false
+    property bool hasMemSample: false
 
     // ── Smoothed animated values used by Canvas gauges ───────────────────────
     property real smoothCpu: 0.0
     property real smoothMem: 0.0
 
-    Behavior on smoothCpu {
-        NumberAnimation { duration: Math.max(120, Math.round(600 * root.motionScale)); easing.type: Easing.OutCubic }
+    onCpuPercentChanged: {
+        if (!hasCpuSample) {
+            smoothCpu = cpuPercent
+            hasCpuSample = true
+        } else {
+            smoothCpu = (smoothCpu * 0.85) + (cpuPercent * 0.15)
+        }
+        cpuSparkCanvas.pushSample(smoothCpu)
     }
-    Behavior on smoothMem {
-        NumberAnimation { duration: Math.max(120, Math.round(600 * root.motionScale)); easing.type: Easing.OutCubic }
+    onMemoryPercentChanged: {
+        if (!hasMemSample) {
+            smoothMem = memoryPercent
+            hasMemSample = true
+        } else {
+            smoothMem = (smoothMem * 0.85) + (memoryPercent * 0.15)
+        }
+        memSparkCanvas.pushSample(smoothMem)
     }
-    Behavior on accentIntensity {
-        NumberAnimation { duration: Math.max(80, Math.round(400 * root.motionScale)); easing.type: Easing.OutCubic }
-    }
-
-    onCpuPercentChanged:    { smoothCpu = cpuPercent;    cpuSparkCanvas.pushSample(cpuPercent) }
-    onMemoryPercentChanged: { smoothMem = memoryPercent; memSparkCanvas.pushSample(memoryPercent) }
 
     // ── Derived accent color helpers ─────────────────────────────────────────
     function accentColor(alpha) {
         return Qt.rgba(accentRed, accentGreen, accentBlue, alpha)
+    }
+
+    function uiColor(blueHex, pinkHex) {
+        return pinkMode ? pinkHex : blueHex
     }
 
     function severityColor(level, alpha) {
@@ -58,21 +72,40 @@ Rectangle {
     // Gauge arc color: 0–50 = blue→cyan, 50–80 = cyan→amber, 80–100 = amber→red
     function gaugeColor(pct, alpha) {
         var t, r, g, b
-        if (pct <= 50) {
-            t = pct / 50.0
-            r = 0.231 + (0.024 - 0.231) * t   // #3b82f6 → #06b6d4
-            g = 0.510 + (0.714 - 0.510) * t
-            b = 0.965 + (0.831 - 0.965) * t
-        } else if (pct <= 80) {
-            t = (pct - 50) / 30.0
-            r = 0.024 + (0.961 - 0.024) * t   // #06b6d4 → #f59e0b
-            g = 0.714 + (0.620 - 0.714) * t
-            b = 0.831 + (0.043 - 0.831) * t
+        if (pinkMode) {
+            if (pct <= 50) {
+                t = pct / 50.0
+                r = 0.961 + (0.933 - 0.961) * t
+                g = 0.361 + (0.306 - 0.361) * t
+                b = 0.659 + (0.643 - 0.659) * t
+            } else if (pct <= 80) {
+                t = (pct - 50) / 30.0
+                r = 0.933 + (0.961 - 0.933) * t
+                g = 0.306 + (0.620 - 0.306) * t
+                b = 0.643 + (0.498 - 0.643) * t
+            } else {
+                t = (pct - 80) / 20.0
+                r = 0.961 + (0.937 - 0.961) * t
+                g = 0.620 + (0.267 - 0.620) * t
+                b = 0.498 + (0.267 - 0.498) * t
+            }
         } else {
-            t = (pct - 80) / 20.0
-            r = 0.961 + (0.937 - 0.961) * t   // #f59e0b → #ef4444
-            g = 0.620 + (0.267 - 0.620) * t
-            b = 0.043 + (0.267 - 0.043) * t
+            if (pct <= 50) {
+                t = pct / 50.0
+                r = 0.231 + (0.024 - 0.231) * t
+                g = 0.510 + (0.714 - 0.510) * t
+                b = 0.965 + (0.831 - 0.965) * t
+            } else if (pct <= 80) {
+                t = (pct - 50) / 30.0
+                r = 0.024 + (0.961 - 0.024) * t
+                g = 0.714 + (0.620 - 0.714) * t
+                b = 0.831 + (0.043 - 0.831) * t
+            } else {
+                t = (pct - 80) / 20.0
+                r = 0.961 + (0.937 - 0.961) * t
+                g = 0.620 + (0.267 - 0.620) * t
+                b = 0.043 + (0.267 - 0.043) * t
+            }
         }
         return Qt.rgba(
             Math.max(0, Math.min(1, r)),
@@ -95,9 +128,9 @@ Rectangle {
         anchors.fill: parent
         radius: root.radius
         gradient: Gradient {
-            GradientStop { position: 0.0; color: "#0c1829" }
-            GradientStop { position: 0.55; color: "#080e18" }
-            GradientStop { position: 1.0; color: "#050a11" }
+            GradientStop { position: 0.0; color: root.uiColor("#0c1829", "#3a1529") }
+            GradientStop { position: 0.55; color: root.uiColor("#080e18", "#2a1021") }
+            GradientStop { position: 1.0; color: root.uiColor("#050a11", "#1a0915") }
         }
     }
 
@@ -112,6 +145,41 @@ Rectangle {
         }
     }
 
+    // Cute decorative accents for pink mode (kept outside metric focus area).
+    Item {
+        anchors.fill: parent
+        visible: root.pinkMode
+        z: 0
+        opacity: 0.22
+
+        Text {
+            text: "\uD83E\uDDF8"
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.leftMargin: 18
+            anchors.topMargin: 14
+            font.pixelSize: 24
+            color: "#ffd3e7"
+        }
+        Text {
+            text: "\uD83C\uDF70"
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.rightMargin: 20
+            anchors.topMargin: 14
+            font.pixelSize: 22
+            color: "#ffd3e7"
+        }
+        Text {
+            text: "\u2665"
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.rightMargin: 22
+            anchors.bottomMargin: 14
+            font.pixelSize: 16
+            color: "#ff9cc5"
+        }
+    }
     // =========================================================================
     // LAYER 1 — frosted-glass panel surface
     // =========================================================================
@@ -159,7 +227,7 @@ Rectangle {
                 id: titleLabel
                 text: "AURA  COCKPIT"
                 anchors.centerIn: parent
-                color: "#4a6d8a"
+                color: root.uiColor("#4a6d8a", "#e2a2c5")
                 font.pixelSize: 11
                 font.weight: Font.Medium
                 font.letterSpacing: 4
@@ -243,13 +311,13 @@ Rectangle {
                         // Track arc
                         ctx.beginPath()
                         ctx.arc(cx, cy, r, startAngle, startAngle + fullSweep, false)
-                        ctx.strokeStyle = "#1a2940"
+                        ctx.strokeStyle = root.uiColor("#1a2940", "#5f2a4b")
                         ctx.lineWidth   = trackW
                         ctx.lineCap     = "butt"
                         ctx.stroke()
 
                         // Tick marks at 25%, 50%, 75%
-                        ctx.strokeStyle = "#0c1829"
+                        ctx.strokeStyle = root.uiColor("#0c1829", "#3a1529")
                         ctx.lineWidth   = 2
                         var ticks = [0.25, 0.50, 0.75]
                         for (var i = 0; i < ticks.length; i++) {
@@ -305,8 +373,8 @@ Rectangle {
 
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
-                        text: root.cpuPercent.toFixed(0) + "%"
-                        color: "#e8f4ff"
+                        text: root.smoothCpu.toFixed(0) + "%"
+                        color: root.uiColor("#e8f4ff", "#fff1f8")
                         font.pixelSize: Math.max(22, root.gaugeSize * 0.20)
                         font.weight: Font.Bold
                     }
@@ -314,7 +382,7 @@ Rectangle {
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: "CPU"
-                        color: "#7ba8c8"
+                        color: root.uiColor("#7ba8c8", "#f2bfd8")
                         font.pixelSize: 9
                         font.weight: Font.Medium
                         font.letterSpacing: 2.5
@@ -382,13 +450,13 @@ Rectangle {
                         // Track arc
                         ctx.beginPath()
                         ctx.arc(cx, cy, r, startAngle, startAngle + fullSweep, false)
-                        ctx.strokeStyle = "#1a2940"
+                        ctx.strokeStyle = root.uiColor("#1a2940", "#5f2a4b")
                         ctx.lineWidth   = trackW
                         ctx.lineCap     = "butt"
                         ctx.stroke()
 
                         // Tick marks
-                        ctx.strokeStyle = "#0c1829"
+                        ctx.strokeStyle = root.uiColor("#0c1829", "#3a1529")
                         var ticks = [0.25, 0.50, 0.75]
                         for (var i = 0; i < ticks.length; i++) {
                             var ta = startAngle + fullSweep * ticks[i]
@@ -443,8 +511,8 @@ Rectangle {
 
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
-                        text: root.memoryPercent.toFixed(0) + "%"
-                        color: "#e8f4ff"
+                        text: root.smoothMem.toFixed(0) + "%"
+                        color: root.uiColor("#e8f4ff", "#fff1f8")
                         font.pixelSize: Math.max(22, root.gaugeSize * 0.20)
                         font.weight: Font.Bold
                     }
@@ -452,7 +520,7 @@ Rectangle {
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: "MEM"
-                        color: "#7ba8c8"
+                        color: root.uiColor("#7ba8c8", "#f2bfd8")
                         font.pixelSize: 9
                         font.weight: Font.Medium
                         font.letterSpacing: 2.5
@@ -495,7 +563,7 @@ Rectangle {
                 id: cpuSparkLabel
                 anchors { left: parent.left; verticalCenter: undefined; top: parent.top }
                 text: "CPU  HISTORY"
-                color: "#4a6d8a"
+                color: root.uiColor("#4a6d8a", "#e2a2c5")
                 font.pixelSize: 9
                 font.weight: Font.Medium
                 font.letterSpacing: 2.5
@@ -503,8 +571,8 @@ Rectangle {
 
             Text {
                 anchors { right: parent.right; top: parent.top }
-                text: root.cpuPercent.toFixed(1) + "%"
-                color: root.gaugeColor(root.cpuPercent, 1.0)
+                text: root.smoothCpu.toFixed(1) + "%"
+                color: root.gaugeColor(root.smoothCpu, 1.0)
                 font.pixelSize: 10
                 font.weight: Font.Bold
                 font.letterSpacing: 0.5
@@ -607,7 +675,7 @@ Rectangle {
             Text {
                 anchors { left: parent.left; top: parent.top }
                 text: "MEM  HISTORY"
-                color: "#4a6d8a"
+                color: root.uiColor("#4a6d8a", "#e2a2c5")
                 font.pixelSize: 9
                 font.weight: Font.Medium
                 font.letterSpacing: 2.5
@@ -615,8 +683,8 @@ Rectangle {
 
             Text {
                 anchors { right: parent.right; top: parent.top }
-                text: root.memoryPercent.toFixed(1) + "%"
-                color: root.gaugeColor(root.memoryPercent, 1.0)
+                text: root.smoothMem.toFixed(1) + "%"
+                color: root.gaugeColor(root.smoothMem, 1.0)
                 font.pixelSize: 10
                 font.weight: Font.Bold
                 font.letterSpacing: 0.5
@@ -744,7 +812,7 @@ Rectangle {
             Text {
                 id: statusLabel
                 text: root.statusText
-                color: "#4a6d8a"
+                color: root.uiColor("#4a6d8a", "#e2a2c5")
                 font.pixelSize: 10
                 font.letterSpacing: 0.5
                 elide: Text.ElideRight
@@ -807,3 +875,5 @@ Rectangle {
         }
     }
 }
+
+
