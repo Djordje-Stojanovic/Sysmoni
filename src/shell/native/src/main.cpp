@@ -778,7 +778,7 @@ public:
             });
             body_layout->addWidget(
                 slot_widgets_[index].frame,
-                slot == aura::shell::DockSlot::Center ? 2 : 1
+                slot == aura::shell::DockSlot::Center ? 3 : 1
             );
         }
 
