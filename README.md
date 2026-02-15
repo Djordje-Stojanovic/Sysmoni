@@ -1,18 +1,62 @@
 # Aura (Sysmoni)
 
-Windows-native system monitor built with C++20, CMake, and Qt6 (GUI).
+Windows-native, local-first system monitor built with C++20, CMake, and Qt6.
 
-## Quick Start (Repo Root)
+## User-First Entry Point
+
+Use `aura.cmd` from repo root for normal usage:
 
 ```powershell
 .\aura.cmd
 ```
 
-That is the default developer run path (GUI).  
-For CLI:
+That launches GUI by default.
+
+## Quick Commands
 
 ```powershell
-.\aura.cmd --cli --json --no-persist
+# Help
+.\aura.cmd help
+
+# Launch GUI / CLI
+.\aura.cmd gui
+.\aura.cmd cli --json --no-persist
+
+# Build (all/gui/cli)
+.\aura.cmd build all
+.\aura.cmd build gui
+.\aura.cmd build cli
+
+# Tests (all/shell/render/telemetry/platform)
+.\aura.cmd test all
+.\aura.cmd test platform
+
+# Maintenance
+.\aura.cmd doctor
+.\aura.cmd update dryrun
+.\aura.cmd clean dryrun
+
+# Install / uninstall user launchers
+.\aura.cmd install
+.\aura.cmd uninstall force
+```
+
+### Debug/Release Flags
+
+`aura.cmd` accepts both long flags and user-friendly aliases:
+
+- `--debug` or `debug`
+- `--release` or `release`
+- `--force` or `force`
+- `--dry-run` or `dryrun`
+- `--qt6dir <path>` or `qt6dir <path>`
+
+Examples:
+
+```powershell
+.\aura.cmd build all debug
+.\aura.cmd test telemetry debug
+.\aura.cmd clean dryrun
 ```
 
 ## One-Time Setup (Windows)
@@ -27,49 +71,7 @@ uvx --from aqtinstall aqt.exe install-qt -O C:\Qt windows desktop 6.10.2 win64_m
 powershell -ExecutionPolicy Bypass -File installer/windows/build_shell_native.ps1 -Qt6Dir "C:\Qt\6.10.2\msvc2022_64\lib\cmake\Qt6"
 ```
 
-## Build Everything (Repo Root)
+## AI/Automation Note
 
-```powershell
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64
-cmake --build build --config Release
-```
-
-## Run Tests (Repo Root)
-
-```powershell
-ctest --test-dir build -C Release --output-on-failure
-```
-
-## Common Commands
-
-```powershell
-# GUI
-.\aura.cmd --gui
-
-# CLI
-.\aura.cmd --cli --json --no-persist
-
-# Build platform CLI artifacts
-powershell -ExecutionPolicy Bypass -File installer/windows/build_platform_native.ps1
-
-# Build shell GUI artifacts (+ deploy Qt + bridge DLLs)
-powershell -ExecutionPolicy Bypass -File installer/windows/build_shell_native.ps1 -Qt6Dir "C:\Qt\6.10.2\msvc2022_64\lib\cmake\Qt6"
-
-# Platform-only test script
-powershell -ExecutionPolicy Bypass -File tests/test_platform/run_native_tests.ps1
-```
-
-## Repo Layout
-
-```text
-src/
-  telemetry/native/
-  render/native/
-  shell/native/
-  runtime/native/
-tests/
-  test_telemetry/
-  test_render/
-  test_shell/
-  test_platform/
-```
+`aura.cmd` is the main human-facing interface.  
+For AI/agent workflows, prefer module-specific build/test scripts and docs (`AGENTS.md`, `ai.md`, `coding_guidelines.md`) when you need lower-level control.
