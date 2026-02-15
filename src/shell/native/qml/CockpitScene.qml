@@ -130,10 +130,18 @@ Rectangle {
     }
 
     // ── Responsive layout properties ─────────────────────────────────────────
-    property real scaledMargin: Math.max(10, root.height * 0.028)
-    property real scaledSpacing: Math.max(4, root.height * 0.012)
-    property real gaugeSize: Math.min(Math.max(root.width * 0.30, 110), 240)
-    property real effectiveGaugeSize: Math.min(gaugeSize, root.height * 0.38)
+    property real scaleFactor: Math.max(0.5, Math.min(1.5, root.height / 600.0))
+    property real scaledMargin: Math.round(10 * scaleFactor)
+    property real scaledSpacing: Math.round(6 * scaleFactor)
+    property real gaugeSize: Math.round(Math.max(60, Math.min(220, Math.min(root.width * 0.28, root.height * 0.32))))
+    property real effectiveGaugeSize: gaugeSize
+
+    property int fontTitle: Math.round(Math.max(8, 10 * scaleFactor))
+    property int fontGaugeValue: Math.round(Math.max(14, 22 * scaleFactor))
+    property int fontGaugeLabel: Math.round(Math.max(7, 10 * scaleFactor))
+    property int fontSparkLabel: Math.round(Math.max(7, 10 * scaleFactor))
+    property int fontSparkValue: Math.round(Math.max(8, 11 * scaleFactor))
+    property int fontStatus: Math.round(Math.max(8, 10 * scaleFactor))
 
     // =========================================================================
     // LAYER 0 — background vignette / depth
@@ -171,9 +179,9 @@ Rectangle {
             id: starDecor
             anchors.left: parent.left
             anchors.top: parent.top
-            anchors.leftMargin: 12
-            anchors.topMargin: 10
-            width: Math.max(18, root.width * 0.04)
+            anchors.leftMargin: Math.round(12 * root.scaleFactor)
+            anchors.topMargin: Math.round(10 * root.scaleFactor)
+            width: Math.max(12, root.width * 0.04)
             height: width
             onPaint: {
                 var ctx = getContext("2d")
@@ -214,9 +222,9 @@ Rectangle {
             id: diamondDecor
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.rightMargin: 14
-            anchors.topMargin: 10
-            width: Math.max(16, root.width * 0.035)
+            anchors.rightMargin: Math.round(14 * root.scaleFactor)
+            anchors.topMargin: Math.round(10 * root.scaleFactor)
+            width: Math.max(10, root.width * 0.035)
             height: width
             onPaint: {
                 var ctx = getContext("2d")
@@ -252,9 +260,9 @@ Rectangle {
             id: heartDecor
             anchors.right: parent.right
             anchors.bottom: parent.bottom
-            anchors.rightMargin: 14
-            anchors.bottomMargin: 10
-            width: Math.max(24, root.width * 0.05)
+            anchors.rightMargin: Math.round(14 * root.scaleFactor)
+            anchors.bottomMargin: Math.round(10 * root.scaleFactor)
+            width: Math.max(16, root.width * 0.05)
             height: width * 0.8
             onPaint: {
                 var ctx = getContext("2d")
@@ -367,9 +375,9 @@ Rectangle {
                 text: "AURA  COCKPIT"
                 anchors.centerIn: parent
                 color: root.clrTextMuted
-                font.pixelSize: Math.max(9, root.height * 0.022)
+                font.pixelSize: root.fontTitle
                 font.weight: Font.Medium
-                font.letterSpacing: 4
+                font.letterSpacing: Math.round(4 * root.scaleFactor)
             }
 
             // Subtle title underline glow
@@ -387,7 +395,7 @@ Rectangle {
         Row {
             id: gaugeRow
             Layout.alignment: Qt.AlignHCenter
-            spacing: Math.max(root.width * 0.08, 24)
+            spacing: Math.round(Math.max(12, root.width * 0.05))
 
             // ── CPU gauge ────────────────────────────────────────────────────
             Item {
@@ -399,8 +407,8 @@ Rectangle {
                 Canvas {
                     id: cpuGlowCanvas
                     anchors.centerIn: parent
-                    width: parent.width + 24
-                    height: parent.height + 24
+                    width: parent.width + Math.round(12 + 12 * root.scaleFactor)
+                    height: parent.height + Math.round(12 + 12 * root.scaleFactor)
                     opacity: 0.35 + root.accentIntensity * 0.20
 
                     onPaint: {
@@ -416,7 +424,7 @@ Rectangle {
                         ctx.beginPath()
                         ctx.arc(cx, cy, r, startAngle, startAngle + sweepAngle, false)
                         ctx.strokeStyle = Qt.rgba(gc.r, gc.g, gc.b, 0.30)
-                        ctx.lineWidth   = 18
+                        ctx.lineWidth   = Math.max(6, 18 * root.scaleFactor)
                         ctx.lineCap     = "round"
                         ctx.stroke()
                     }
@@ -441,8 +449,8 @@ Rectangle {
 
                         var cx = width  / 2
                         var cy = height / 2
-                        var r  = width  / 2 - 10
-                        var trackW = 11
+                        var r  = width  / 2 - Math.max(6, Math.round(10 * root.scaleFactor))
+                        var trackW = Math.max(5, Math.round(11 * root.scaleFactor))
                         var startAngle = Math.PI * 0.75
                         var fullSweep  = Math.PI * 1.50
                         var endAngle   = startAngle + fullSweep * (root.smoothCpu / 100.0)
@@ -514,7 +522,7 @@ Rectangle {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: root.smoothCpu.toFixed(0) + "%"
                         color: root.clrTextPrimary
-                        font.pixelSize: Math.max(22, root.effectiveGaugeSize * 0.20)
+                        font.pixelSize: root.fontGaugeValue
                         font.weight: Font.Bold
                     }
 
@@ -522,7 +530,7 @@ Rectangle {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: "CPU"
                         color: root.clrTextSecondary
-                        font.pixelSize: Math.max(8, root.height * 0.018)
+                        font.pixelSize: root.fontGaugeLabel
                         font.weight: Font.Medium
                         font.letterSpacing: 2.5
                     }
@@ -539,8 +547,8 @@ Rectangle {
                 Canvas {
                     id: memGlowCanvas
                     anchors.centerIn: parent
-                    width: parent.width + 24
-                    height: parent.height + 24
+                    width: parent.width + Math.round(12 + 12 * root.scaleFactor)
+                    height: parent.height + Math.round(12 + 12 * root.scaleFactor)
                     opacity: 0.35 + root.accentIntensity * 0.20
 
                     onPaint: {
@@ -556,7 +564,7 @@ Rectangle {
                         ctx.beginPath()
                         ctx.arc(cx, cy, r, startAngle, startAngle + sweepAngle, false)
                         ctx.strokeStyle = Qt.rgba(gc.r, gc.g, gc.b, 0.30)
-                        ctx.lineWidth   = 18
+                        ctx.lineWidth   = Math.max(6, 18 * root.scaleFactor)
                         ctx.lineCap     = "round"
                         ctx.stroke()
                     }
@@ -580,8 +588,8 @@ Rectangle {
 
                         var cx = width  / 2
                         var cy = height / 2
-                        var r  = width  / 2 - 10
-                        var trackW = 11
+                        var r  = width  / 2 - Math.max(6, Math.round(10 * root.scaleFactor))
+                        var trackW = Math.max(5, Math.round(11 * root.scaleFactor))
                         var startAngle = Math.PI * 0.75
                         var fullSweep  = Math.PI * 1.50
                         var endAngle   = startAngle + fullSweep * (root.smoothMem / 100.0)
@@ -652,7 +660,7 @@ Rectangle {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: root.smoothMem.toFixed(0) + "%"
                         color: root.clrTextPrimary
-                        font.pixelSize: Math.max(22, root.effectiveGaugeSize * 0.20)
+                        font.pixelSize: root.fontGaugeValue
                         font.weight: Font.Bold
                     }
 
@@ -660,7 +668,7 @@ Rectangle {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: "MEM"
                         color: root.clrTextSecondary
-                        font.pixelSize: Math.max(8, root.height * 0.018)
+                        font.pixelSize: root.fontGaugeLabel
                         font.weight: Font.Medium
                         font.letterSpacing: 2.5
                     }
@@ -696,7 +704,7 @@ Rectangle {
             id: cpuSparkRow
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.minimumHeight: 48
+            Layout.minimumHeight: Math.round(Math.max(28, 48 * root.scaleFactor))
             Layout.leftMargin: root.scaledMargin
             Layout.rightMargin: root.scaledMargin
 
@@ -706,7 +714,7 @@ Rectangle {
                 anchors { left: parent.left; top: parent.top }
                 text: "CPU  HISTORY"
                 color: root.clrTextMuted
-                font.pixelSize: Math.max(8, root.height * 0.018)
+                font.pixelSize: root.fontSparkLabel
                 font.weight: Font.Medium
                 font.letterSpacing: 2.5
             }
@@ -715,7 +723,7 @@ Rectangle {
                 anchors { right: parent.right; top: parent.top }
                 text: root.smoothCpu.toFixed(1) + "%"
                 color: root.gaugeColor(root.smoothCpu, 1.0)
-                font.pixelSize: Math.max(9, root.height * 0.020)
+                font.pixelSize: root.fontSparkValue
                 font.weight: Font.Bold
                 font.letterSpacing: 0.5
             }
@@ -724,7 +732,7 @@ Rectangle {
             Canvas {
                 id: cpuSparkCanvas
                 anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                height: parent.height - 18
+                height: parent.height - Math.round(Math.max(12, 18 * root.scaleFactor))
 
                 property var samples: []
 
@@ -812,7 +820,7 @@ Rectangle {
             id: memSparkRow
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.minimumHeight: 48
+            Layout.minimumHeight: Math.round(Math.max(28, 48 * root.scaleFactor))
             Layout.leftMargin: root.scaledMargin
             Layout.rightMargin: root.scaledMargin
 
@@ -820,7 +828,7 @@ Rectangle {
                 anchors { left: parent.left; top: parent.top }
                 text: "MEM  HISTORY"
                 color: root.clrTextMuted
-                font.pixelSize: Math.max(8, root.height * 0.018)
+                font.pixelSize: root.fontSparkLabel
                 font.weight: Font.Medium
                 font.letterSpacing: 2.5
             }
@@ -829,7 +837,7 @@ Rectangle {
                 anchors { right: parent.right; top: parent.top }
                 text: root.smoothMem.toFixed(1) + "%"
                 color: root.gaugeColor(root.smoothMem, 1.0)
-                font.pixelSize: Math.max(9, root.height * 0.020)
+                font.pixelSize: root.fontSparkValue
                 font.weight: Font.Bold
                 font.letterSpacing: 0.5
             }
@@ -837,7 +845,7 @@ Rectangle {
             Canvas {
                 id: memSparkCanvas
                 anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                height: parent.height - 18
+                height: parent.height - Math.round(Math.max(12, 18 * root.scaleFactor))
 
                 property var samples: []
 
@@ -956,7 +964,7 @@ Rectangle {
                 id: statusLabel
                 text: root.statusText
                 color: root.clrTextMuted
-                font.pixelSize: Math.max(9, root.height * 0.020)
+                font.pixelSize: root.fontStatus
                 font.letterSpacing: 0.5
                 elide: Text.ElideRight
                 width: root.width * 0.75

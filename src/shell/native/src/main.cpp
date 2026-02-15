@@ -8,6 +8,7 @@
 #include <QLabel>
 #include <QMainWindow>
 #include <QMouseEvent>
+#include <QResizeEvent>
 #include <QObject>
 #include <QPushButton>
 #include <QQuickItem>
@@ -130,6 +131,49 @@ QString quality_label(const int quality_hint) {
     return quality_hint > 0 ? QStringLiteral("throttled") : QStringLiteral("full");
 }
 
+// ---------------------------------------------------------------------------
+// Responsive size category system
+// ---------------------------------------------------------------------------
+
+enum class SizeCategory { Compact, Regular, Comfortable, Spacious };
+
+struct SizeMetrics {
+    int base_font;
+    int title_font;
+    int subtitle_font;
+    int metric_value_font;
+    int metric_key_font;
+    int metric_unit_font;
+    int tab_font;
+    int small_font;
+    int titlebar_height;
+    int tab_v_padding;
+    int tab_h_padding;
+    int body_margin;
+    int body_spacing;
+};
+
+SizeCategory classify_window_size(int /*w*/, int h) {
+    if (h < 400)  return SizeCategory::Compact;
+    if (h < 600)  return SizeCategory::Regular;
+    if (h < 900)  return SizeCategory::Comfortable;
+    return SizeCategory::Spacious;
+}
+
+SizeMetrics metrics_for_category(SizeCategory cat) {
+    switch (cat) {
+        case SizeCategory::Compact:
+            return {9, 11, 8, 16, 8, 10, 9, 8, 28, 4, 10, 6, 6};
+        case SizeCategory::Regular:
+            return {11, 13, 10, 20, 9, 12, 11, 9, 36, 7, 16, 10, 10};
+        case SizeCategory::Comfortable:
+            return {12, 14, 10, 22, 9, 12, 11, 9, 40, 8, 18, 12, 10};
+        case SizeCategory::Spacious:
+            return {13, 15, 11, 24, 10, 13, 12, 10, 44, 9, 20, 14, 12};
+    }
+    return {11, 13, 10, 20, 9, 12, 11, 9, 36, 7, 16, 10, 10};
+}
+
 int interval_to_milliseconds(const double interval_seconds) {
     if (!std::isfinite(interval_seconds) || interval_seconds <= 0.0) {
         return 1000;
@@ -194,73 +238,75 @@ struct SlotWidgets {
 
 constexpr const char* k_theme_mode_setting_key = "ui/theme_mode";
 
-QString build_app_stylesheet(const aura::shell::UiThemeMode mode) {
+QString build_app_stylesheet(const aura::shell::UiThemeMode mode, const SizeMetrics& m) {
     const auto& p = aura::shell::get_theme_palette(mode);
-    return QString(
+
+    // Build template with named tokens, then replace
+    QString ss = QStringLiteral(
         // --- Application-wide base ---
         "* {"
         "    font-family: 'Segoe UI';"
-        "    font-size: 11px;"
-        "    color: %1;"
+        "    font-size: ${BASE}px;"
+        "    color: ${TEXT_PRIMARY};"
         "}"
         // --- Main window ---
         "QMainWindow {"
-        "    background: %2;"
+        "    background: ${BG_WINDOW};"
         "}"
         // --- Title bar ---
         "QFrame#titlebar {"
         "    background: qlineargradient("
         "        x1:0, y1:0, x2:0, y2:1,"
-        "        stop:0 %3,"
-        "        stop:1 %4"
+        "        stop:0 ${BG_SURFACE},"
+        "        stop:1 ${BG_PANEL}"
         "    );"
-        "    border-bottom: 1px solid %5;"
-        "    min-height: 36px;"
-        "    max-height: 36px;"
+        "    border-bottom: 1px solid ${BORDER_SUBTLE};"
+        "    min-height: ${TB_H}px;"
+        "    max-height: ${TB_H}px;"
         "}"
         // --- App logo ---
         "QLabel#appLogo {"
-        "    color: %6;"
-        "    font-size: 13px;"
+        "    color: ${ACCENT};"
+        "    font-size: ${TITLE}px;"
         "    font-weight: 600;"
         "    letter-spacing: 2px;"
         "    padding-left: 4px;"
         "}"
         // --- Subtitle ---
         "QLabel#titleSubtitle {"
-        "    color: %7;"
-        "    font-size: 10px;"
+        "    color: ${TEXT_MUTED};"
+        "    font-size: ${SUBTITLE}px;"
         "    letter-spacing: 1px;"
         "    padding-left: 8px;"
         "}"
         // --- Window control buttons ---
         "QPushButton#minBtn, QPushButton#maxBtn {"
         "    background: transparent;"
-        "    color: %8;"
+        "    color: ${TEXT_SECONDARY};"
         "    border: none;"
         "    border-radius: 4px;"
         "    min-width: 28px; max-width: 28px;"
         "    min-height: 24px; max-height: 24px;"
-        "    font-size: 13px;"
+        "    font-size: ${TITLE}px;"
         "    padding: 0px;"
         "}"
         "QPushButton#minBtn:hover, QPushButton#maxBtn:hover {"
-        "    background: %9;"
-        "    color: %1;"
+        "    background: ${BG_ELEVATED};"
+        "    color: ${TEXT_PRIMARY};"
         "}"
         "QPushButton#closeBtn {"
         "    background: transparent;"
-        "    color: %8;"
+        "    color: ${TEXT_SECONDARY};"
         "    border: none;"
         "    border-radius: 4px;"
         "    min-width: 28px; max-width: 28px;"
         "    min-height: 24px; max-height: 24px;"
-        "    font-size: 13px;"
+        "    font-size: ${TITLE}px;"
         "    padding: 0px;"
         "    margin-right: 4px;"
         "}"
         "QPushButton#closeBtn:hover {"
-        "    background: %10;"
+        "    background: ${DANGER};"
         "    color: #ffffff;"
         "}"
         "QPushButton#closeBtn:pressed {"
@@ -269,36 +315,36 @@ QString build_app_stylesheet(const aura::shell::UiThemeMode mode) {
         "}"
         // --- Theme toggle ---
         "QPushButton#themeToggleBtn {"
-        "    background: %3;"
-        "    color: %8;"
-        "    border: 1px solid %5;"
+        "    background: ${BG_SURFACE};"
+        "    color: ${TEXT_SECONDARY};"
+        "    border: 1px solid ${BORDER_SUBTLE};"
         "    border-radius: 6px;"
         "    min-height: 24px;"
         "    padding: 0px 10px;"
-        "    font-size: 10px;"
+        "    font-size: ${SUBTITLE}px;"
         "    font-weight: 600;"
         "}"
         "QPushButton#themeToggleBtn:hover {"
-        "    background: %9;"
-        "    color: %1;"
-        "    border-color: %6;"
+        "    background: ${BG_ELEVATED};"
+        "    color: ${TEXT_PRIMARY};"
+        "    border-color: ${ACCENT};"
         "}"
         "QPushButton#themeToggleBtn:pressed {"
-        "    background: %5;"
-        "    color: %11;"
-        "    border-color: %6;"
+        "    background: ${BORDER_SUBTLE};"
+        "    color: ${ACCENT_HOVER};"
+        "    border-color: ${ACCENT};"
         "}"
         // --- Dock slot frames ---
         "QFrame#slot {"
-        "    background: %4;"
-        "    border: 1px solid %5;"
+        "    background: ${BG_PANEL};"
+        "    border: 1px solid ${BORDER_SUBTLE};"
         "    border-radius: 10px;"
         "    padding: 0px;"
         "}"
         // --- Slot zone label ---
         "QLabel#slotZoneLabel {"
-        "    color: %12;"
-        "    font-size: 9px;"
+        "    color: ${BORDER_ACTIVE};"
+        "    font-size: ${SMALL}px;"
         "    font-weight: 600;"
         "    letter-spacing: 3px;"
         "    padding: 0px 0px 0px 2px;"
@@ -307,83 +353,83 @@ QString build_app_stylesheet(const aura::shell::UiThemeMode mode) {
         "QTabBar {"
         "    background: transparent;"
         "    border: none;"
-        "    border-bottom: 1px solid %5;"
+        "    border-bottom: 1px solid ${BORDER_SUBTLE};"
         "}"
         "QTabBar::tab {"
         "    background: transparent;"
-        "    color: %7;"
+        "    color: ${TEXT_MUTED};"
         "    border: none;"
         "    border-bottom: 2px solid transparent;"
-        "    padding: 7px 16px 6px 16px;"
-        "    font-size: 11px;"
+        "    padding: ${TAB_VP}px ${TAB_HP}px ${TAB_VP}px ${TAB_HP}px;"
+        "    font-size: ${TAB}px;"
         "    font-weight: 500;"
         "    letter-spacing: 0.5px;"
         "    min-width: 60px;"
         "}"
         "QTabBar::tab:hover {"
-        "    color: %8;"
-        "    border-bottom: 2px solid %12;"
+        "    color: ${TEXT_SECONDARY};"
+        "    border-bottom: 2px solid ${BORDER_ACTIVE};"
         "}"
         "QTabBar::tab:selected {"
-        "    color: %1;"
-        "    border-bottom: 2px solid %6;"
+        "    color: ${TEXT_PRIMARY};"
+        "    border-bottom: 2px solid ${ACCENT};"
         "    font-weight: 600;"
         "}"
         "QTabBar::tab:!enabled {"
-        "    color: %12;"
+        "    color: ${BORDER_ACTIVE};"
         "}"
         // --- Generic QPushButton ---
         "QPushButton {"
-        "    background: %3;"
-        "    color: %8;"
-        "    border: 1px solid %5;"
+        "    background: ${BG_SURFACE};"
+        "    color: ${TEXT_SECONDARY};"
+        "    border: 1px solid ${BORDER_SUBTLE};"
         "    border-radius: 6px;"
         "    padding: 3px 10px;"
-        "    font-size: 11px;"
+        "    font-size: ${BASE}px;"
         "}"
         "QPushButton:hover {"
-        "    background: %9;"
-        "    color: %1;"
-        "    border-color: %12;"
+        "    background: ${BG_ELEVATED};"
+        "    color: ${TEXT_PRIMARY};"
+        "    border-color: ${BORDER_ACTIVE};"
         "}"
         "QPushButton:pressed {"
-        "    background: %5;"
-        "    color: %11;"
-        "    border-color: %6;"
+        "    background: ${BORDER_SUBTLE};"
+        "    color: ${ACCENT_HOVER};"
+        "    border-color: ${ACCENT};"
         "}"
         "QPushButton:disabled {"
-        "    background: %2;"
-        "    color: %12;"
-        "    border-color: %5;"
+        "    background: ${BG_WINDOW};"
+        "    color: ${BORDER_ACTIVE};"
+        "    border-color: ${BORDER_SUBTLE};"
         "}"
         // --- Move pill buttons ---
         "QPushButton#moveBtn {"
-        "    background: %3;"
-        "    color: %7;"
-        "    border: 1px solid %5;"
+        "    background: ${BG_SURFACE};"
+        "    color: ${TEXT_MUTED};"
+        "    border: 1px solid ${BORDER_SUBTLE};"
         "    border-radius: 10px;"
         "    padding: 2px 9px;"
-        "    font-size: 10px;"
+        "    font-size: ${SUBTITLE}px;"
         "    font-weight: 600;"
         "    min-width: 22px;"
         "    max-height: 20px;"
         "}"
         "QPushButton#moveBtn:hover {"
-        "    background: %9;"
-        "    color: %11;"
-        "    border-color: %6;"
+        "    background: ${BG_ELEVATED};"
+        "    color: ${ACCENT_HOVER};"
+        "    border-color: ${ACCENT};"
         "}"
         "QPushButton#moveBtn:disabled {"
-        "    background: %2;"
-        "    color: %5;"
-        "    border-color: %3;"
+        "    background: ${BG_WINDOW};"
+        "    color: ${BORDER_SUBTLE};"
+        "    border-color: ${BG_SURFACE};"
         "}"
         // --- Panel header separator ---
         "QFrame#panelHeaderLine {"
         "    background: qlineargradient("
         "        x1:0, y1:0, x2:1, y2:0,"
-        "        stop:0 %6,"
-        "        stop:0.4 %5,"
+        "        stop:0 ${ACCENT},"
+        "        stop:0.4 ${BORDER_SUBTLE},"
         "        stop:1 transparent"
         "    );"
         "    min-height: 1px;"
@@ -392,138 +438,156 @@ QString build_app_stylesheet(const aura::shell::UiThemeMode mode) {
         "}"
         // --- Panel title ---
         "QLabel#panelTitle {"
-        "    color: %1;"
-        "    font-size: 12px;"
+        "    color: ${TEXT_PRIMARY};"
+        "    font-size: ${PANEL_TITLE}px;"
         "    font-weight: 600;"
         "    letter-spacing: 1px;"
         "}"
         // --- Move-to label ---
         "QLabel#moveToLabel {"
-        "    color: %7;"
-        "    font-size: 9px;"
+        "    color: ${TEXT_MUTED};"
+        "    font-size: ${SMALL}px;"
         "    letter-spacing: 1px;"
         "}"
         // --- Metric labels ---
         "QLabel#metricValue {"
-        "    color: %1;"
-        "    font-size: 20px;"
+        "    color: ${TEXT_PRIMARY};"
+        "    font-size: ${METRIC_VAL}px;"
         "    font-weight: 700;"
         "    letter-spacing: -0.5px;"
         "}"
         "QLabel#metricKey {"
-        "    color: %7;"
-        "    font-size: 9px;"
+        "    color: ${TEXT_MUTED};"
+        "    font-size: ${METRIC_KEY}px;"
         "    font-weight: 600;"
         "    letter-spacing: 2px;"
         "}"
         "QLabel#metricUnit {"
-        "    color: %6;"
-        "    font-size: 12px;"
+        "    color: ${ACCENT};"
+        "    font-size: ${METRIC_UNIT}px;"
         "    font-weight: 600;"
         "}"
         // --- Telemetry timestamp ---
         "QLabel#telemetryTimestamp {"
-        "    color: %7;"
-        "    font-size: 10px;"
+        "    color: ${TEXT_MUTED};"
+        "    font-size: ${SUBTITLE}px;"
         "}"
         // --- Telemetry status ---
         "QLabel#telemetryStatus {"
-        "    color: %8;"
-        "    font-size: 10px;"
+        "    color: ${TEXT_SECONDARY};"
+        "    font-size: ${SUBTITLE}px;"
         "    font-style: italic;"
         "}"
         // --- Process status ---
         "QLabel#processStatus {"
-        "    color: %7;"
-        "    font-size: 10px;"
+        "    color: ${TEXT_MUTED};"
+        "    font-size: ${SUBTITLE}px;"
         "    font-style: italic;"
         "    padding-bottom: 4px;"
         "}"
         // --- Process row labels ---
         "QLabel#processRow {"
-        "    color: %8;"
+        "    color: ${TEXT_SECONDARY};"
         "    font-family: 'Cascadia Mono', 'Consolas', monospace;"
-        "    font-size: 10px;"
+        "    font-size: ${SUBTITLE}px;"
         "    padding: 3px 6px;"
         "    border-radius: 3px;"
         "}"
         "QLabel#processRowAlt {"
-        "    color: %8;"
+        "    color: ${TEXT_SECONDARY};"
         "    font-family: 'Cascadia Mono', 'Consolas', monospace;"
-        "    font-size: 10px;"
-        "    background: %4;"
+        "    font-size: ${SUBTITLE}px;"
+        "    background: ${BG_PANEL};"
         "    padding: 3px 6px;"
         "    border-radius: 3px;"
         "}"
         // --- Timeline / render status ---
         "QLabel#timelineStatus {"
-        "    color: %7;"
-        "    font-size: 10px;"
+        "    color: ${TEXT_MUTED};"
+        "    font-size: ${SUBTITLE}px;"
         "    font-style: italic;"
         "}"
         "QLabel#renderStatus {"
-        "    color: %7;"
-        "    font-size: 10px;"
+        "    color: ${TEXT_MUTED};"
+        "    font-size: ${SUBTITLE}px;"
         "    font-style: italic;"
         "}"
         // --- Footer ---
         "QLabel#footerStatus {"
-        "    color: %12;"
-        "    font-size: 9px;"
+        "    color: ${BORDER_ACTIVE};"
+        "    font-size: ${SMALL}px;"
         "    font-family: 'Cascadia Mono', 'Consolas', monospace;"
         "    padding: 4px 12px 8px 14px;"
-        "    border-left: 2px solid %6;"
+        "    border-left: 2px solid ${ACCENT};"
         "    margin-left: 12px;"
         "    margin-bottom: 4px;"
         "}"
         // --- Scrollbars ---
         "QScrollBar:vertical {"
-        "    background: %2;"
+        "    background: ${BG_WINDOW};"
         "    width: 6px;"
         "    border-radius: 3px;"
         "    margin: 0px;"
         "}"
         "QScrollBar::handle:vertical {"
-        "    background: %5;"
+        "    background: ${BORDER_SUBTLE};"
         "    border-radius: 3px;"
         "    min-height: 20px;"
         "}"
         "QScrollBar::handle:vertical:hover {"
-        "    background: %12;"
+        "    background: ${BORDER_ACTIVE};"
         "}"
         "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {"
         "    height: 0px;"
         "}"
         "QScrollBar:horizontal {"
-        "    background: %2;"
+        "    background: ${BG_WINDOW};"
         "    height: 6px;"
         "    border-radius: 3px;"
         "    margin: 0px;"
         "}"
         "QScrollBar::handle:horizontal {"
-        "    background: %5;"
+        "    background: ${BORDER_SUBTLE};"
         "    border-radius: 3px;"
         "    min-width: 20px;"
         "}"
         "QScrollBar::handle:horizontal:hover {"
-        "    background: %12;"
+        "    background: ${BORDER_ACTIVE};"
         "}"
         "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {"
         "    width: 0px;"
         "}"
-    )
-    .arg(p.text_primary)     // %1
-    .arg(p.bg_window)        // %2
-    .arg(p.bg_surface)       // %3
-    .arg(p.bg_panel)         // %4
-    .arg(p.border_subtle)    // %5
-    .arg(p.accent)           // %6
-    .arg(p.text_muted)       // %7
-    .arg(p.text_secondary)   // %8
-    .arg(p.bg_elevated)      // %9
-    .arg(p.danger)           // %10
-    .arg(p.accent_hover)     // %11
-    .arg(p.border_active);   // %12
+    );
+
+    // Size metric tokens
+    ss.replace(QLatin1String("${BASE}"), QString::number(m.base_font));
+    ss.replace(QLatin1String("${TITLE}"), QString::number(m.title_font));
+    ss.replace(QLatin1String("${SUBTITLE}"), QString::number(m.subtitle_font));
+    ss.replace(QLatin1String("${METRIC_VAL}"), QString::number(m.metric_value_font));
+    ss.replace(QLatin1String("${METRIC_KEY}"), QString::number(m.metric_key_font));
+    ss.replace(QLatin1String("${METRIC_UNIT}"), QString::number(m.metric_unit_font));
+    ss.replace(QLatin1String("${TAB}"), QString::number(m.tab_font));
+    ss.replace(QLatin1String("${SMALL}"), QString::number(m.small_font));
+    ss.replace(QLatin1String("${TB_H}"), QString::number(m.titlebar_height));
+    ss.replace(QLatin1String("${TAB_VP}"), QString::number(m.tab_v_padding));
+    ss.replace(QLatin1String("${TAB_HP}"), QString::number(m.tab_h_padding));
+    ss.replace(QLatin1String("${PANEL_TITLE}"), QString::number(m.base_font + 1));
+
+    // Color tokens
+    ss.replace(QLatin1String("${TEXT_PRIMARY}"), p.text_primary);
+    ss.replace(QLatin1String("${BG_WINDOW}"), p.bg_window);
+    ss.replace(QLatin1String("${BG_SURFACE}"), p.bg_surface);
+    ss.replace(QLatin1String("${BG_PANEL}"), p.bg_panel);
+    ss.replace(QLatin1String("${BORDER_SUBTLE}"), p.border_subtle);
+    ss.replace(QLatin1String("${ACCENT}"), p.accent);
+    ss.replace(QLatin1String("${TEXT_MUTED}"), p.text_muted);
+    ss.replace(QLatin1String("${TEXT_SECONDARY}"), p.text_secondary);
+    ss.replace(QLatin1String("${BG_ELEVATED}"), p.bg_elevated);
+    ss.replace(QLatin1String("${DANGER}"), p.danger);
+    ss.replace(QLatin1String("${ACCENT_HOVER}"), p.accent_hover);
+    ss.replace(QLatin1String("${BORDER_ACTIVE}"), p.border_active);
+
+    return ss;
 }
 
 // ---------------------------------------------------------------------------
@@ -544,18 +608,16 @@ public:
         setWindowFlags(Qt::FramelessWindowHint | Qt::Window | Qt::WindowMinMaxButtonsHint);
         setMouseTracking(true);
 
-        // Screen-relative sizing — minimum 55%w / 60%h with floor 900x560
+        // Responsive minimum — enables split-screen on 1080p+
+        setMinimumSize(420, 300);
         if (const QScreen* screen = QApplication::primaryScreen()) {
             const QRect avail = screen->availableGeometry();
-            const int min_w = std::max(900, static_cast<int>(avail.width() * 0.55));
-            const int min_h = std::max(560, static_cast<int>(avail.height() * 0.60));
-            setMinimumSize(min_w, min_h);
             resize(static_cast<int>(avail.width() * 0.75),
                    static_cast<int>(avail.height() * 0.75));
-        } else {
-            setMinimumSize(900, 560);
         }
-        setStyleSheet(build_app_stylesheet(current_theme_mode_));
+        current_size_category_ = classify_window_size(width(), height());
+        current_metrics_ = metrics_for_category(current_size_category_);
+        setStyleSheet(build_app_stylesheet(current_theme_mode_, current_metrics_));
         current_interval_seconds_ =
             (std::isfinite(config.interval_seconds) && config.interval_seconds > 0.0)
                 ? config.interval_seconds
@@ -655,18 +717,17 @@ public:
         // ---------------------------------------------------------------
         // Main body — three dock slots
         // ---------------------------------------------------------------
-        auto* body = new QWidget(root);
-        body->setAutoFillBackground(false);
-        auto* body_layout = new QHBoxLayout(body);
-        const double dpr = devicePixelRatioF();
+        body_ = new QWidget(root);
+        body_->setAutoFillBackground(false);
+        auto* body_layout = new QHBoxLayout(body_);
         body_layout->setContentsMargins(
-            static_cast<int>(12 * dpr), static_cast<int>(12 * dpr),
-            static_cast<int>(12 * dpr), static_cast<int>(8 * dpr));
-        body_layout->setSpacing(static_cast<int>(10 * dpr));
+            current_metrics_.body_margin, current_metrics_.body_margin,
+            current_metrics_.body_margin, current_metrics_.body_margin);
+        body_layout->setSpacing(current_metrics_.body_spacing);
 
         for (const auto slot : aura::shell::all_dock_slots()) {
             const std::size_t index = slot_index(slot);
-            slot_widgets_[index] = build_slot(slot, body);
+            slot_widgets_[index] = build_slot(slot, body_);
             connect(slot_widgets_[index].tab_bar, &QTabBar::currentChanged, this, [this, slot](const int tab_index) {
                 on_tab_changed(slot, tab_index);
             });
@@ -678,7 +739,7 @@ public:
 
         build_panel_pages();
         rebuild_dock_slots();
-        root_layout->addWidget(body, 1);
+        root_layout->addWidget(body_, 1);
 
         // ---------------------------------------------------------------
         // Footer status bar
@@ -797,6 +858,33 @@ protected:
         QMainWindow::mouseReleaseEvent(event);
     }
 
+    void resizeEvent(QResizeEvent* event) override {
+        QMainWindow::resizeEvent(event);
+        const auto new_cat = classify_window_size(event->size().width(), event->size().height());
+        if (new_cat != current_size_category_) {
+            current_size_category_ = new_cat;
+            current_metrics_ = metrics_for_category(new_cat);
+            setStyleSheet(build_app_stylesheet(current_theme_mode_, current_metrics_));
+            if (body_ != nullptr) {
+                if (auto* bl = body_->layout()) {
+                    bl->setContentsMargins(
+                        current_metrics_.body_margin, current_metrics_.body_margin,
+                        current_metrics_.body_margin, current_metrics_.body_margin);
+                    bl->setSpacing(current_metrics_.body_spacing);
+                }
+            }
+            // Update slot internal padding to match new category
+            for (const auto slot : aura::shell::all_dock_slots()) {
+                auto& sw = slot_widgets_[slot_index(slot)];
+                if (sw.frame != nullptr && sw.frame->layout() != nullptr) {
+                    const int top_pad = current_metrics_.body_margin > 8 ? 8 : 4;
+                    const int bot_pad = current_metrics_.body_margin > 8 ? 10 : 6;
+                    sw.frame->layout()->setContentsMargins(0, top_pad, 0, bot_pad);
+                }
+            }
+        }
+    }
+
 private:
     static constexpr int kResizeBorder = 6;
 
@@ -823,7 +911,7 @@ private:
     void apply_theme(const aura::shell::UiThemeMode mode, const bool persist) {
         current_theme_mode_ = mode;
         theme_dirty_ = true;
-        setStyleSheet(build_app_stylesheet(current_theme_mode_));
+        setStyleSheet(build_app_stylesheet(current_theme_mode_, current_metrics_));
         if (theme_toggle_btn_ != nullptr) {
             theme_toggle_btn_->setText(QString::fromStdString(aura::shell::ui_theme_mode_label(mode)));
         }
@@ -1243,6 +1331,9 @@ private:
     LaunchConfig config_{};
     QSettings settings_{QStringLiteral("Aura"), QStringLiteral("AuraShell")};
     aura::shell::UiThemeMode current_theme_mode_{aura::shell::UiThemeMode::DarkBlue};
+    SizeCategory current_size_category_{SizeCategory::Regular};
+    SizeMetrics current_metrics_{metrics_for_category(SizeCategory::Regular)};
+    QWidget* body_{nullptr};
     double current_interval_seconds_{1.0};
     std::unique_ptr<aura::shell::CockpitController> controller_;
     aura::shell::DockState dock_state_{aura::shell::build_default_dock_state()};
