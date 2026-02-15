@@ -1,4 +1,5 @@
 import QtQuick 2.15
+import QtQuick.Layouts 1.15
 
 Rectangle {
     id: root
@@ -53,6 +54,19 @@ Rectangle {
         memSparkCanvas.pushSample(smoothMem)
     }
 
+    // ── Color tokens ─────────────────────────────────────────────────────────
+    readonly property color clrBgDeep: pinkMode ? "#150a12" : "#060b14"
+    readonly property color clrAccent: pinkMode ? "#ff4da6" : "#3b82f6"
+    readonly property color clrAccentHover: pinkMode ? "#ff92c5" : "#60a5fa"
+    readonly property color clrTextPrimary: pinkMode ? "#ffe8f5" : "#e0ecf7"
+    readonly property color clrTextMuted: pinkMode ? "#d887b1" : "#4d6d87"
+    readonly property color clrTextSecondary: pinkMode ? "#ffb3d9" : "#8badc4"
+    readonly property color clrTrack: pinkMode ? "#5f2a4b" : "#1a2940"
+    readonly property color clrTrackTick: pinkMode ? "#3a1529" : "#0c1829"
+    readonly property color clrBgGradTop: pinkMode ? "#3a1529" : "#0c1829"
+    readonly property color clrBgGradMid: pinkMode ? "#2a1021" : "#080e18"
+    readonly property color clrBgGradBot: pinkMode ? "#1a0915" : "#050a11"
+
     // ── Derived accent color helpers ─────────────────────────────────────────
     function accentColor(alpha) {
         return Qt.rgba(accentRed, accentGreen, accentBlue, alpha)
@@ -69,7 +83,7 @@ Rectangle {
         return Qt.rgba(accentRed, accentGreen, accentBlue, alpha)
     }
 
-    // Gauge arc color: 0–50 = blue→cyan, 50–80 = cyan→amber, 80–100 = amber→red
+    // Gauge arc color: 0-50 = blue>cyan, 50-80 = cyan>amber, 80-100 = amber>red
     function gaugeColor(pct, alpha) {
         var t, r, g, b
         if (pinkMode) {
@@ -115,11 +129,11 @@ Rectangle {
         )
     }
 
-    // ── Gauge size ────────────────────────────────────────────────────────────
-    property real gaugeSize: Math.min(Math.max(root.width * 0.30, 110), 160)
-
-    // ── Layout constants ──────────────────────────────────────────────────────
-    property real margin: 20
+    // ── Responsive layout properties ─────────────────────────────────────────
+    property real scaledMargin: Math.max(10, root.height * 0.028)
+    property real scaledSpacing: Math.max(4, root.height * 0.012)
+    property real gaugeSize: Math.min(Math.max(root.width * 0.30, 110), 240)
+    property real effectiveGaugeSize: Math.min(gaugeSize, root.height * 0.38)
 
     // =========================================================================
     // LAYER 0 — background vignette / depth
@@ -128,9 +142,9 @@ Rectangle {
         anchors.fill: parent
         radius: root.radius
         gradient: Gradient {
-            GradientStop { position: 0.0; color: root.uiColor("#0c1829", "#3a1529") }
-            GradientStop { position: 0.55; color: root.uiColor("#080e18", "#2a1021") }
-            GradientStop { position: 1.0; color: root.uiColor("#050a11", "#1a0915") }
+            GradientStop { position: 0.0; color: root.clrBgGradTop }
+            GradientStop { position: 0.55; color: root.clrBgGradMid }
+            GradientStop { position: 1.0; color: root.clrBgGradBot }
         }
     }
 
@@ -145,41 +159,162 @@ Rectangle {
         }
     }
 
-    // Cute decorative accents for pink mode (kept outside metric focus area).
+    // Canvas decorative accents for pink mode
     Item {
         anchors.fill: parent
         visible: root.pinkMode
         z: 0
-        opacity: 0.22
+        opacity: 0.72
 
-        Text {
-            text: "\uD83E\uDDF8"
+        // 6-pointed star — top-left
+        Canvas {
+            id: starDecor
             anchors.left: parent.left
             anchors.top: parent.top
-            anchors.leftMargin: 18
-            anchors.topMargin: 14
-            font.pixelSize: 24
-            color: "#ffd3e7"
+            anchors.leftMargin: 12
+            anchors.topMargin: 10
+            width: Math.max(18, root.width * 0.04)
+            height: width
+            onPaint: {
+                var ctx = getContext("2d")
+                ctx.clearRect(0, 0, width, height)
+                var cx = width / 2, cy = height / 2
+                var outer = width * 0.45, inner = width * 0.22
+                // Inner glow ring
+                ctx.beginPath()
+                ctx.arc(cx, cy, outer * 0.7, 0, Math.PI * 2)
+                ctx.strokeStyle = Qt.rgba(1, 0.3, 0.65, 0.25)
+                ctx.lineWidth = 1.5
+                ctx.stroke()
+                // 6-pointed star
+                ctx.beginPath()
+                for (var i = 0; i < 12; i++) {
+                    var angle = (i * Math.PI / 6) - Math.PI / 2
+                    var r = (i % 2 === 0) ? outer : inner
+                    var px = cx + r * Math.cos(angle)
+                    var py = cy + r * Math.sin(angle)
+                    if (i === 0) ctx.moveTo(px, py)
+                    else ctx.lineTo(px, py)
+                }
+                ctx.closePath()
+                var grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, outer)
+                grad.addColorStop(0.0, "#ff92c5")
+                grad.addColorStop(1.0, "#ff4da6")
+                ctx.fillStyle = grad
+                ctx.fill()
+            }
+            Connections {
+                target: root
+                function onWidthChanged() { starDecor.requestPaint() }
+            }
         }
-        Text {
-            text: "\uD83C\uDF70"
+
+        // Diamond facet — top-right
+        Canvas {
+            id: diamondDecor
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.rightMargin: 20
-            anchors.topMargin: 14
-            font.pixelSize: 22
-            color: "#ffd3e7"
+            anchors.rightMargin: 14
+            anchors.topMargin: 10
+            width: Math.max(16, root.width * 0.035)
+            height: width
+            onPaint: {
+                var ctx = getContext("2d")
+                ctx.clearRect(0, 0, width, height)
+                var cx = width / 2, cy = height / 2, s = width * 0.42
+                ctx.save()
+                ctx.translate(cx, cy)
+                ctx.rotate(Math.PI / 4)
+                // Outer diamond
+                ctx.beginPath()
+                ctx.rect(-s, -s, s * 2, s * 2)
+                var grad = ctx.createLinearGradient(-s, -s, s, s)
+                grad.addColorStop(0.0, "#ff4da6")
+                grad.addColorStop(1.0, "#ff92c5")
+                ctx.fillStyle = grad
+                ctx.fill()
+                // Inner highlight
+                var hs = s * 0.5
+                ctx.beginPath()
+                ctx.rect(-hs, -hs, hs * 2, hs * 2)
+                ctx.fillStyle = Qt.rgba(1, 1, 1, 0.18)
+                ctx.fill()
+                ctx.restore()
+            }
+            Connections {
+                target: root
+                function onWidthChanged() { diamondDecor.requestPaint() }
+            }
         }
-        Text {
-            text: "\u2665"
+
+        // Heart cluster — bottom-right
+        Canvas {
+            id: heartDecor
             anchors.right: parent.right
             anchors.bottom: parent.bottom
-            anchors.rightMargin: 22
-            anchors.bottomMargin: 14
-            font.pixelSize: 16
-            color: "#ff9cc5"
+            anchors.rightMargin: 14
+            anchors.bottomMargin: 10
+            width: Math.max(24, root.width * 0.05)
+            height: width * 0.8
+            onPaint: {
+                var ctx = getContext("2d")
+                ctx.clearRect(0, 0, width, height)
+
+                function drawHeart(cx, cy, sz, clr) {
+                    ctx.save()
+                    ctx.translate(cx, cy)
+                    ctx.beginPath()
+                    ctx.moveTo(0, sz * 0.3)
+                    ctx.bezierCurveTo(-sz * 0.5, -sz * 0.3, -sz, sz * 0.1, 0, sz)
+                    ctx.moveTo(0, sz * 0.3)
+                    ctx.bezierCurveTo(sz * 0.5, -sz * 0.3, sz, sz * 0.1, 0, sz)
+                    ctx.fillStyle = clr
+                    ctx.fill()
+                    ctx.restore()
+                }
+
+                var base = width * 0.28
+                drawHeart(width * 0.55, height * 0.10, base * 1.0, "#ff4da6")
+                drawHeart(width * 0.25, height * 0.30, base * 0.7, "#ff92c5")
+                drawHeart(width * 0.72, height * 0.42, base * 0.55, "#d887b1")
+            }
+            Connections {
+                target: root
+                function onWidthChanged() { heartDecor.requestPaint() }
+            }
+        }
+
+        // Dot rail — left edge
+        Canvas {
+            id: dotRailDecor
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.leftMargin: 6
+            width: 8
+            height: Math.max(40, root.height * 0.12)
+            onPaint: {
+                var ctx = getContext("2d")
+                ctx.clearRect(0, 0, width, height)
+                var cx = width / 2
+                var spacing = height / 6
+                for (var i = 0; i < 5; i++) {
+                    var dy = spacing * (i + 1)
+                    var isCenter = (i === 2)
+                    var r = isCenter ? 3.0 : 1.8
+                    var alpha = isCenter ? 0.85 : 0.50
+                    ctx.beginPath()
+                    ctx.arc(cx, dy, r, 0, Math.PI * 2)
+                    ctx.fillStyle = Qt.rgba(1.0, 0.30, 0.65, alpha)
+                    ctx.fill()
+                }
+            }
+            Connections {
+                target: root
+                function onHeightChanged() { dotRailDecor.requestPaint() }
+            }
         }
     }
+
     // =========================================================================
     // LAYER 1 — frosted-glass panel surface
     // =========================================================================
@@ -211,24 +346,28 @@ Rectangle {
     }
 
     // =========================================================================
-    // CONTENT COLUMN
+    // CONTENT COLUMN — ColumnLayout for responsive sizing
     // =========================================================================
-    Column {
+    ColumnLayout {
         id: contentColumn
-        anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: root.margin }
+        anchors.fill: parent
+        anchors.topMargin: root.scaledMargin
+        anchors.leftMargin: 0
+        anchors.rightMargin: 0
+        anchors.bottomMargin: 0
         spacing: 0
 
         // ── Title band ───────────────────────────────────────────────────────
         Item {
-            width: parent.width
-            height: 28
+            Layout.fillWidth: true
+            Layout.preferredHeight: Math.max(22, root.height * 0.055)
 
             Text {
                 id: titleLabel
                 text: "AURA  COCKPIT"
                 anchors.centerIn: parent
-                color: root.uiColor("#4a6d8a", "#e2a2c5")
-                font.pixelSize: 11
+                color: root.clrTextMuted
+                font.pixelSize: Math.max(9, root.height * 0.022)
                 font.weight: Font.Medium
                 font.letterSpacing: 4
             }
@@ -242,21 +381,21 @@ Rectangle {
             }
         }
 
-        Item { width: 1; height: 14 } // spacer
+        Item { Layout.preferredHeight: root.scaledSpacing; Layout.fillWidth: true }
 
         // ── Gauge pair ───────────────────────────────────────────────────────
         Row {
             id: gaugeRow
-            anchors.horizontalCenter: parent.horizontalCenter
+            Layout.alignment: Qt.AlignHCenter
             spacing: Math.max(root.width * 0.08, 24)
 
             // ── CPU gauge ────────────────────────────────────────────────────
             Item {
                 id: cpuGaugeItem
-                width: root.gaugeSize
-                height: root.gaugeSize
+                width: root.effectiveGaugeSize
+                height: root.effectiveGaugeSize
 
-                // Outer glow halo — drawn first (behind)
+                // Outer glow halo
                 Canvas {
                     id: cpuGlowCanvas
                     anchors.centerIn: parent
@@ -304,20 +443,20 @@ Rectangle {
                         var cy = height / 2
                         var r  = width  / 2 - 10
                         var trackW = 11
-                        var startAngle = Math.PI * 0.75            // 135°
-                        var fullSweep  = Math.PI * 1.50            // 270°
+                        var startAngle = Math.PI * 0.75
+                        var fullSweep  = Math.PI * 1.50
                         var endAngle   = startAngle + fullSweep * (root.smoothCpu / 100.0)
 
                         // Track arc
                         ctx.beginPath()
                         ctx.arc(cx, cy, r, startAngle, startAngle + fullSweep, false)
-                        ctx.strokeStyle = root.uiColor("#1a2940", "#5f2a4b")
+                        ctx.strokeStyle = root.clrTrack
                         ctx.lineWidth   = trackW
                         ctx.lineCap     = "butt"
                         ctx.stroke()
 
                         // Tick marks at 25%, 50%, 75%
-                        ctx.strokeStyle = root.uiColor("#0c1829", "#3a1529")
+                        ctx.strokeStyle = root.clrTrackTick
                         ctx.lineWidth   = 2
                         var ticks = [0.25, 0.50, 0.75]
                         for (var i = 0; i < ticks.length; i++) {
@@ -374,16 +513,16 @@ Rectangle {
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: root.smoothCpu.toFixed(0) + "%"
-                        color: root.uiColor("#e8f4ff", "#fff1f8")
-                        font.pixelSize: Math.max(22, root.gaugeSize * 0.20)
+                        color: root.clrTextPrimary
+                        font.pixelSize: Math.max(22, root.effectiveGaugeSize * 0.20)
                         font.weight: Font.Bold
                     }
 
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: "CPU"
-                        color: root.uiColor("#7ba8c8", "#f2bfd8")
-                        font.pixelSize: 9
+                        color: root.clrTextSecondary
+                        font.pixelSize: Math.max(8, root.height * 0.018)
                         font.weight: Font.Medium
                         font.letterSpacing: 2.5
                     }
@@ -393,8 +532,8 @@ Rectangle {
             // ── Memory gauge ─────────────────────────────────────────────────
             Item {
                 id: memGaugeItem
-                width: root.gaugeSize
-                height: root.gaugeSize
+                width: root.effectiveGaugeSize
+                height: root.effectiveGaugeSize
 
                 // Outer glow halo
                 Canvas {
@@ -450,13 +589,13 @@ Rectangle {
                         // Track arc
                         ctx.beginPath()
                         ctx.arc(cx, cy, r, startAngle, startAngle + fullSweep, false)
-                        ctx.strokeStyle = root.uiColor("#1a2940", "#5f2a4b")
+                        ctx.strokeStyle = root.clrTrack
                         ctx.lineWidth   = trackW
                         ctx.lineCap     = "butt"
                         ctx.stroke()
 
                         // Tick marks
-                        ctx.strokeStyle = root.uiColor("#0c1829", "#3a1529")
+                        ctx.strokeStyle = root.clrTrackTick
                         var ticks = [0.25, 0.50, 0.75]
                         for (var i = 0; i < ticks.length; i++) {
                             var ta = startAngle + fullSweep * ticks[i]
@@ -512,16 +651,16 @@ Rectangle {
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: root.smoothMem.toFixed(0) + "%"
-                        color: root.uiColor("#e8f4ff", "#fff1f8")
-                        font.pixelSize: Math.max(22, root.gaugeSize * 0.20)
+                        color: root.clrTextPrimary
+                        font.pixelSize: Math.max(22, root.effectiveGaugeSize * 0.20)
                         font.weight: Font.Bold
                     }
 
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: "MEM"
-                        color: root.uiColor("#7ba8c8", "#f2bfd8")
-                        font.pixelSize: 9
+                        color: root.clrTextSecondary
+                        font.pixelSize: Math.max(8, root.height * 0.018)
                         font.weight: Font.Medium
                         font.letterSpacing: 2.5
                     }
@@ -529,12 +668,12 @@ Rectangle {
             }
         } // Row gaugeRow
 
-        Item { width: 1; height: 16 } // spacer
+        Item { Layout.preferredHeight: root.scaledSpacing * 1.3; Layout.fillWidth: true }
 
         // ── Section divider ──────────────────────────────────────────────────
         Item {
-            width: parent.width
-            height: 1
+            Layout.fillWidth: true
+            Layout.preferredHeight: 1
 
             Rectangle {
                 anchors.centerIn: parent
@@ -550,21 +689,24 @@ Rectangle {
             }
         }
 
-        Item { width: 1; height: 14 } // spacer
+        Item { Layout.preferredHeight: root.scaledSpacing; Layout.fillWidth: true }
 
         // ── Sparkline — CPU ──────────────────────────────────────────────────
         Item {
             id: cpuSparkRow
-            anchors { left: parent.left; right: parent.right; leftMargin: root.margin; rightMargin: root.margin }
-            height: 64
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.minimumHeight: 48
+            Layout.leftMargin: root.scaledMargin
+            Layout.rightMargin: root.scaledMargin
 
             // Label row
             Text {
                 id: cpuSparkLabel
-                anchors { left: parent.left; verticalCenter: undefined; top: parent.top }
+                anchors { left: parent.left; top: parent.top }
                 text: "CPU  HISTORY"
-                color: root.uiColor("#4a6d8a", "#e2a2c5")
-                font.pixelSize: 9
+                color: root.clrTextMuted
+                font.pixelSize: Math.max(8, root.height * 0.018)
                 font.weight: Font.Medium
                 font.letterSpacing: 2.5
             }
@@ -573,7 +715,7 @@ Rectangle {
                 anchors { right: parent.right; top: parent.top }
                 text: root.smoothCpu.toFixed(1) + "%"
                 color: root.gaugeColor(root.smoothCpu, 1.0)
-                font.pixelSize: 10
+                font.pixelSize: Math.max(9, root.height * 0.020)
                 font.weight: Font.Bold
                 font.letterSpacing: 0.5
             }
@@ -603,7 +745,6 @@ Rectangle {
                     var cw  = width
                     var ch  = height - pad
 
-                    // Build point array
                     var pts = []
                     for (var i = 0; i < n; i++) {
                         var x = (i / (n - 1)) * cw
@@ -664,19 +805,22 @@ Rectangle {
             }
         }
 
-        Item { width: 1; height: 8 } // spacer
+        Item { Layout.preferredHeight: root.scaledSpacing * 0.6; Layout.fillWidth: true }
 
         // ── Sparkline — Memory ───────────────────────────────────────────────
         Item {
             id: memSparkRow
-            anchors { left: parent.left; right: parent.right; leftMargin: root.margin; rightMargin: root.margin }
-            height: 64
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.minimumHeight: 48
+            Layout.leftMargin: root.scaledMargin
+            Layout.rightMargin: root.scaledMargin
 
             Text {
                 anchors { left: parent.left; top: parent.top }
                 text: "MEM  HISTORY"
-                color: root.uiColor("#4a6d8a", "#e2a2c5")
-                font.pixelSize: 9
+                color: root.clrTextMuted
+                font.pixelSize: Math.max(8, root.height * 0.018)
                 font.weight: Font.Medium
                 font.letterSpacing: 2.5
             }
@@ -685,7 +829,7 @@ Rectangle {
                 anchors { right: parent.right; top: parent.top }
                 text: root.smoothMem.toFixed(1) + "%"
                 color: root.gaugeColor(root.smoothMem, 1.0)
-                font.pixelSize: 10
+                font.pixelSize: Math.max(9, root.height * 0.020)
                 font.weight: Font.Bold
                 font.letterSpacing: 0.5
             }
@@ -721,7 +865,7 @@ Rectangle {
                         pts.push({x: x, y: y})
                     }
 
-                    // Filled area — memory uses a slightly warmer tint to visually separate
+                    // Filled area
                     ctx.beginPath()
                     ctx.moveTo(pts[0].x, pts[0].y)
                     for (var j = 1; j < n - 1; j++) {
@@ -734,7 +878,6 @@ Rectangle {
                     ctx.lineTo(0, ch + pad)
                     ctx.closePath()
 
-                    // Memory sparkline: tint shifted toward cyan regardless of accent
                     var fillGrad = ctx.createLinearGradient(0, 0, 0, ch)
                     fillGrad.addColorStop(0.0, Qt.rgba(0.15, 0.65, 0.78, 0.28))
                     fillGrad.addColorStop(1.0, Qt.rgba(0.15, 0.65, 0.78, 0.02))
@@ -764,12 +907,12 @@ Rectangle {
             }
         }
 
-        Item { width: 1; height: 10 } // spacer
+        Item { Layout.preferredHeight: root.scaledSpacing * 0.8; Layout.fillWidth: true }
 
         // ── Final divider ────────────────────────────────────────────────────
         Item {
-            width: parent.width
-            height: 1
+            Layout.fillWidth: true
+            Layout.preferredHeight: 1
 
             Rectangle {
                 anchors.centerIn: parent
@@ -785,11 +928,11 @@ Rectangle {
             }
         }
 
-        Item { width: 1; height: 10 } // spacer
+        Item { Layout.preferredHeight: root.scaledSpacing * 0.8; Layout.fillWidth: true }
 
         // ── Status line ──────────────────────────────────────────────────────
         Row {
-            anchors.horizontalCenter: parent.horizontalCenter
+            Layout.alignment: Qt.AlignHCenter
             spacing: 6
 
             // Pulse indicator dot
@@ -812,8 +955,8 @@ Rectangle {
             Text {
                 id: statusLabel
                 text: root.statusText
-                color: root.uiColor("#4a6d8a", "#e2a2c5")
-                font.pixelSize: 10
+                color: root.clrTextMuted
+                font.pixelSize: Math.max(9, root.height * 0.020)
                 font.letterSpacing: 0.5
                 elide: Text.ElideRight
                 width: root.width * 0.75
@@ -821,7 +964,7 @@ Rectangle {
             }
         }
 
-        Item { width: 1; height: root.margin } // bottom padding
+        Item { Layout.preferredHeight: root.scaledMargin; Layout.fillWidth: true }
     } // contentColumn
 
     // =========================================================================
@@ -875,5 +1018,3 @@ Rectangle {
         }
     }
 }
-
-

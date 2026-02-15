@@ -12,6 +12,7 @@
 #include <QPushButton>
 #include <QQuickItem>
 #include <QQuickWidget>
+#include <QScreen>
 #include <QScrollArea>
 #include <QSettings>
 #include <QSizePolicy>
@@ -38,24 +39,6 @@
 #include "aura_shell/ui_theme.hpp"
 
 namespace {
-
-// ---------------------------------------------------------------------------
-// Color palette — all depth levels and accent colors in one place so the
-// stylesheet strings below stay readable and consistent.
-// ---------------------------------------------------------------------------
-//  Depth 0  (window bg)  : #060b14
-//  Depth 1  (panels)     : #0a1221
-//  Depth 2  (surfaces)   : #0f1a2e
-//  Depth 3  (elevated)   : #162238
-//  Border subtle         : #1e3350
-//  Border active         : #2a4a6e
-//  Text primary          : #e0ecf7
-//  Text secondary        : #8badc4
-//  Text muted            : #4d6d87
-//  Accent blue           : #3b82f6
-//  Accent blue hover     : #60a5fa
-//  Danger (close)        : #ef4444
-//  Danger hover          : #f87171
 
 // ---------------------------------------------------------------------------
 
@@ -208,376 +191,338 @@ struct SlotWidgets {
     QStackedWidget* stack;
 };
 
-// ---------------------------------------------------------------------------
-// Comprehensive application stylesheet
-// ---------------------------------------------------------------------------
-static const QString k_app_stylesheet_dark_blue = QStringLiteral(
-    // --- Application-wide base ---
-    "* {"
-    "    font-family: 'Segoe UI';"
-    "    font-size: 11px;"
-    "    color: #e0ecf7;"
-    "}"
-
-    // --- Main window ---
-    "QMainWindow {"
-    "    background: #060b14;"
-    "}"
-
-    // --- Title bar ---
-    "QFrame#titlebar {"
-    "    background: qlineargradient("
-    "        x1:0, y1:0, x2:0, y2:1,"
-    "        stop:0 #0f1a2e,"
-    "        stop:1 #0a1221"
-    "    );"
-    "    border-bottom: 1px solid #1e3350;"
-    "    min-height: 36px;"
-    "    max-height: 36px;"
-    "}"
-
-    // --- App logo label in title bar ---
-    "QLabel#appLogo {"
-    "    color: #3b82f6;"
-    "    font-size: 13px;"
-    "    font-weight: 600;"
-    "    letter-spacing: 2px;"
-    "    padding-left: 4px;"
-    "}"
-
-    // --- Title bar subtitle ---
-    "QLabel#titleSubtitle {"
-    "    color: #4d6d87;"
-    "    font-size: 10px;"
-    "    letter-spacing: 1px;"
-    "    padding-left: 8px;"
-    "}"
-
-    // --- Title bar window-control buttons ---
-    "QPushButton#minBtn, QPushButton#maxBtn {"
-    "    background: transparent;"
-    "    color: #8badc4;"
-    "    border: none;"
-    "    border-radius: 4px;"
-    "    min-width: 28px;"
-    "    max-width: 28px;"
-    "    min-height: 24px;"
-    "    max-height: 24px;"
-    "    font-size: 13px;"
-    "    padding: 0px;"
-    "}"
-    "QPushButton#minBtn:hover {"
-    "    background: #162238;"
-    "    color: #e0ecf7;"
-    "}"
-    "QPushButton#maxBtn:hover {"
-    "    background: #162238;"
-    "    color: #e0ecf7;"
-    "}"
-    "QPushButton#closeBtn {"
-    "    background: transparent;"
-    "    color: #8badc4;"
-    "    border: none;"
-    "    border-radius: 4px;"
-    "    min-width: 28px;"
-    "    max-width: 28px;"
-    "    min-height: 24px;"
-    "    max-height: 24px;"
-    "    font-size: 13px;"
-    "    padding: 0px;"
-    "    margin-right: 4px;"
-    "}"
-    "QPushButton#closeBtn:hover {"
-    "    background: #ef4444;"
-    "    color: #ffffff;"
-    "}"
-    "QPushButton#closeBtn:pressed {"
-    "    background: #b91c1c;"
-    "    color: #ffffff;"
-    "}"
-
-    // --- Theme switch in title bar ---
-    "QPushButton#themeToggleBtn {"
-    "    background: #0f1a2e;"
-    "    color: #8badc4;"
-    "    border: 1px solid #1e3350;"
-    "    border-radius: 6px;"
-    "    min-height: 24px;"
-    "    padding: 0px 10px;"
-    "    font-size: 10px;"
-    "    font-weight: 600;"
-    "}"
-    "QPushButton#themeToggleBtn:hover {"
-    "    background: #162238;"
-    "    color: #e0ecf7;"
-    "    border-color: #3b82f6;"
-    "}"
-    "QPushButton#themeToggleBtn:pressed {"
-    "    background: #1e3350;"
-    "    color: #60a5fa;"
-    "    border-color: #3b82f6;"
-    "}"
-
-    // --- Dock slot frames ---
-    "QFrame#slot {"
-    "    background: #0a1221;"
-    "    border: 1px solid #1e3350;"
-    "    border-radius: 10px;"
-    "    padding: 0px;"
-    "}"
-
-    // --- Slot zone label (LEFT / CENTER / RIGHT) ---
-    "QLabel#slotZoneLabel {"
-    "    color: #2a4a6e;"
-    "    font-size: 9px;"
-    "    font-weight: 600;"
-    "    letter-spacing: 3px;"
-    "    padding: 0px 0px 0px 2px;"
-    "}"
-
-    // --- Tab bar ---
-    "QTabBar {"
-    "    background: transparent;"
-    "    border: none;"
-    "    border-bottom: 1px solid #1e3350;"
-    "}"
-    "QTabBar::tab {"
-    "    background: transparent;"
-    "    color: #4d6d87;"
-    "    border: none;"
-    "    border-bottom: 2px solid transparent;"
-    "    padding: 7px 16px 6px 16px;"
-    "    font-size: 11px;"
-    "    font-weight: 500;"
-    "    letter-spacing: 0.5px;"
-    "    min-width: 60px;"
-    "}"
-    "QTabBar::tab:hover {"
-    "    color: #8badc4;"
-    "    border-bottom: 2px solid #2a4a6e;"
-    "}"
-    "QTabBar::tab:selected {"
-    "    color: #e0ecf7;"
-    "    border-bottom: 2px solid #3b82f6;"
-    "    font-weight: 600;"
-    "}"
-    "QTabBar::tab:!enabled {"
-    "    color: #2a4a6e;"
-    "}"
-
-    // --- Generic QPushButton (move buttons etc.) ---
-    "QPushButton {"
-    "    background: #0f1a2e;"
-    "    color: #8badc4;"
-    "    border: 1px solid #1e3350;"
-    "    border-radius: 6px;"
-    "    padding: 3px 10px;"
-    "    font-size: 11px;"
-    "}"
-    "QPushButton:hover {"
-    "    background: #162238;"
-    "    color: #e0ecf7;"
-    "    border-color: #2a4a6e;"
-    "}"
-    "QPushButton:pressed {"
-    "    background: #1e3350;"
-    "    color: #60a5fa;"
-    "    border-color: #3b82f6;"
-    "}"
-    "QPushButton:disabled {"
-    "    background: #060b14;"
-    "    color: #2a4a6e;"
-    "    border-color: #1e3350;"
-    "}"
-
-    // --- Panel move pill buttons ---
-    "QPushButton#moveBtn {"
-    "    background: #0f1a2e;"
-    "    color: #4d6d87;"
-    "    border: 1px solid #1e3350;"
-    "    border-radius: 10px;"
-    "    padding: 2px 9px;"
-    "    font-size: 10px;"
-    "    font-weight: 600;"
-    "    min-width: 22px;"
-    "    max-height: 20px;"
-    "}"
-    "QPushButton#moveBtn:hover {"
-    "    background: #162238;"
-    "    color: #60a5fa;"
-    "    border-color: #3b82f6;"
-    "}"
-    "QPushButton#moveBtn:disabled {"
-    "    background: #060b14;"
-    "    color: #1e3350;"
-    "    border-color: #0f1a2e;"
-    "}"
-
-    // --- Panel header separator line ---
-    "QFrame#panelHeaderLine {"
-    "    background: qlineargradient("
-    "        x1:0, y1:0, x2:1, y2:0,"
-    "        stop:0 #3b82f6,"
-    "        stop:0.4 #1e3350,"
-    "        stop:1 transparent"
-    "    );"
-    "    min-height: 1px;"
-    "    max-height: 1px;"
-    "    border: none;"
-    "}"
-
-    // --- Panel title label ---
-    "QLabel#panelTitle {"
-    "    color: #e0ecf7;"
-    "    font-size: 12px;"
-    "    font-weight: 600;"
-    "    letter-spacing: 1px;"
-    "}"
-
-    // --- "Move to:" prompt label ---
-    "QLabel#moveToLabel {"
-    "    color: #4d6d87;"
-    "    font-size: 9px;"
-    "    letter-spacing: 1px;"
-    "}"
-
-    // --- Telemetry metric labels ---
-    "QLabel#metricValue {"
-    "    color: #e0ecf7;"
-    "    font-size: 20px;"
-    "    font-weight: 700;"
-    "    letter-spacing: -0.5px;"
-    "}"
-    "QLabel#metricKey {"
-    "    color: #4d6d87;"
-    "    font-size: 9px;"
-    "    font-weight: 600;"
-    "    letter-spacing: 2px;"
-    "}"
-    "QLabel#metricUnit {"
-    "    color: #3b82f6;"
-    "    font-size: 12px;"
-    "    font-weight: 600;"
-    "}"
-
-    // --- Telemetry timestamp ---
-    "QLabel#telemetryTimestamp {"
-    "    color: #4d6d87;"
-    "    font-size: 10px;"
-    "}"
-
-    // --- Telemetry status ---
-    "QLabel#telemetryStatus {"
-    "    color: #8badc4;"
-    "    font-size: 10px;"
-    "    font-style: italic;"
-    "}"
-
-    // --- Process panel status label ---
-    "QLabel#processStatus {"
-    "    color: #4d6d87;"
-    "    font-size: 10px;"
-    "    font-style: italic;"
-    "    padding-bottom: 4px;"
-    "}"
-
-    // --- Process row labels (monospace) ---
-    "QLabel#processRow {"
-    "    color: #8badc4;"
-    "    font-family: 'Cascadia Mono', 'Consolas', monospace;"
-    "    font-size: 10px;"
-    "    padding: 3px 6px;"
-    "    border-radius: 3px;"
-    "}"
-    "QLabel#processRowAlt {"
-    "    color: #8badc4;"
-    "    font-family: 'Cascadia Mono', 'Consolas', monospace;"
-    "    font-size: 10px;"
-    "    background: #0a1221;"
-    "    padding: 3px 6px;"
-    "    border-radius: 3px;"
-    "}"
-
-    // --- Timeline and render status labels ---
-    "QLabel#timelineStatus {"
-    "    color: #4d6d87;"
-    "    font-size: 10px;"
-    "    font-style: italic;"
-    "}"
-    "QLabel#renderStatus {"
-    "    color: #4d6d87;"
-    "    font-size: 10px;"
-    "    font-style: italic;"
-    "}"
-
-    // --- Footer status bar ---
-    "QLabel#footerStatus {"
-    "    color: #2a4a6e;"
-    "    font-size: 9px;"
-    "    font-family: 'Cascadia Mono', 'Consolas', monospace;"
-    "    padding: 4px 12px 8px 14px;"
-    "    border-left: 2px solid #3b82f6;"
-    "    margin-left: 12px;"
-    "    margin-bottom: 4px;"
-    "}"
-
-    // --- Thin scrollbars ---
-    "QScrollBar:vertical {"
-    "    background: #060b14;"
-    "    width: 6px;"
-    "    border-radius: 3px;"
-    "    margin: 0px;"
-    "}"
-    "QScrollBar::handle:vertical {"
-    "    background: #1e3350;"
-    "    border-radius: 3px;"
-    "    min-height: 20px;"
-    "}"
-    "QScrollBar::handle:vertical:hover {"
-    "    background: #2a4a6e;"
-    "}"
-    "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {"
-    "    height: 0px;"
-    "}"
-    "QScrollBar:horizontal {"
-    "    background: #060b14;"
-    "    height: 6px;"
-    "    border-radius: 3px;"
-    "    margin: 0px;"
-    "}"
-    "QScrollBar::handle:horizontal {"
-    "    background: #1e3350;"
-    "    border-radius: 3px;"
-    "    min-width: 20px;"
-    "}"
-    "QScrollBar::handle:horizontal:hover {"
-    "    background: #2a4a6e;"
-    "}"
-    "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {"
-    "    width: 0px;"
-    "}"
-);
-
 constexpr const char* k_theme_mode_setting_key = "ui/theme_mode";
 
 QString build_app_stylesheet(const aura::shell::UiThemeMode mode) {
-    if (mode == aura::shell::UiThemeMode::DarkBlue) {
-        return k_app_stylesheet_dark_blue;
-    }
-
-    QString pink = k_app_stylesheet_dark_blue;
-    pink.replace("#060b14", "#190914");
-    pink.replace("#0a1221", "#2a1021");
-    pink.replace("#0f1a2e", "#35162a");
-    pink.replace("#162238", "#46203a");
-    pink.replace("#1e3350", "#6c2d55");
-    pink.replace("#2a4a6e", "#91406f");
-    pink.replace("#3b82f6", "#ff68a8");
-    pink.replace("#60a5fa", "#ff92c5");
-    pink.replace("#e0ecf7", "#ffeaf4");
-    pink.replace("#8badc4", "#ffc6df");
-    pink.replace("#4d6d87", "#d887b1");
-    return pink;
+    const auto& p = aura::shell::get_theme_palette(mode);
+    return QString(
+        // --- Application-wide base ---
+        "* {"
+        "    font-family: 'Segoe UI';"
+        "    font-size: 11px;"
+        "    color: %1;"
+        "}"
+        // --- Main window ---
+        "QMainWindow {"
+        "    background: %2;"
+        "}"
+        // --- Title bar ---
+        "QFrame#titlebar {"
+        "    background: qlineargradient("
+        "        x1:0, y1:0, x2:0, y2:1,"
+        "        stop:0 %3,"
+        "        stop:1 %4"
+        "    );"
+        "    border-bottom: 1px solid %5;"
+        "    min-height: 36px;"
+        "    max-height: 36px;"
+        "}"
+        // --- App logo ---
+        "QLabel#appLogo {"
+        "    color: %6;"
+        "    font-size: 13px;"
+        "    font-weight: 600;"
+        "    letter-spacing: 2px;"
+        "    padding-left: 4px;"
+        "}"
+        // --- Subtitle ---
+        "QLabel#titleSubtitle {"
+        "    color: %7;"
+        "    font-size: 10px;"
+        "    letter-spacing: 1px;"
+        "    padding-left: 8px;"
+        "}"
+        // --- Window control buttons ---
+        "QPushButton#minBtn, QPushButton#maxBtn {"
+        "    background: transparent;"
+        "    color: %8;"
+        "    border: none;"
+        "    border-radius: 4px;"
+        "    min-width: 28px; max-width: 28px;"
+        "    min-height: 24px; max-height: 24px;"
+        "    font-size: 13px;"
+        "    padding: 0px;"
+        "}"
+        "QPushButton#minBtn:hover, QPushButton#maxBtn:hover {"
+        "    background: %9;"
+        "    color: %1;"
+        "}"
+        "QPushButton#closeBtn {"
+        "    background: transparent;"
+        "    color: %8;"
+        "    border: none;"
+        "    border-radius: 4px;"
+        "    min-width: 28px; max-width: 28px;"
+        "    min-height: 24px; max-height: 24px;"
+        "    font-size: 13px;"
+        "    padding: 0px;"
+        "    margin-right: 4px;"
+        "}"
+        "QPushButton#closeBtn:hover {"
+        "    background: %10;"
+        "    color: #ffffff;"
+        "}"
+        "QPushButton#closeBtn:pressed {"
+        "    background: #b91c1c;"
+        "    color: #ffffff;"
+        "}"
+        // --- Theme toggle ---
+        "QPushButton#themeToggleBtn {"
+        "    background: %3;"
+        "    color: %8;"
+        "    border: 1px solid %5;"
+        "    border-radius: 6px;"
+        "    min-height: 24px;"
+        "    padding: 0px 10px;"
+        "    font-size: 10px;"
+        "    font-weight: 600;"
+        "}"
+        "QPushButton#themeToggleBtn:hover {"
+        "    background: %9;"
+        "    color: %1;"
+        "    border-color: %6;"
+        "}"
+        "QPushButton#themeToggleBtn:pressed {"
+        "    background: %5;"
+        "    color: %11;"
+        "    border-color: %6;"
+        "}"
+        // --- Dock slot frames ---
+        "QFrame#slot {"
+        "    background: %4;"
+        "    border: 1px solid %5;"
+        "    border-radius: 10px;"
+        "    padding: 0px;"
+        "}"
+        // --- Slot zone label ---
+        "QLabel#slotZoneLabel {"
+        "    color: %12;"
+        "    font-size: 9px;"
+        "    font-weight: 600;"
+        "    letter-spacing: 3px;"
+        "    padding: 0px 0px 0px 2px;"
+        "}"
+        // --- Tab bar ---
+        "QTabBar {"
+        "    background: transparent;"
+        "    border: none;"
+        "    border-bottom: 1px solid %5;"
+        "}"
+        "QTabBar::tab {"
+        "    background: transparent;"
+        "    color: %7;"
+        "    border: none;"
+        "    border-bottom: 2px solid transparent;"
+        "    padding: 7px 16px 6px 16px;"
+        "    font-size: 11px;"
+        "    font-weight: 500;"
+        "    letter-spacing: 0.5px;"
+        "    min-width: 60px;"
+        "}"
+        "QTabBar::tab:hover {"
+        "    color: %8;"
+        "    border-bottom: 2px solid %12;"
+        "}"
+        "QTabBar::tab:selected {"
+        "    color: %1;"
+        "    border-bottom: 2px solid %6;"
+        "    font-weight: 600;"
+        "}"
+        "QTabBar::tab:!enabled {"
+        "    color: %12;"
+        "}"
+        // --- Generic QPushButton ---
+        "QPushButton {"
+        "    background: %3;"
+        "    color: %8;"
+        "    border: 1px solid %5;"
+        "    border-radius: 6px;"
+        "    padding: 3px 10px;"
+        "    font-size: 11px;"
+        "}"
+        "QPushButton:hover {"
+        "    background: %9;"
+        "    color: %1;"
+        "    border-color: %12;"
+        "}"
+        "QPushButton:pressed {"
+        "    background: %5;"
+        "    color: %11;"
+        "    border-color: %6;"
+        "}"
+        "QPushButton:disabled {"
+        "    background: %2;"
+        "    color: %12;"
+        "    border-color: %5;"
+        "}"
+        // --- Move pill buttons ---
+        "QPushButton#moveBtn {"
+        "    background: %3;"
+        "    color: %7;"
+        "    border: 1px solid %5;"
+        "    border-radius: 10px;"
+        "    padding: 2px 9px;"
+        "    font-size: 10px;"
+        "    font-weight: 600;"
+        "    min-width: 22px;"
+        "    max-height: 20px;"
+        "}"
+        "QPushButton#moveBtn:hover {"
+        "    background: %9;"
+        "    color: %11;"
+        "    border-color: %6;"
+        "}"
+        "QPushButton#moveBtn:disabled {"
+        "    background: %2;"
+        "    color: %5;"
+        "    border-color: %3;"
+        "}"
+        // --- Panel header separator ---
+        "QFrame#panelHeaderLine {"
+        "    background: qlineargradient("
+        "        x1:0, y1:0, x2:1, y2:0,"
+        "        stop:0 %6,"
+        "        stop:0.4 %5,"
+        "        stop:1 transparent"
+        "    );"
+        "    min-height: 1px;"
+        "    max-height: 1px;"
+        "    border: none;"
+        "}"
+        // --- Panel title ---
+        "QLabel#panelTitle {"
+        "    color: %1;"
+        "    font-size: 12px;"
+        "    font-weight: 600;"
+        "    letter-spacing: 1px;"
+        "}"
+        // --- Move-to label ---
+        "QLabel#moveToLabel {"
+        "    color: %7;"
+        "    font-size: 9px;"
+        "    letter-spacing: 1px;"
+        "}"
+        // --- Metric labels ---
+        "QLabel#metricValue {"
+        "    color: %1;"
+        "    font-size: 20px;"
+        "    font-weight: 700;"
+        "    letter-spacing: -0.5px;"
+        "}"
+        "QLabel#metricKey {"
+        "    color: %7;"
+        "    font-size: 9px;"
+        "    font-weight: 600;"
+        "    letter-spacing: 2px;"
+        "}"
+        "QLabel#metricUnit {"
+        "    color: %6;"
+        "    font-size: 12px;"
+        "    font-weight: 600;"
+        "}"
+        // --- Telemetry timestamp ---
+        "QLabel#telemetryTimestamp {"
+        "    color: %7;"
+        "    font-size: 10px;"
+        "}"
+        // --- Telemetry status ---
+        "QLabel#telemetryStatus {"
+        "    color: %8;"
+        "    font-size: 10px;"
+        "    font-style: italic;"
+        "}"
+        // --- Process status ---
+        "QLabel#processStatus {"
+        "    color: %7;"
+        "    font-size: 10px;"
+        "    font-style: italic;"
+        "    padding-bottom: 4px;"
+        "}"
+        // --- Process row labels ---
+        "QLabel#processRow {"
+        "    color: %8;"
+        "    font-family: 'Cascadia Mono', 'Consolas', monospace;"
+        "    font-size: 10px;"
+        "    padding: 3px 6px;"
+        "    border-radius: 3px;"
+        "}"
+        "QLabel#processRowAlt {"
+        "    color: %8;"
+        "    font-family: 'Cascadia Mono', 'Consolas', monospace;"
+        "    font-size: 10px;"
+        "    background: %4;"
+        "    padding: 3px 6px;"
+        "    border-radius: 3px;"
+        "}"
+        // --- Timeline / render status ---
+        "QLabel#timelineStatus {"
+        "    color: %7;"
+        "    font-size: 10px;"
+        "    font-style: italic;"
+        "}"
+        "QLabel#renderStatus {"
+        "    color: %7;"
+        "    font-size: 10px;"
+        "    font-style: italic;"
+        "}"
+        // --- Footer ---
+        "QLabel#footerStatus {"
+        "    color: %12;"
+        "    font-size: 9px;"
+        "    font-family: 'Cascadia Mono', 'Consolas', monospace;"
+        "    padding: 4px 12px 8px 14px;"
+        "    border-left: 2px solid %6;"
+        "    margin-left: 12px;"
+        "    margin-bottom: 4px;"
+        "}"
+        // --- Scrollbars ---
+        "QScrollBar:vertical {"
+        "    background: %2;"
+        "    width: 6px;"
+        "    border-radius: 3px;"
+        "    margin: 0px;"
+        "}"
+        "QScrollBar::handle:vertical {"
+        "    background: %5;"
+        "    border-radius: 3px;"
+        "    min-height: 20px;"
+        "}"
+        "QScrollBar::handle:vertical:hover {"
+        "    background: %12;"
+        "}"
+        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {"
+        "    height: 0px;"
+        "}"
+        "QScrollBar:horizontal {"
+        "    background: %2;"
+        "    height: 6px;"
+        "    border-radius: 3px;"
+        "    margin: 0px;"
+        "}"
+        "QScrollBar::handle:horizontal {"
+        "    background: %5;"
+        "    border-radius: 3px;"
+        "    min-width: 20px;"
+        "}"
+        "QScrollBar::handle:horizontal:hover {"
+        "    background: %12;"
+        "}"
+        "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {"
+        "    width: 0px;"
+        "}"
+    )
+    .arg(p.text_primary)     // %1
+    .arg(p.bg_window)        // %2
+    .arg(p.bg_surface)       // %3
+    .arg(p.bg_panel)         // %4
+    .arg(p.border_subtle)    // %5
+    .arg(p.accent)           // %6
+    .arg(p.text_muted)       // %7
+    .arg(p.text_secondary)   // %8
+    .arg(p.bg_elevated)      // %9
+    .arg(p.danger)           // %10
+    .arg(p.accent_hover)     // %11
+    .arg(p.border_active);   // %12
 }
 
 // ---------------------------------------------------------------------------
@@ -595,8 +540,19 @@ public:
                 .toStdString()
         );
         setWindowTitle("Aura | Native Shell");
-        setMinimumSize(1100, 640);
         setWindowFlags(Qt::FramelessWindowHint | Qt::Window | Qt::WindowMinMaxButtonsHint);
+
+        // Screen-relative sizing — minimum 55%w / 60%h with floor 900x560
+        if (const QScreen* screen = QApplication::primaryScreen()) {
+            const QRect avail = screen->availableGeometry();
+            const int min_w = std::max(900, static_cast<int>(avail.width() * 0.55));
+            const int min_h = std::max(560, static_cast<int>(avail.height() * 0.60));
+            setMinimumSize(min_w, min_h);
+            resize(static_cast<int>(avail.width() * 0.75),
+                   static_cast<int>(avail.height() * 0.75));
+        } else {
+            setMinimumSize(900, 560);
+        }
         setStyleSheet(build_app_stylesheet(current_theme_mode_));
         current_interval_seconds_ =
             (std::isfinite(config.interval_seconds) && config.interval_seconds > 0.0)
@@ -700,8 +656,11 @@ public:
         auto* body = new QWidget(root);
         body->setAutoFillBackground(false);
         auto* body_layout = new QHBoxLayout(body);
-        body_layout->setContentsMargins(12, 12, 12, 8);
-        body_layout->setSpacing(10);
+        const double dpr = devicePixelRatioF();
+        body_layout->setContentsMargins(
+            static_cast<int>(12 * dpr), static_cast<int>(12 * dpr),
+            static_cast<int>(12 * dpr), static_cast<int>(8 * dpr));
+        body_layout->setSpacing(static_cast<int>(10 * dpr));
 
         for (const auto slot : aura::shell::all_dock_slots()) {
             const std::size_t index = slot_index(slot);
@@ -792,6 +751,7 @@ private:
 
     void apply_theme(const aura::shell::UiThemeMode mode, const bool persist) {
         current_theme_mode_ = mode;
+        theme_dirty_ = true;
         setStyleSheet(build_app_stylesheet(current_theme_mode_));
         if (theme_toggle_btn_ != nullptr) {
             theme_toggle_btn_->setText(QString::fromStdString(aura::shell::ui_theme_mode_label(mode)));
@@ -999,7 +959,7 @@ private:
             quick_ = new QQuickWidget(parent_page);
             quick_->setResizeMode(QQuickWidget::SizeRootObjectToView);
             quick_->setSource(QUrl::fromLocalFile(QStringLiteral(AURA_SHELL_QML_PATH)));
-            quick_->setMinimumHeight(340);
+            quick_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
             render_status_ = new QLabel("Cockpit scene online", parent_page);
             render_status_->setObjectName("renderStatus");
@@ -1192,10 +1152,13 @@ private:
             root->setProperty("qualityHint", state.quality_hint);
             root->setProperty("timelineAnomalyAlpha", state.style_tokens.timeline_anomaly_alpha);
             root->setProperty("statusText", QString::fromStdString(state.status_line));
-            root->setProperty(
-                "themeMode",
-                QString::fromStdString(aura::shell::ui_theme_mode_key(current_theme_mode_))
-            );
+            if (theme_dirty_) {
+                root->setProperty(
+                    "themeMode",
+                    QString::fromStdString(aura::shell::ui_theme_mode_key(current_theme_mode_))
+                );
+                theme_dirty_ = false;
+            }
         }
 
         if (update_timer_ != nullptr) {
@@ -1229,6 +1192,7 @@ private:
     QLabel* render_status_{nullptr};
     QLabel* footer_status_{nullptr};
     std::array<QLabel*, 5> process_labels_{};
+    bool theme_dirty_{true};
     bool dragging_{false};
     QPoint drag_origin_{};
 };
@@ -1236,6 +1200,8 @@ private:
 }  // namespace
 
 int main(int argc, char* argv[]) {
+    QApplication::setHighDpiScaleFactorRoundingPolicy(
+        Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
     QApplication app(argc, argv);
     app.setApplicationName("Aura");
     app.setApplicationVersion("1.0.0");
