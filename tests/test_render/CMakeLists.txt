@@ -7,7 +7,16 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_subdirectory(../../src/render/native ${CMAKE_BINARY_DIR}/render-native)
 
-add_executable(render_native_tests render_native_tests.cpp)
+add_executable(render_native_tests
+    render_test_helpers.cpp
+    test_style_tokens.cpp
+    test_style_sequencer.cpp
+    test_theme_blend.cpp
+    test_formatting.cpp
+    test_qt_hooks.cpp
+    test_c_api_errors.cpp
+    render_native_tests.cpp
+)
 target_include_directories(render_native_tests PRIVATE ../../src/render/native/include)
 target_link_libraries(render_native_tests PRIVATE aura_render_native)
 add_custom_command(
