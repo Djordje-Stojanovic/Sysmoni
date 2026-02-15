@@ -294,10 +294,10 @@ function Ensure-GuiArtifacts {
         }
         if ($needsBuild) {
             Write-Info "GUI binary not found (or force requested), building..."
-            Invoke-ShellBuild -Config $Config -Qt6Dir $qt6Arg
+            $null = Invoke-ShellBuild -Config $Config -Qt6Dir $qt6Arg
         } else {
             Write-Info "GUI runtime files missing, repairing deployment..."
-            Invoke-ShellBuild -Config $Config -Qt6Dir $qt6Arg -DeployOnly
+            $null = Invoke-ShellBuild -Config $Config -Qt6Dir $qt6Arg -DeployOnly
         }
         $existing = Resolve-FirstExistingPath -Candidates $candidates
     }
@@ -320,7 +320,7 @@ function Ensure-CliArtifacts {
 
     if ($ForceBuild -or (-not $existing)) {
         Write-Info "CLI binary not found (or force requested), building..."
-        Invoke-PlatformBuild -Config $Config
+        $null = Invoke-PlatformBuild -Config $Config
         $existing = Resolve-FirstExistingPath -Candidates $candidates
     }
 
