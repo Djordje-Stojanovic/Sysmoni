@@ -16,6 +16,11 @@ public:
     virtual bool available() const = 0;
     virtual std::optional<TelemetrySnapshot> collect_snapshot(std::string& error) = 0;
     virtual std::vector<ProcessSample> collect_top_processes(std::size_t max_samples, std::string& error) = 0;
+    virtual std::optional<PerCoreCpuState> collect_per_core_cpu(std::string& error) = 0;
+    virtual std::optional<GpuState> collect_gpu(std::string& error) = 0;
+    virtual std::optional<DiskIoState> collect_disk_io(std::string& error) = 0;
+    virtual std::optional<NetworkIoState> collect_network_io(std::string& error) = 0;
+    virtual std::optional<ThermalState> collect_thermal(std::string& error) = 0;
 };
 
 class TelemetryBridge final : public ITelemetryBridge {
@@ -29,6 +34,11 @@ public:
     bool available() const override;
     std::optional<TelemetrySnapshot> collect_snapshot(std::string& error) override;
     std::vector<ProcessSample> collect_top_processes(std::size_t max_samples, std::string& error) override;
+    std::optional<PerCoreCpuState> collect_per_core_cpu(std::string& error) override;
+    std::optional<GpuState> collect_gpu(std::string& error) override;
+    std::optional<DiskIoState> collect_disk_io(std::string& error) override;
+    std::optional<NetworkIoState> collect_network_io(std::string& error) override;
+    std::optional<ThermalState> collect_thermal(std::string& error) override;
 
     std::string loaded_path() const;
     std::string load_error() const;

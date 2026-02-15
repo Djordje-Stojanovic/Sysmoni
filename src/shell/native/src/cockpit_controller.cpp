@@ -317,6 +317,56 @@ CockpitUiState CockpitController::tick(
         }
     }
 
+    // ── Extended sensor collection with tiered polling ──────────────────
+    ++tick_count_;
+
+    // Per-core CPU — every tick (lightweight)
+    if (telemetry_bridge_ != nullptr) {
+        std::string per_core_error;
+        auto per_core = telemetry_bridge_->collect_per_core_cpu(per_core_error);
+        if (per_core.has_value()) {
+            state.per_core_cpu = std::move(*per_core);
+        }
+    }
+
+    // Disk I/O — every tick (lightweight, cumulative counter delta)
+    if (telemetry_bridge_ != nullptr) {
+        std::string disk_error;
+        auto disk = telemetry_bridge_->collect_disk_io(disk_error);
+        if (disk.has_value()) {
+            state.disk_io = *disk;
+        }
+    }
+
+    // Network I/O — every tick (lightweight, NIC counter delta)
+    if (telemetry_bridge_ != nullptr) {
+        std::string net_error;
+        auto net = telemetry_bridge_->collect_network_io(net_error);
+        if (net.has_value()) {
+            state.network_io = *net;
+        }
+    }
+
+    // GPU — every 2 ticks (moderate, NVML/D3DKMT)
+    if (telemetry_bridge_ != nullptr && (tick_count_ % 2 == 0 || tick_count_ == 1)) {
+        std::string gpu_error;
+        auto gpu = telemetry_bridge_->collect_gpu(gpu_error);
+        if (gpu.has_value()) {
+            cached_gpu_ = *gpu;
+        }
+    }
+    state.gpu = cached_gpu_;
+
+    // Thermal — every 5 ticks (moderate, WMI query)
+    if (telemetry_bridge_ != nullptr && (tick_count_ % 5 == 0 || tick_count_ == 1)) {
+        std::string thermal_error;
+        auto thermal = telemetry_bridge_->collect_thermal(thermal_error);
+        if (thermal.has_value()) {
+            cached_thermal_ = *thermal;
+        }
+    }
+    state.thermal = cached_thermal_;
+
     populate_timeline_state(state, stream_error);
 
     state.status_line = fallback_status_line(stream_error);

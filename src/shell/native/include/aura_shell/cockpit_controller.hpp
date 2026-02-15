@@ -74,6 +74,10 @@ private:
     std::vector<TimelinePoint> dvr_timeline_cache_;
     bool has_last_good_state_{false};
     CockpitUiState last_state_{};
+
+    std::size_t tick_count_{0};
+    GpuState cached_gpu_;
+    ThermalState cached_thermal_;
 };
 
 }  // namespace aura::shell

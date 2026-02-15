@@ -1,3 +1,26 @@
+// ============================================================================
+// Aura Shell — Main Window & UI Assembly
+// ============================================================================
+//
+// DESIGN INTENT: Addictive Visual Experience
+//
+//   This UI is intentionally designed to be addictive. Every detail — the
+//   holographic gauge arcs, mood-reactive color shifts, shimmer animations,
+//   kawaii pink mode, glassmorphism panels — exists to make staring at system
+//   metrics feel like a premium, dopamine-hitting experience. We want users
+//   to leave Aura open not because they need to, but because they can't look
+//   away. This is deliberate and we are transparent about it.
+//
+//   Techniques used:
+//     - Smooth 60 FPS animations with Bézier easing (never jarring)
+//     - Mood-reactive palette that shifts with system load (curiosity loop)
+//     - Holographic shimmer on gauge arcs (visual reward for watching)
+//     - Pink "kawaii" mode with friendly labels (emotional attachment)
+//     - Premium dark-glass aesthetic (status/identity signaling)
+//     - Dense telemetry that always has something new to notice (discovery)
+//
+// ============================================================================
+
 #include <QApplication>
 #include <QCommandLineOption>
 #include <QCommandLineParser>
@@ -14,6 +37,9 @@
 #include <QQuickItem>
 #include <QQuickWidget>
 #include <QScreen>
+#include <QVariant>
+#include <QVariantList>
+#include <QVariantMap>
 
 #include <QScrollArea>
 #include <QSettings>
@@ -172,6 +198,13 @@ SizeMetrics metrics_for_category(SizeCategory cat) {
             return {13, 15, 11, 24, 10, 13, 12, 10, 44, 9, 20, 14, 12};
     }
     return {11, 13, 10, 20, 9, 12, 11, 9, 36, 7, 16, 10, 10};
+}
+
+QString format_rate(double bytes_per_sec) {
+    if (bytes_per_sec >= 1073741824.0) return QString::number(bytes_per_sec / 1073741824.0, 'f', 1) + " GB/s";
+    if (bytes_per_sec >= 1048576.0)    return QString::number(bytes_per_sec / 1048576.0, 'f', 1) + " MB/s";
+    if (bytes_per_sec >= 1024.0)       return QString::number(bytes_per_sec / 1024.0, 'f', 1) + " KB/s";
+    return QString::number(static_cast<int>(bytes_per_sec)) + " B/s";
 }
 
 int interval_to_milliseconds(const double interval_seconds) {
@@ -587,6 +620,18 @@ QString build_app_stylesheet(const aura::shell::UiThemeMode mode, const SizeMetr
     ss.replace(QLatin1String("${ACCENT_HOVER}"), p.accent_hover);
     ss.replace(QLatin1String("${BORDER_ACTIVE}"), p.border_active);
 
+    // Pink-mode visual enhancements
+    if (mode == aura::shell::UiThemeMode::PinkCute) {
+        ss += QStringLiteral(
+            "QFrame#slot { border: 1px solid #91406f; }"
+            "QLabel#metricValue { color: #ffb3d9; }"
+            "QLabel#processRow { background: rgba(255, 77, 166, 0.06); border-radius: 8px; }"
+            "QLabel#processRowAlt { background: rgba(192, 132, 252, 0.06); border-radius: 8px; }"
+            "QLabel#panelTitle { color: #ff4da6; }"
+            "QLabel#footerStatus { border-left-color: #ff4da6; }"
+        );
+    }
+
     return ss;
 }
 
@@ -886,7 +931,7 @@ protected:
     }
 
 private:
-    static constexpr int kResizeBorder = 6;
+    static constexpr int kResizeBorder = 14;
 
     Qt::Edges hit_test_edge(const QPoint& pos) const {
         Qt::Edges edges;
@@ -910,6 +955,7 @@ private:
 
     void apply_theme(const aura::shell::UiThemeMode mode, const bool persist) {
         current_theme_mode_ = mode;
+        is_pink_ = (mode == aura::shell::UiThemeMode::PinkCute);
         theme_dirty_ = true;
         setStyleSheet(build_app_stylesheet(current_theme_mode_, current_metrics_));
         if (theme_toggle_btn_ != nullptr) {
@@ -921,6 +967,54 @@ private:
                 QString::fromStdString(aura::shell::ui_theme_mode_key(current_theme_mode_))
             );
         }
+
+        // Update panel title labels
+        using PanelId = aura::shell::PanelId;
+        if (panel_title_labels_[panel_index(PanelId::TelemetryOverview)])
+            panel_title_labels_[panel_index(PanelId::TelemetryOverview)]->setText(
+                is_pink_ ? QStringLiteral("\u2728 SYSTEM STATUS") : QStringLiteral("TELEMETRY OVERVIEW"));
+        if (panel_title_labels_[panel_index(PanelId::TopProcesses)])
+            panel_title_labels_[panel_index(PanelId::TopProcesses)]->setText(
+                is_pink_ ? QStringLiteral("\u2728 RUNNING APPS") : QStringLiteral("TOP PROCESSES"));
+        if (panel_title_labels_[panel_index(PanelId::DvrTimeline)])
+            panel_title_labels_[panel_index(PanelId::DvrTimeline)]->setText(
+                is_pink_ ? QStringLiteral("\u2728 HISTORY") : QStringLiteral("DVR TIMELINE"));
+        if (panel_title_labels_[panel_index(PanelId::RenderSurface)])
+            panel_title_labels_[panel_index(PanelId::RenderSurface)]->setText(
+                is_pink_ ? QStringLiteral("\u2728 COCKPIT") : QStringLiteral("RENDER SURFACE"));
+
+        // Update tab text in all slot tab bars
+        for (const auto slot : aura::shell::all_dock_slots()) {
+            const std::size_t slot_idx = slot_index(slot);
+            auto& sw = slot_widgets_[slot_idx];
+            if (sw.tab_bar == nullptr) continue;
+            const auto& tabs = dock_state_.slot_tabs[slot_idx];
+            for (int i = 0; i < static_cast<int>(tabs.size()); ++i) {
+                switch (tabs[static_cast<std::size_t>(i)]) {
+                    case PanelId::TelemetryOverview:
+                        sw.tab_bar->setTabText(i, is_pink_ ? QStringLiteral("Status") : QStringLiteral("Telemetry"));
+                        break;
+                    case PanelId::TopProcesses:
+                        sw.tab_bar->setTabText(i, is_pink_ ? QStringLiteral("Apps") : QStringLiteral("Processes"));
+                        break;
+                    case PanelId::DvrTimeline:
+                        sw.tab_bar->setTabText(i, is_pink_ ? QStringLiteral("History") : QStringLiteral("Timeline"));
+                        break;
+                    case PanelId::RenderSurface:
+                        sw.tab_bar->setTabText(i, is_pink_ ? QStringLiteral("Cockpit") : QStringLiteral("Render"));
+                        break;
+                }
+            }
+        }
+
+        // Update metric key labels
+        if (cpu_key_) cpu_key_->setText(is_pink_ ? QStringLiteral("PROCESSOR") : QStringLiteral("CPU LOAD"));
+        if (mem_key_) mem_key_->setText(is_pink_ ? QStringLiteral("MEMORY") : QStringLiteral("MEMORY USE"));
+        if (gpu_key_) gpu_key_->setText(is_pink_ ? QStringLiteral("GRAPHICS") : QStringLiteral("GPU"));
+        if (disk_key_) disk_key_->setText(is_pink_ ? QStringLiteral("STORAGE") : QStringLiteral("DISK ACTIVITY"));
+        if (net_key_) net_key_->setText(is_pink_ ? QStringLiteral("INTERNET") : QStringLiteral("NETWORK"));
+        if (thermal_key_) thermal_key_->setText(is_pink_ ? QStringLiteral("TEMPERATURE") : QStringLiteral("TEMPERATURE"));
+
         sync_theme_to_qml();
     }
     // -----------------------------------------------------------------------
@@ -977,6 +1071,7 @@ private:
 
         auto* title_label = new QLabel(title.toUpper(), page);
         title_label->setObjectName("panelTitle");
+        panel_title_labels_[panel_index(panel_id)] = title_label;
         header_layout->addWidget(title_label);
         header_layout->addStretch(1);
 
@@ -1034,12 +1129,12 @@ private:
             cpu_block_layout->setContentsMargins(0, 0, 0, 8);
             cpu_block_layout->setSpacing(1);
 
-            auto* cpu_key = new QLabel("CPU LOAD", parent_page);
-            cpu_key->setObjectName("metricKey");
+            cpu_key_ = new QLabel("CPU LOAD", parent_page);
+            cpu_key_->setObjectName("metricKey");
             telemetry_cpu_ = new QLabel("CPU --", parent_page);
             telemetry_cpu_->setObjectName("metricValue");
 
-            cpu_block_layout->addWidget(cpu_key);
+            cpu_block_layout->addWidget(cpu_key_);
             cpu_block_layout->addWidget(telemetry_cpu_);
             telemetry_layout->addWidget(cpu_block);
 
@@ -1049,14 +1144,74 @@ private:
             mem_block_layout->setContentsMargins(0, 0, 0, 8);
             mem_block_layout->setSpacing(1);
 
-            auto* mem_key = new QLabel("MEMORY USE", parent_page);
-            mem_key->setObjectName("metricKey");
+            mem_key_ = new QLabel("MEMORY USE", parent_page);
+            mem_key_->setObjectName("metricKey");
             telemetry_memory_ = new QLabel("Memory --", parent_page);
             telemetry_memory_->setObjectName("metricValue");
 
-            mem_block_layout->addWidget(mem_key);
+            mem_block_layout->addWidget(mem_key_);
             mem_block_layout->addWidget(telemetry_memory_);
             telemetry_layout->addWidget(mem_block);
+
+            // GPU metric block
+            auto* gpu_block = new QWidget(parent_page);
+            auto* gpu_block_layout = new QVBoxLayout(gpu_block);
+            gpu_block_layout->setContentsMargins(0, 0, 0, 8);
+            gpu_block_layout->setSpacing(1);
+
+            gpu_key_ = new QLabel("GPU", parent_page);
+            gpu_key_->setObjectName("metricKey");
+            gpu_value_ = new QLabel("--", parent_page);
+            gpu_value_->setObjectName("metricValue");
+
+            gpu_block_layout->addWidget(gpu_key_);
+            gpu_block_layout->addWidget(gpu_value_);
+            telemetry_layout->addWidget(gpu_block);
+
+            // Disk metric block
+            auto* disk_block = new QWidget(parent_page);
+            auto* disk_block_layout = new QVBoxLayout(disk_block);
+            disk_block_layout->setContentsMargins(0, 0, 0, 8);
+            disk_block_layout->setSpacing(1);
+
+            disk_key_ = new QLabel("DISK ACTIVITY", parent_page);
+            disk_key_->setObjectName("metricKey");
+            disk_value_ = new QLabel("--", parent_page);
+            disk_value_->setObjectName("metricValue");
+
+            disk_block_layout->addWidget(disk_key_);
+            disk_block_layout->addWidget(disk_value_);
+            telemetry_layout->addWidget(disk_block);
+
+            // Network metric block
+            auto* net_block = new QWidget(parent_page);
+            auto* net_block_layout = new QVBoxLayout(net_block);
+            net_block_layout->setContentsMargins(0, 0, 0, 8);
+            net_block_layout->setSpacing(1);
+
+            net_key_ = new QLabel("NETWORK", parent_page);
+            net_key_->setObjectName("metricKey");
+            net_value_ = new QLabel("--", parent_page);
+            net_value_->setObjectName("metricValue");
+
+            net_block_layout->addWidget(net_key_);
+            net_block_layout->addWidget(net_value_);
+            telemetry_layout->addWidget(net_block);
+
+            // Thermal metric block
+            auto* thermal_block = new QWidget(parent_page);
+            auto* thermal_block_layout = new QVBoxLayout(thermal_block);
+            thermal_block_layout->setContentsMargins(0, 0, 0, 8);
+            thermal_block_layout->setSpacing(1);
+
+            thermal_key_ = new QLabel("TEMPERATURE", parent_page);
+            thermal_key_->setObjectName("metricKey");
+            thermal_value_ = new QLabel("--", parent_page);
+            thermal_value_->setObjectName("metricValue");
+
+            thermal_block_layout->addWidget(thermal_key_);
+            thermal_block_layout->addWidget(thermal_value_);
+            telemetry_layout->addWidget(thermal_block);
 
             // Timestamp and status
             telemetry_timestamp_ = new QLabel("Timestamp --", parent_page);
@@ -1142,6 +1297,18 @@ private:
         return std::nullopt;
     }
 
+    QString themed_tab_title(const aura::shell::PanelId panel_id) const {
+        if (is_pink_) {
+            switch (panel_id) {
+                case aura::shell::PanelId::TelemetryOverview: return QStringLiteral("Status");
+                case aura::shell::PanelId::TopProcesses:      return QStringLiteral("Apps");
+                case aura::shell::PanelId::DvrTimeline:        return QStringLiteral("History");
+                case aura::shell::PanelId::RenderSurface:      return QStringLiteral("Cockpit");
+            }
+        }
+        return panel_title(panel_id);
+    }
+
     void rebuild_dock_slots() {
         syncing_tabs_ = true;
         for (const auto slot : aura::shell::all_dock_slots()) {
@@ -1162,7 +1329,7 @@ private:
             const auto& tabs = dock_state_.slot_tabs[slot_idx];
 
             for (const auto panel_id : tabs) {
-                sw.tab_bar->addTab(panel_title(panel_id));
+                sw.tab_bar->addTab(themed_tab_title(panel_id));
                 QWidget* page = panel_pages_[panel_index(panel_id)];
                 if (page != nullptr) {
                     sw.stack->addWidget(page);
@@ -1255,6 +1422,41 @@ private:
         telemetry_memory_->setText(QString::fromStdString(state.memory_line));
         telemetry_timestamp_->setText(QString::fromStdString(state.timestamp_line));
         telemetry_status_->setText(QString::fromStdString(state.status_line));
+
+        // GPU
+        if (state.gpu.available) {
+            const double vram_used_gb = static_cast<double>(state.gpu.vram_used_bytes) / 1073741824.0;
+            const double vram_total_gb = static_cast<double>(state.gpu.vram_total_bytes) / 1073741824.0;
+            gpu_value_->setText(
+                QString("%1% \u2014 %2 / %3 GB VRAM")
+                    .arg(static_cast<int>(state.gpu.gpu_percent))
+                    .arg(vram_used_gb, 0, 'f', 1)
+                    .arg(vram_total_gb, 0, 'f', 1)
+            );
+        } else {
+            gpu_value_->setText(QStringLiteral("Not available"));
+        }
+
+        // Disk I/O
+        disk_value_->setText(
+            format_rate(state.disk_io.read_bytes_per_sec) + QString::fromUtf8(" R / ") +
+            format_rate(state.disk_io.write_bytes_per_sec) + QString::fromUtf8(" W")
+        );
+
+        // Network I/O
+        net_value_->setText(
+            format_rate(state.network_io.recv_bytes_per_sec) + QString::fromUtf8(" \u2193 / ") +
+            format_rate(state.network_io.sent_bytes_per_sec) + QString::fromUtf8(" \u2191")
+        );
+
+        // Thermal
+        if (state.thermal.available) {
+            thermal_value_->setText(
+                QString("CPU %1\u00b0C").arg(static_cast<int>(state.thermal.hottest_celsius))
+            );
+        } else {
+            thermal_value_->setText(QStringLiteral("Not available"));
+        }
         process_status_->setText(QString::fromStdString(state.status_line));
         render_status_->setText(QString::fromStdString(state.status_line));
         timeline_status_->setText(QString::fromStdString(state.timeline_line));
@@ -1311,6 +1513,48 @@ private:
             root->setProperty("qualityHint", state.quality_hint);
             root->setProperty("timelineAnomalyAlpha", state.style_tokens.timeline_anomaly_alpha);
             root->setProperty("statusText", QString::fromStdString(state.status_line));
+
+            // Per-core CPU
+            QVariantList core_list;
+            core_list.reserve(static_cast<int>(state.per_core_cpu.core_percents.size()));
+            for (const double pct : state.per_core_cpu.core_percents) {
+                core_list.append(pct);
+            }
+            root->setProperty("perCoreCpu", core_list);
+            root->setProperty("coreCount", static_cast<int>(state.per_core_cpu.core_count));
+
+            // GPU
+            root->setProperty("gpuAvailable", state.gpu.available);
+            root->setProperty("gpuPercent", state.gpu.gpu_percent);
+            root->setProperty("vramPercent", state.gpu.vram_percent);
+            root->setProperty("vramUsedBytes", static_cast<double>(state.gpu.vram_used_bytes));
+            root->setProperty("vramTotalBytes", static_cast<double>(state.gpu.vram_total_bytes));
+
+            // Disk I/O
+            root->setProperty("diskReadBps", state.disk_io.read_bytes_per_sec);
+            root->setProperty("diskWriteBps", state.disk_io.write_bytes_per_sec);
+
+            // Network I/O
+            root->setProperty("netRecvBps", state.network_io.recv_bytes_per_sec);
+            root->setProperty("netSentBps", state.network_io.sent_bytes_per_sec);
+
+            // Thermal
+            root->setProperty("thermalAvailable", state.thermal.available);
+            root->setProperty("thermalHottest", state.thermal.hottest_celsius);
+            QVariantList sensor_list;
+            sensor_list.reserve(static_cast<int>(state.thermal.sensors.size()));
+            for (const auto& s : state.thermal.sensors) {
+                QVariantMap m;
+                m["label"] = QString::fromStdString(s.label);
+                m["current"] = s.current_celsius;
+                m["high"] = s.high_celsius;
+                m["critical"] = s.critical_celsius;
+                m["hasHigh"] = s.has_high;
+                m["hasCritical"] = s.has_critical;
+                sensor_list.append(m);
+            }
+            root->setProperty("thermalSensors", sensor_list);
+
             if (theme_dirty_) {
                 root->setProperty(
                     "themeMode",
@@ -1355,6 +1599,22 @@ private:
     QLabel* footer_status_{nullptr};
     std::array<QLabel*, 5> process_labels_{};
     bool theme_dirty_{true};
+    bool is_pink_{false};
+
+    // Extended metric labels (telemetry panel)
+    QLabel* cpu_key_{nullptr};
+    QLabel* mem_key_{nullptr};
+    QLabel* gpu_key_{nullptr};
+    QLabel* gpu_value_{nullptr};
+    QLabel* disk_key_{nullptr};
+    QLabel* disk_value_{nullptr};
+    QLabel* net_key_{nullptr};
+    QLabel* net_value_{nullptr};
+    QLabel* thermal_key_{nullptr};
+    QLabel* thermal_value_{nullptr};
+
+    // Panel title labels (for dynamic text updates)
+    std::array<QLabel*, 4> panel_title_labels_{};
     bool dragging_{false};
     QPoint drag_origin_{};
     Qt::Edges resize_edge_{};

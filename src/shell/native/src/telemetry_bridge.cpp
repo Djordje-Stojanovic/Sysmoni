@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
@@ -139,10 +140,31 @@ struct TelemetryBridge::Impl {
 #ifdef _WIN32
     using CollectSnapshotFn = int (*)(double*, double*, char*, std::size_t);
     using CollectProcessesFn = int (*)(aura_process_sample*, std::uint32_t, std::uint32_t*, char*, std::size_t);
+    using CollectPerCoreCpuFn = int (*)(double*, std::uint32_t, std::uint32_t*, char*, std::size_t);
+    using CollectGpuFn = int (*)(aura_gpu_utilization*, char*, std::size_t);
+    using CollectDiskFn = int (*)(aura_disk_counters*, char*, std::size_t);
+    using CollectNetworkFn = int (*)(aura_network_counters*, char*, std::size_t);
+    using CollectThermalFn = int (*)(aura_thermal_reading*, std::uint32_t, std::uint32_t*, char*, std::size_t);
 
     HMODULE module_handle{nullptr};
     CollectSnapshotFn collect_snapshot_fn{nullptr};
     CollectProcessesFn collect_processes_fn{nullptr};
+    CollectPerCoreCpuFn collect_per_core_cpu_fn{nullptr};
+    CollectGpuFn collect_gpu_fn{nullptr};
+    CollectDiskFn collect_disk_fn{nullptr};
+    CollectNetworkFn collect_network_fn{nullptr};
+    CollectThermalFn collect_thermal_fn{nullptr};
+
+    // Delta state for disk/network rate computation
+    bool has_prev_disk{false};
+    std::uint64_t prev_disk_read_bytes{0};
+    std::uint64_t prev_disk_write_bytes{0};
+    double prev_disk_timestamp{0.0};
+
+    bool has_prev_network{false};
+    std::uint64_t prev_net_recv_bytes{0};
+    std::uint64_t prev_net_sent_bytes{0};
+    double prev_network_timestamp{0.0};
 #endif
     bool loaded{false};
     std::string loaded_path;
@@ -175,6 +197,24 @@ TelemetryBridge::TelemetryBridge() : impl_(std::make_unique<Impl>()) {
         impl_->module_handle = module;
         impl_->collect_snapshot_fn = collect_snapshot;
         impl_->collect_processes_fn = collect_processes;
+
+        // Optional extended sensor functions — null is OK, graceful degradation
+        impl_->collect_per_core_cpu_fn = reinterpret_cast<Impl::CollectPerCoreCpuFn>(
+            GetProcAddress(module, "aura_collect_per_core_cpu")
+        );
+        impl_->collect_gpu_fn = reinterpret_cast<Impl::CollectGpuFn>(
+            GetProcAddress(module, "aura_collect_gpu_utilization")
+        );
+        impl_->collect_disk_fn = reinterpret_cast<Impl::CollectDiskFn>(
+            GetProcAddress(module, "aura_collect_disk_counters")
+        );
+        impl_->collect_network_fn = reinterpret_cast<Impl::CollectNetworkFn>(
+            GetProcAddress(module, "aura_collect_network_counters")
+        );
+        impl_->collect_thermal_fn = reinterpret_cast<Impl::CollectThermalFn>(
+            GetProcAddress(module, "aura_collect_thermal_readings")
+        );
+
         impl_->loaded = true;
         impl_->loaded_path = narrow_from_wide(path);
         impl_->load_error.clear();
@@ -292,6 +332,195 @@ std::vector<ProcessSample> TelemetryBridge::collect_top_processes(
     error = "Telemetry bridge is only supported on Windows.";
 #endif
     return output;
+}
+
+std::optional<PerCoreCpuState> TelemetryBridge::collect_per_core_cpu(std::string& error) {
+    error.clear();
+    if (!available()) {
+        error = impl_ != nullptr ? impl_->load_error : "Telemetry bridge is unavailable.";
+        return std::nullopt;
+    }
+#ifdef _WIN32
+    if (impl_->collect_per_core_cpu_fn == nullptr) {
+        return std::nullopt;
+    }
+    constexpr std::uint32_t kMaxCores = 256;
+    std::vector<double> percents(kMaxCores, 0.0);
+    std::uint32_t core_count = 0;
+    std::array<char, kErrorBufferSize> error_buffer{};
+    const int status = impl_->collect_per_core_cpu_fn(
+        percents.data(), kMaxCores, &core_count, error_buffer.data(), error_buffer.size()
+    );
+    if (status != kStatusOk) {
+        error.assign(error_buffer.data(), c_string_length(error_buffer.data(), error_buffer.size()));
+        return std::nullopt;
+    }
+    PerCoreCpuState state;
+    state.core_count = core_count;
+    state.core_percents.resize(core_count);
+    for (std::uint32_t i = 0; i < core_count; ++i) {
+        state.core_percents[i] = clamp_percent(percents[i]);
+    }
+    return state;
+#else
+    return std::nullopt;
+#endif
+}
+
+std::optional<GpuState> TelemetryBridge::collect_gpu(std::string& error) {
+    error.clear();
+    if (!available()) {
+        error = impl_ != nullptr ? impl_->load_error : "Telemetry bridge is unavailable.";
+        return std::nullopt;
+    }
+#ifdef _WIN32
+    if (impl_->collect_gpu_fn == nullptr) {
+        return std::nullopt;
+    }
+    aura_gpu_utilization raw{};
+    std::array<char, kErrorBufferSize> error_buffer{};
+    const int status = impl_->collect_gpu_fn(&raw, error_buffer.data(), error_buffer.size());
+    if (status != kStatusOk) {
+        error.assign(error_buffer.data(), c_string_length(error_buffer.data(), error_buffer.size()));
+        return std::nullopt;
+    }
+    GpuState state;
+    state.available = true;
+    state.gpu_percent = clamp_percent(raw.gpu_percent);
+    state.vram_percent = clamp_percent(raw.vram_percent);
+    state.vram_used_bytes = raw.vram_used_bytes;
+    state.vram_total_bytes = raw.vram_total_bytes;
+    return state;
+#else
+    return std::nullopt;
+#endif
+}
+
+std::optional<DiskIoState> TelemetryBridge::collect_disk_io(std::string& error) {
+    error.clear();
+    if (!available()) {
+        error = impl_ != nullptr ? impl_->load_error : "Telemetry bridge is unavailable.";
+        return std::nullopt;
+    }
+#ifdef _WIN32
+    if (impl_->collect_disk_fn == nullptr) {
+        return std::nullopt;
+    }
+    aura_disk_counters raw{};
+    std::array<char, kErrorBufferSize> error_buffer{};
+    const int status = impl_->collect_disk_fn(&raw, error_buffer.data(), error_buffer.size());
+    if (status != kStatusOk) {
+        error.assign(error_buffer.data(), c_string_length(error_buffer.data(), error_buffer.size()));
+        return std::nullopt;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    const double now_sec = std::chrono::duration<double>(now.time_since_epoch()).count();
+
+    DiskIoState state;
+    if (impl_->has_prev_disk) {
+        const double dt = now_sec - impl_->prev_disk_timestamp;
+        if (dt > 0.0) {
+            const double dr = static_cast<double>(raw.read_bytes - impl_->prev_disk_read_bytes);
+            const double dw = static_cast<double>(raw.write_bytes - impl_->prev_disk_write_bytes);
+            state.read_bytes_per_sec = std::max(0.0, dr / dt);
+            state.write_bytes_per_sec = std::max(0.0, dw / dt);
+        }
+    }
+    impl_->prev_disk_read_bytes = raw.read_bytes;
+    impl_->prev_disk_write_bytes = raw.write_bytes;
+    impl_->prev_disk_timestamp = now_sec;
+    impl_->has_prev_disk = true;
+    return state;
+#else
+    return std::nullopt;
+#endif
+}
+
+std::optional<NetworkIoState> TelemetryBridge::collect_network_io(std::string& error) {
+    error.clear();
+    if (!available()) {
+        error = impl_ != nullptr ? impl_->load_error : "Telemetry bridge is unavailable.";
+        return std::nullopt;
+    }
+#ifdef _WIN32
+    if (impl_->collect_network_fn == nullptr) {
+        return std::nullopt;
+    }
+    aura_network_counters raw{};
+    std::array<char, kErrorBufferSize> error_buffer{};
+    const int status = impl_->collect_network_fn(&raw, error_buffer.data(), error_buffer.size());
+    if (status != kStatusOk) {
+        error.assign(error_buffer.data(), c_string_length(error_buffer.data(), error_buffer.size()));
+        return std::nullopt;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    const double now_sec = std::chrono::duration<double>(now.time_since_epoch()).count();
+
+    NetworkIoState state;
+    if (impl_->has_prev_network) {
+        const double dt = now_sec - impl_->prev_network_timestamp;
+        if (dt > 0.0) {
+            const double dr = static_cast<double>(raw.bytes_recv - impl_->prev_net_recv_bytes);
+            const double ds = static_cast<double>(raw.bytes_sent - impl_->prev_net_sent_bytes);
+            state.recv_bytes_per_sec = std::max(0.0, dr / dt);
+            state.sent_bytes_per_sec = std::max(0.0, ds / dt);
+        }
+    }
+    impl_->prev_net_recv_bytes = raw.bytes_recv;
+    impl_->prev_net_sent_bytes = raw.bytes_sent;
+    impl_->prev_network_timestamp = now_sec;
+    impl_->has_prev_network = true;
+    return state;
+#else
+    return std::nullopt;
+#endif
+}
+
+std::optional<ThermalState> TelemetryBridge::collect_thermal(std::string& error) {
+    error.clear();
+    if (!available()) {
+        error = impl_ != nullptr ? impl_->load_error : "Telemetry bridge is unavailable.";
+        return std::nullopt;
+    }
+#ifdef _WIN32
+    if (impl_->collect_thermal_fn == nullptr) {
+        return std::nullopt;
+    }
+    constexpr std::uint32_t kMaxReadings = 32;
+    std::vector<aura_thermal_reading> raw_readings(kMaxReadings);
+    std::uint32_t out_count = 0;
+    std::array<char, kErrorBufferSize> error_buffer{};
+    const int status = impl_->collect_thermal_fn(
+        raw_readings.data(), kMaxReadings, &out_count, error_buffer.data(), error_buffer.size()
+    );
+    if (status != kStatusOk) {
+        error.assign(error_buffer.data(), c_string_length(error_buffer.data(), error_buffer.size()));
+        return std::nullopt;
+    }
+    ThermalState state;
+    state.available = true;
+    const std::size_t count = std::min<std::size_t>(out_count, kMaxReadings);
+    state.sensors.reserve(count);
+    double hottest = 0.0;
+    for (std::size_t i = 0; i < count; ++i) {
+        ThermalSensorReading reading;
+        const std::size_t label_len = c_string_length(raw_readings[i].label, sizeof(raw_readings[i].label));
+        reading.label.assign(raw_readings[i].label, label_len);
+        reading.current_celsius = raw_readings[i].current_celsius;
+        reading.high_celsius = raw_readings[i].high_celsius;
+        reading.critical_celsius = raw_readings[i].critical_celsius;
+        reading.has_high = raw_readings[i].has_high != 0;
+        reading.has_critical = raw_readings[i].has_critical != 0;
+        if (reading.current_celsius > hottest) {
+            hottest = reading.current_celsius;
+        }
+        state.sensors.push_back(std::move(reading));
+    }
+    state.hottest_celsius = hottest;
+    return state;
+#else
+    return std::nullopt;
+#endif
 }
 
 std::string TelemetryBridge::loaded_path() const {

@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace aura::shell {
@@ -63,6 +64,44 @@ enum class TimelineSource : std::uint8_t {
     Dvr = 2,
 };
 
+struct PerCoreCpuState {
+    std::vector<double> core_percents;
+    std::uint32_t core_count{0};
+};
+
+struct GpuState {
+    bool available{false};
+    double gpu_percent{0.0};
+    double vram_percent{0.0};
+    std::uint64_t vram_used_bytes{0};
+    std::uint64_t vram_total_bytes{0};
+};
+
+struct DiskIoState {
+    double read_bytes_per_sec{0.0};
+    double write_bytes_per_sec{0.0};
+};
+
+struct NetworkIoState {
+    double recv_bytes_per_sec{0.0};
+    double sent_bytes_per_sec{0.0};
+};
+
+struct ThermalSensorReading {
+    std::string label;
+    double current_celsius{0.0};
+    double high_celsius{0.0};
+    double critical_celsius{0.0};
+    bool has_high{false};
+    bool has_critical{false};
+};
+
+struct ThermalState {
+    bool available{false};
+    std::vector<ThermalSensorReading> sensors;
+    double hottest_celsius{0.0};
+};
+
 struct CockpitUiState {
     double timestamp{0.0};
     double cpu_percent{0.0};
@@ -88,6 +127,12 @@ struct CockpitUiState {
     RenderStyleTokens style_tokens;
     bool style_tokens_available{false};
     std::string style_token_error;
+
+    PerCoreCpuState per_core_cpu;
+    GpuState gpu;
+    DiskIoState disk_io;
+    NetworkIoState network_io;
+    ThermalState thermal;
 };
 
 }  // namespace aura::shell
