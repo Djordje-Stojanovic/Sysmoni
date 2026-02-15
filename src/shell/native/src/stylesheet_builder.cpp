@@ -1,0 +1,379 @@
+#include "aura_shell/stylesheet_builder.hpp"
+
+namespace aura::shell {
+
+QString build_app_stylesheet(const UiThemeMode mode, const SizeMetrics& m) {
+    const auto& p = get_theme_palette(mode);
+
+    // Build template with named tokens, then replace
+    QString ss = QStringLiteral(
+        // --- Application-wide base ---
+        "* {"
+        "    font-family: 'Segoe UI';"
+        "    font-size: ${BASE}px;"
+        "    color: ${TEXT_PRIMARY};"
+        "}"
+        // --- Main window ---
+        "QMainWindow {"
+        "    background: ${EDGE_COLOR};"
+        "}"
+        // --- Root widget (inside the edge border) ---
+        "QWidget#rootWidget {"
+        "    background: ${BG_WINDOW};"
+        "    border-radius: 6px;"
+        "}"
+        // --- Title bar ---
+        "QFrame#titlebar {"
+        "    background: qlineargradient("
+        "        x1:0, y1:0, x2:0, y2:1,"
+        "        stop:0 ${BG_SURFACE},"
+        "        stop:1 ${BG_PANEL}"
+        "    );"
+        "    border-bottom: 1px solid ${BORDER_SUBTLE};"
+        "    min-height: ${TB_H}px;"
+        "    max-height: ${TB_H}px;"
+        "}"
+        // --- App logo ---
+        "QLabel#appLogo {"
+        "    color: ${ACCENT};"
+        "    font-size: ${TITLE}px;"
+        "    font-weight: 600;"
+        "    letter-spacing: 2px;"
+        "    padding-left: 4px;"
+        "}"
+        // --- Subtitle ---
+        "QLabel#titleSubtitle {"
+        "    color: ${TEXT_MUTED};"
+        "    font-size: ${SUBTITLE}px;"
+        "    letter-spacing: 1px;"
+        "    padding-left: 8px;"
+        "}"
+        // --- Window control buttons ---
+        "QPushButton#minBtn, QPushButton#maxBtn {"
+        "    background: transparent;"
+        "    color: ${TEXT_SECONDARY};"
+        "    border: none;"
+        "    border-radius: 4px;"
+        "    min-width: 28px; max-width: 28px;"
+        "    min-height: 24px; max-height: 24px;"
+        "    font-size: ${TITLE}px;"
+        "    padding: 0px;"
+        "}"
+        "QPushButton#minBtn:hover, QPushButton#maxBtn:hover {"
+        "    background: ${BG_ELEVATED};"
+        "    color: ${TEXT_PRIMARY};"
+        "}"
+        "QPushButton#closeBtn {"
+        "    background: transparent;"
+        "    color: ${TEXT_SECONDARY};"
+        "    border: none;"
+        "    border-radius: 4px;"
+        "    min-width: 28px; max-width: 28px;"
+        "    min-height: 24px; max-height: 24px;"
+        "    font-size: ${TITLE}px;"
+        "    padding: 0px;"
+        "    margin-right: 4px;"
+        "}"
+        "QPushButton#closeBtn:hover {"
+        "    background: ${DANGER};"
+        "    color: #ffffff;"
+        "}"
+        "QPushButton#closeBtn:pressed {"
+        "    background: #b91c1c;"
+        "    color: #ffffff;"
+        "}"
+        // --- Theme toggle ---
+        "QPushButton#themeToggleBtn {"
+        "    background: ${BG_SURFACE};"
+        "    color: ${TEXT_SECONDARY};"
+        "    border: 1px solid ${BORDER_SUBTLE};"
+        "    border-radius: 6px;"
+        "    min-height: 24px;"
+        "    padding: 0px 10px;"
+        "    font-size: ${SUBTITLE}px;"
+        "    font-weight: 600;"
+        "}"
+        "QPushButton#themeToggleBtn:hover {"
+        "    background: ${BG_ELEVATED};"
+        "    color: ${TEXT_PRIMARY};"
+        "    border-color: ${ACCENT};"
+        "}"
+        "QPushButton#themeToggleBtn:pressed {"
+        "    background: ${BORDER_SUBTLE};"
+        "    color: ${ACCENT_HOVER};"
+        "    border-color: ${ACCENT};"
+        "}"
+        // --- Dock slot frames ---
+        "QFrame#slot {"
+        "    background: ${BG_PANEL};"
+        "    border: 1px solid ${BORDER_SUBTLE};"
+        "    border-radius: 10px;"
+        "    padding: 0px;"
+        "}"
+        // --- Slot zone label ---
+        "QLabel#slotZoneLabel {"
+        "    color: ${BORDER_ACTIVE};"
+        "    font-size: ${SMALL}px;"
+        "    font-weight: 600;"
+        "    letter-spacing: 3px;"
+        "    padding: 0px 0px 0px 2px;"
+        "}"
+        // --- Tab bar ---
+        "QTabBar {"
+        "    background: transparent;"
+        "    border: none;"
+        "    border-bottom: 1px solid ${BORDER_SUBTLE};"
+        "}"
+        "QTabBar::tab {"
+        "    background: transparent;"
+        "    color: ${TEXT_MUTED};"
+        "    border: none;"
+        "    border-bottom: 2px solid transparent;"
+        "    padding: ${TAB_VP}px ${TAB_HP}px ${TAB_VP}px ${TAB_HP}px;"
+        "    font-size: ${TAB}px;"
+        "    font-weight: 500;"
+        "    letter-spacing: 0.5px;"
+        "    min-width: 60px;"
+        "}"
+        "QTabBar::tab:hover {"
+        "    color: ${TEXT_SECONDARY};"
+        "    border-bottom: 2px solid ${BORDER_ACTIVE};"
+        "}"
+        "QTabBar::tab:selected {"
+        "    color: ${TEXT_PRIMARY};"
+        "    border-bottom: 2px solid ${ACCENT};"
+        "    font-weight: 600;"
+        "}"
+        "QTabBar::tab:!enabled {"
+        "    color: ${BORDER_ACTIVE};"
+        "}"
+        // --- Generic QPushButton ---
+        "QPushButton {"
+        "    background: ${BG_SURFACE};"
+        "    color: ${TEXT_SECONDARY};"
+        "    border: 1px solid ${BORDER_SUBTLE};"
+        "    border-radius: 6px;"
+        "    padding: 3px 10px;"
+        "    font-size: ${BASE}px;"
+        "}"
+        "QPushButton:hover {"
+        "    background: ${BG_ELEVATED};"
+        "    color: ${TEXT_PRIMARY};"
+        "    border-color: ${BORDER_ACTIVE};"
+        "}"
+        "QPushButton:pressed {"
+        "    background: ${BORDER_SUBTLE};"
+        "    color: ${ACCENT_HOVER};"
+        "    border-color: ${ACCENT};"
+        "}"
+        "QPushButton:disabled {"
+        "    background: ${BG_WINDOW};"
+        "    color: ${BORDER_ACTIVE};"
+        "    border-color: ${BORDER_SUBTLE};"
+        "}"
+        // --- Move pill buttons ---
+        "QPushButton#moveBtn {"
+        "    background: ${BG_SURFACE};"
+        "    color: ${TEXT_MUTED};"
+        "    border: 1px solid ${BORDER_SUBTLE};"
+        "    border-radius: 10px;"
+        "    padding: 2px 9px;"
+        "    font-size: ${SUBTITLE}px;"
+        "    font-weight: 600;"
+        "    min-width: 22px;"
+        "    max-height: 20px;"
+        "}"
+        "QPushButton#moveBtn:hover {"
+        "    background: ${BG_ELEVATED};"
+        "    color: ${ACCENT_HOVER};"
+        "    border-color: ${ACCENT};"
+        "}"
+        "QPushButton#moveBtn:disabled {"
+        "    background: ${BG_WINDOW};"
+        "    color: ${BORDER_SUBTLE};"
+        "    border-color: ${BG_SURFACE};"
+        "}"
+        // --- Panel header separator ---
+        "QFrame#panelHeaderLine {"
+        "    background: qlineargradient("
+        "        x1:0, y1:0, x2:1, y2:0,"
+        "        stop:0 ${ACCENT},"
+        "        stop:0.4 ${BORDER_SUBTLE},"
+        "        stop:1 transparent"
+        "    );"
+        "    min-height: 1px;"
+        "    max-height: 1px;"
+        "    border: none;"
+        "}"
+        // --- Panel title ---
+        "QLabel#panelTitle {"
+        "    color: ${TEXT_PRIMARY};"
+        "    font-size: ${PANEL_TITLE}px;"
+        "    font-weight: 600;"
+        "    letter-spacing: 1px;"
+        "}"
+        // --- Move-to label ---
+        "QLabel#moveToLabel {"
+        "    color: ${TEXT_MUTED};"
+        "    font-size: ${SMALL}px;"
+        "    letter-spacing: 1px;"
+        "}"
+        // --- Metric labels ---
+        "QLabel#metricValue {"
+        "    color: ${TEXT_PRIMARY};"
+        "    font-size: ${METRIC_VAL}px;"
+        "    font-weight: 700;"
+        "    letter-spacing: -0.5px;"
+        "}"
+        "QLabel#metricKey {"
+        "    color: ${TEXT_MUTED};"
+        "    font-size: ${METRIC_KEY}px;"
+        "    font-weight: 600;"
+        "    letter-spacing: 2px;"
+        "}"
+        "QLabel#metricUnit {"
+        "    color: ${ACCENT};"
+        "    font-size: ${METRIC_UNIT}px;"
+        "    font-weight: 600;"
+        "}"
+        // --- Telemetry timestamp ---
+        "QLabel#telemetryTimestamp {"
+        "    color: ${TEXT_MUTED};"
+        "    font-size: ${SUBTITLE}px;"
+        "}"
+        // --- Telemetry status ---
+        "QLabel#telemetryStatus {"
+        "    color: ${TEXT_SECONDARY};"
+        "    font-size: ${SUBTITLE}px;"
+        "    font-style: italic;"
+        "}"
+        // --- Process status ---
+        "QLabel#processStatus {"
+        "    color: ${TEXT_MUTED};"
+        "    font-size: ${SUBTITLE}px;"
+        "    font-style: italic;"
+        "    padding-bottom: 4px;"
+        "}"
+        // --- Process row labels ---
+        "QLabel#processRow {"
+        "    color: ${TEXT_SECONDARY};"
+        "    font-family: 'Cascadia Mono', 'Consolas', monospace;"
+        "    font-size: ${SUBTITLE}px;"
+        "    padding: 3px 6px;"
+        "    border-radius: 3px;"
+        "}"
+        "QLabel#processRowAlt {"
+        "    color: ${TEXT_SECONDARY};"
+        "    font-family: 'Cascadia Mono', 'Consolas', monospace;"
+        "    font-size: ${SUBTITLE}px;"
+        "    background: ${BG_PANEL};"
+        "    padding: 3px 6px;"
+        "    border-radius: 3px;"
+        "}"
+        // --- Timeline / render status ---
+        "QLabel#timelineStatus {"
+        "    color: ${TEXT_MUTED};"
+        "    font-size: ${SUBTITLE}px;"
+        "    font-style: italic;"
+        "}"
+        "QLabel#renderStatus {"
+        "    color: ${TEXT_MUTED};"
+        "    font-size: ${SUBTITLE}px;"
+        "    font-style: italic;"
+        "}"
+        // --- Footer ---
+        "QLabel#footerStatus {"
+        "    color: ${BORDER_ACTIVE};"
+        "    font-size: ${SMALL}px;"
+        "    font-family: 'Cascadia Mono', 'Consolas', monospace;"
+        "    padding: 4px 12px 8px 14px;"
+        "    border-left: 2px solid ${ACCENT};"
+        "    margin-left: 12px;"
+        "    margin-bottom: 4px;"
+        "}"
+        // --- Scrollbars ---
+        "QScrollBar:vertical {"
+        "    background: ${BG_WINDOW};"
+        "    width: 6px;"
+        "    border-radius: 3px;"
+        "    margin: 0px;"
+        "}"
+        "QScrollBar::handle:vertical {"
+        "    background: ${BORDER_SUBTLE};"
+        "    border-radius: 3px;"
+        "    min-height: 20px;"
+        "}"
+        "QScrollBar::handle:vertical:hover {"
+        "    background: ${BORDER_ACTIVE};"
+        "}"
+        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {"
+        "    height: 0px;"
+        "}"
+        "QScrollBar:horizontal {"
+        "    background: ${BG_WINDOW};"
+        "    height: 6px;"
+        "    border-radius: 3px;"
+        "    margin: 0px;"
+        "}"
+        "QScrollBar::handle:horizontal {"
+        "    background: ${BORDER_SUBTLE};"
+        "    border-radius: 3px;"
+        "    min-width: 20px;"
+        "}"
+        "QScrollBar::handle:horizontal:hover {"
+        "    background: ${BORDER_ACTIVE};"
+        "}"
+        "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {"
+        "    width: 0px;"
+        "}"
+    );
+
+    // Size metric tokens
+    ss.replace(QLatin1String("${BASE}"), QString::number(m.base_font));
+    ss.replace(QLatin1String("${TITLE}"), QString::number(m.title_font));
+    ss.replace(QLatin1String("${SUBTITLE}"), QString::number(m.subtitle_font));
+    ss.replace(QLatin1String("${METRIC_VAL}"), QString::number(m.metric_value_font));
+    ss.replace(QLatin1String("${METRIC_KEY}"), QString::number(m.metric_key_font));
+    ss.replace(QLatin1String("${METRIC_UNIT}"), QString::number(m.metric_unit_font));
+    ss.replace(QLatin1String("${TAB}"), QString::number(m.tab_font));
+    ss.replace(QLatin1String("${SMALL}"), QString::number(m.small_font));
+    ss.replace(QLatin1String("${TB_H}"), QString::number(m.titlebar_height));
+    ss.replace(QLatin1String("${TAB_VP}"), QString::number(m.tab_v_padding));
+    ss.replace(QLatin1String("${TAB_HP}"), QString::number(m.tab_h_padding));
+    ss.replace(QLatin1String("${PANEL_TITLE}"), QString::number(m.base_font + 1));
+
+    // Edge border color — visible resize affordance
+    const QString edge_color = (mode == UiThemeMode::PinkCute)
+        ? QStringLiteral("#2a0e20") : QStringLiteral("#0d1a2f");
+    ss.replace(QLatin1String("${EDGE_COLOR}"), edge_color);
+
+    // Color tokens
+    ss.replace(QLatin1String("${TEXT_PRIMARY}"), p.text_primary);
+    ss.replace(QLatin1String("${BG_WINDOW}"), p.bg_window);
+    ss.replace(QLatin1String("${BG_SURFACE}"), p.bg_surface);
+    ss.replace(QLatin1String("${BG_PANEL}"), p.bg_panel);
+    ss.replace(QLatin1String("${BORDER_SUBTLE}"), p.border_subtle);
+    ss.replace(QLatin1String("${ACCENT}"), p.accent);
+    ss.replace(QLatin1String("${TEXT_MUTED}"), p.text_muted);
+    ss.replace(QLatin1String("${TEXT_SECONDARY}"), p.text_secondary);
+    ss.replace(QLatin1String("${BG_ELEVATED}"), p.bg_elevated);
+    ss.replace(QLatin1String("${DANGER}"), p.danger);
+    ss.replace(QLatin1String("${ACCENT_HOVER}"), p.accent_hover);
+    ss.replace(QLatin1String("${BORDER_ACTIVE}"), p.border_active);
+
+    // Pink-mode visual enhancements
+    if (mode == UiThemeMode::PinkCute) {
+        ss += QStringLiteral(
+            "QFrame#slot { border: 1px solid #91406f; }"
+            "QLabel#metricValue { color: #ffb3d9; }"
+            "QLabel#processRow { background: rgba(255, 77, 166, 0.06); border-radius: 8px; }"
+            "QLabel#processRowAlt { background: rgba(192, 132, 252, 0.06); border-radius: 8px; }"
+            "QLabel#panelTitle { color: #ff4da6; }"
+            "QLabel#footerStatus { border-left-color: #ff4da6; }"
+        );
+    }
+
+    return ss;
+}
+
+}  // namespace aura::shell

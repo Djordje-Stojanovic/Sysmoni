@@ -8,6 +8,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(AURA_SHELL_BUILD_APP "Build the Qt shell executable target." ON)
 
+find_package(Qt6 6.5 COMPONENTS Widgets QuickWidgets Qml QUIET)
+
 add_library(aura_shell_core STATIC
     src/cockpit_controller.cpp
     src/dock_model.cpp
@@ -15,6 +17,7 @@ add_library(aura_shell_core STATIC
     src/telemetry_bridge.cpp
     src/timeline_bridge.cpp
     src/ui_theme.cpp
+    src/size_metrics.cpp
 )
 target_include_directories(aura_shell_core
     PUBLIC include
@@ -23,12 +26,21 @@ target_include_directories(aura_shell_core
         ${CMAKE_CURRENT_SOURCE_DIR}/../../render/native/include
         ${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/native/include
 )
+if(Qt6_FOUND)
+    target_link_libraries(aura_shell_core
+        PUBLIC Qt6::Widgets Qt6::Qml
+    )
+endif()
 
 if(AURA_SHELL_BUILD_APP)
-    find_package(Qt6 6.5 COMPONENTS Widgets QuickWidgets Qml QUIET)
     if(Qt6_FOUND)
         add_executable(aura_shell
             src/main.cpp
+            src/shell_utils.cpp
+            src/stylesheet_builder.cpp
+            src/aura_shell_window.cpp
+            src/aura_shell_window_panels.cpp
+            src/aura_shell_window_refresh.cpp
         )
         target_compile_definitions(aura_shell PRIVATE
             AURA_SHELL_QML_PATH="${CMAKE_CURRENT_SOURCE_DIR}/qml/CockpitScene.qml"
