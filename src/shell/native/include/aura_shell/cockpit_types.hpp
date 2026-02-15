@@ -56,6 +56,7 @@ struct TimelinePoint {
     double timestamp{0.0};
     double cpu_percent{0.0};
     double memory_percent{0.0};
+    double gpu_percent{0.0};
 };
 
 enum class TimelineSource : std::uint8_t {

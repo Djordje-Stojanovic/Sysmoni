@@ -143,6 +143,57 @@ bool test_set_process_priority_null_error_buffer() {
                       "should not crash with null error buffer");
 }
 
+// Test: aura_collect_gpu_utilization with valid buffer
+bool test_gpu_utilization_valid_buffer() {
+    std::array<char, kErrorBufferSize> error_buffer{};
+    aura_gpu_utilization gpu{};
+    const int status = aura_collect_gpu_utilization(
+        &gpu,
+        error_buffer.data(),
+        error_buffer.size()
+    );
+    bool ok = true;
+    ok &= expect_true(
+        status == AURA_STATUS_OK || status == AURA_STATUS_UNAVAILABLE,
+        "gpu should return OK or UNAVAILABLE"
+    );
+    if (status == AURA_STATUS_OK) {
+        ok &= expect_true(gpu.gpu_percent >= 0.0 && gpu.gpu_percent <= 100.0,
+                          "gpu_percent should be in [0, 100]");
+        ok &= expect_true(gpu.vram_total_bytes > 0,
+                          "vram_total_bytes should be > 0 when OK");
+        ok &= expect_true(gpu.vram_percent >= 0.0 && gpu.vram_percent <= 100.0,
+                          "vram_percent should be in [0, 100]");
+    }
+    return ok;
+}
+
+// Test: aura_collect_gpu_utilization with null output pointer
+bool test_gpu_utilization_null_output() {
+    std::array<char, kErrorBufferSize> error_buffer{};
+    const int status = aura_collect_gpu_utilization(
+        nullptr,
+        error_buffer.data(),
+        error_buffer.size()
+    );
+    return expect_true(status == AURA_STATUS_ERROR, "null gpu output should return error");
+}
+
+// Test: aura_collect_gpu_utilization with null error buffer
+bool test_gpu_utilization_null_error_buffer() {
+    aura_gpu_utilization gpu{};
+    const int status = aura_collect_gpu_utilization(
+        &gpu,
+        nullptr,
+        0
+    );
+    // Should not crash with null error buffer
+    return expect_true(
+        status == AURA_STATUS_OK || status == AURA_STATUS_UNAVAILABLE,
+        "gpu should not crash with null error buffer"
+    );
+}
+
 // Test: Non-Windows platform returns UNAVAILABLE
 #ifndef _WIN32
 bool test_non_windows_unavailable() {
@@ -190,6 +241,15 @@ int main() {
         ++failures;
     }
     if (!test_set_process_priority_null_error_buffer()) {
+        ++failures;
+    }
+    if (!test_gpu_utilization_valid_buffer()) {
+        ++failures;
+    }
+    if (!test_gpu_utilization_null_output()) {
+        ++failures;
+    }
+    if (!test_gpu_utilization_null_error_buffer()) {
         ++failures;
     }
 #ifndef _WIN32
