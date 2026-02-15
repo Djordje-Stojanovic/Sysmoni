@@ -59,6 +59,15 @@
 #include <optional>
 #include <stdexcept>
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#include <windowsx.h>  // GET_X_LPARAM, GET_Y_LPARAM
+#include <dwmapi.h>
+#pragma comment(lib, "dwmapi.lib")
+#endif
+
 #include "aura_shell/cockpit_controller.hpp"
 #include "aura_shell/dock_model.hpp"
 #include "aura_shell/render_bridge.hpp"
@@ -827,6 +836,34 @@ public:
     }
 
 protected:
+#ifdef _WIN32
+    bool nativeEvent(const QByteArray& /*eventType*/, void* message, qintptr* result) override {
+        auto* msg = static_cast<MSG*>(message);
+        if (msg->message == WM_NCHITTEST && !isMaximized()) {
+            const LONG border = static_cast<LONG>(kResizeBorder);
+            RECT rc;
+            GetWindowRect(reinterpret_cast<HWND>(winId()), &rc);
+            const LONG x = GET_X_LPARAM(msg->lParam);
+            const LONG y = GET_Y_LPARAM(msg->lParam);
+
+            const bool left   = (x < rc.left + border);
+            const bool right  = (x >= rc.right - border);
+            const bool top    = (y < rc.top + border);
+            const bool bottom = (y >= rc.bottom - border);
+
+            if (top && left)      { *result = HTTOPLEFT;     return true; }
+            if (top && right)     { *result = HTTOPRIGHT;    return true; }
+            if (bottom && left)   { *result = HTBOTTOMLEFT;  return true; }
+            if (bottom && right)  { *result = HTBOTTOMRIGHT; return true; }
+            if (left)             { *result = HTLEFT;        return true; }
+            if (right)            { *result = HTRIGHT;       return true; }
+            if (top)              { *result = HTTOP;         return true; }
+            if (bottom)           { *result = HTBOTTOM;      return true; }
+        }
+        return false;
+    }
+#endif
+
     bool eventFilter(QObject* watched, QEvent* event) override {
         if (watched == titlebar_) {
             if (event->type() == QEvent::MouseButtonPress) {

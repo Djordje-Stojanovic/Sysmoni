@@ -1867,6 +1867,216 @@ Rectangle {
             }
         }
 
+        Item { Layout.preferredHeight: root.scaledSpacing * 0.6; Layout.fillWidth: true; visible: root.gpuAvailable }
+
+        // ── Sparkline — GPU ─────────────────────────────────────────────────
+        Item {
+            id: gpuSparkRow
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.minimumHeight: Math.round(Math.max(28, 48 * root.scaleFactor))
+            Layout.leftMargin: root.scaledMargin
+            Layout.rightMargin: root.scaledMargin
+            visible: root.gpuAvailable
+
+            // Label row
+            Rectangle {
+                anchors { left: parent.left; top: parent.top }
+                width: gpuSparkLabel.implicitWidth + (root.pinkMode ? Math.round(12 * root.scaleFactor) : 0)
+                height: gpuSparkLabel.implicitHeight + (root.pinkMode ? Math.round(4 * root.scaleFactor) : 0)
+                radius: root.pinkMode ? height / 2 : 0
+                color: root.pinkMode ? Qt.rgba(1.0, 0.69, 0.53, 0.08) : "transparent"
+                Text {
+                    id: gpuSparkLabel
+                    anchors.centerIn: parent
+                    text: root.pinkMode ? "\u2728 Graphics" : "GPU  HISTORY"
+                    color: root.clrTextMuted
+                    font.pixelSize: root.fontSparkLabel
+                    font.weight: Font.Medium
+                    font.letterSpacing: 2.5
+                }
+            }
+
+            Text {
+                anchors { right: parent.right; top: parent.top }
+                text: {
+                    var vramText = ""
+                    if (root.vramTotalBytes > 0) {
+                        vramText = "  " + (root.vramUsedBytes / 1073741824).toFixed(1) + "/" + (root.vramTotalBytes / 1073741824).toFixed(0) + " GB"
+                    }
+                    return root.smoothGpu.toFixed(1) + "%" + vramText
+                }
+                color: root.pinkMode ? Qt.rgba(1.0, 0.69, 0.53, 1.0) : Qt.rgba(0.961, 0.620, 0.043, 1.0)
+                font.pixelSize: root.fontSparkValue
+                font.weight: Font.Bold
+                font.letterSpacing: 0.5
+            }
+
+            // Chart canvas
+            Canvas {
+                id: gpuSparkCanvas
+                anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                height: parent.height - Math.round(Math.max(12, 18 * root.scaleFactor))
+
+                property var samples: []
+                property real lastDotX: 0
+                property real lastDotY: 0
+
+                function pushSample(val) {
+                    samples.push(val)
+                    var cap = root.qualityHint > 0 ? 80 : 120
+                    if (samples.length > cap) samples.shift()
+                    requestPaint()
+                }
+
+                onPaint: {
+                    var ctx = getContext("2d")
+                    ctx.clearRect(0, 0, width, height)
+                    if (samples.length < 2) return
+
+                    var n = samples.length
+                    var pad = 2
+                    var cw = width
+                    var ch = height - pad
+
+                    // Auto-scale Y
+                    var sMin = 100, sMax = 0
+                    for (var s = 0; s < n; s++) {
+                        sMin = Math.min(sMin, samples[s])
+                        sMax = Math.max(sMax, samples[s])
+                    }
+                    var range = sMax - sMin
+                    var padding = Math.max(5, range * 0.2)
+                    var yMin = Math.max(0, Math.floor(sMin - padding))
+                    var yMax = Math.min(100, Math.ceil(sMax + padding))
+                    if (yMax - yMin < 10) {
+                        var mid = (yMin + yMax) / 2
+                        yMin = Math.max(0, mid - 5)
+                        yMax = Math.min(100, mid + 5)
+                    }
+                    var yRange = yMax - yMin
+
+                    // Zone fills (pink mode)
+                    if (root.pinkMode) {
+                        var zones = [
+                            { pctFrom: 0, pctTo: 50, color: Qt.rgba(0.431, 0.906, 0.718, 0.04) },
+                            { pctFrom: 50, pctTo: 80, color: Qt.rgba(1.0, 0.690, 0.533, 0.04) },
+                            { pctFrom: 80, pctTo: 100, color: Qt.rgba(0.957, 0.447, 0.447, 0.05) }
+                        ]
+                        for (var zi = 0; zi < zones.length; zi++) {
+                            var zf = zones[zi]
+                            var zy1 = ch - Math.max(0, Math.min(1, (zf.pctTo - yMin) / yRange)) * ch + pad
+                            var zy2 = ch - Math.max(0, Math.min(1, (zf.pctFrom - yMin) / yRange)) * ch + pad
+                            if (zy2 > zy1) {
+                                ctx.fillStyle = zf.color
+                                ctx.fillRect(0, zy1, cw, zy2 - zy1)
+                            }
+                        }
+                    }
+
+                    var pts = []
+                    for (var i = 0; i < n; i++) {
+                        var x = (i / (n - 1)) * cw
+                        var norm = (samples[i] - yMin) / yRange
+                        var y = ch - norm * ch + pad
+                        pts.push({x: x, y: y})
+                    }
+
+                    // Filled gradient area
+                    ctx.beginPath()
+                    ctx.moveTo(pts[0].x, pts[0].y)
+                    for (var j = 1; j < n - 1; j++) {
+                        var mx = (pts[j].x + pts[j+1].x) / 2
+                        var my = (pts[j].y + pts[j+1].y) / 2
+                        ctx.quadraticCurveTo(pts[j].x, pts[j].y, mx, my)
+                    }
+                    ctx.lineTo(pts[n-1].x, pts[n-1].y)
+                    ctx.lineTo(cw, ch + pad)
+                    ctx.lineTo(0, ch + pad)
+                    ctx.closePath()
+
+                    var fillGrad = ctx.createLinearGradient(0, 0, 0, ch)
+                    if (root.pinkMode) {
+                        fillGrad.addColorStop(0.0, Qt.rgba(1.0, 0.690, 0.533, 0.28))
+                        fillGrad.addColorStop(0.5, Qt.rgba(0.957, 0.447, 0.447, 0.15))
+                        fillGrad.addColorStop(1.0, Qt.rgba(0.961, 0.620, 0.043, 0.02))
+                    } else {
+                        fillGrad.addColorStop(0.0, Qt.rgba(0.961, 0.620, 0.043, 0.26))
+                        fillGrad.addColorStop(1.0, Qt.rgba(0.961, 0.620, 0.043, 0.02))
+                    }
+                    ctx.fillStyle = fillGrad
+                    ctx.fill()
+
+                    // Crisp stroke
+                    ctx.beginPath()
+                    ctx.moveTo(pts[0].x, pts[0].y)
+                    for (var k = 1; k < n - 1; k++) {
+                        var lmx = (pts[k].x + pts[k+1].x) / 2
+                        var lmy = (pts[k].y + pts[k+1].y) / 2
+                        ctx.quadraticCurveTo(pts[k].x, pts[k].y, lmx, lmy)
+                    }
+                    ctx.lineTo(pts[n-1].x, pts[n-1].y)
+                    ctx.strokeStyle = root.pinkMode
+                        ? Qt.rgba(1.0, 0.690, 0.533, 0.70)
+                        : Qt.rgba(0.961, 0.620, 0.043, 0.65)
+                    ctx.lineWidth = 1.5
+                    ctx.lineJoin = "round"
+                    ctx.stroke()
+
+                    // Latest value dot
+                    var lp = pts[n-1]
+                    ctx.beginPath()
+                    ctx.arc(lp.x, lp.y, 2.5, 0, Math.PI * 2, false)
+                    ctx.fillStyle = root.pinkMode
+                        ? Qt.rgba(1.0, 0.690, 0.533, 1.0)
+                        : Qt.rgba(0.961, 0.620, 0.043, 1.0)
+                    ctx.fill()
+                    lastDotX = lp.x; lastDotY = lp.y
+
+                    // Y-axis scale labels
+                    ctx.font = Math.max(7, Math.round(8 * root.scaleFactor)) + "px 'Segoe UI'"
+                    ctx.fillStyle = root.pinkMode
+                        ? Qt.rgba(1.0, 0.690, 0.533, 0.40)
+                        : Qt.rgba(0.961, 0.620, 0.043, 0.40)
+                    ctx.textAlign = "left"
+                    ctx.fillText(Math.round(yMax) + "%", 2, 10)
+                    ctx.fillText(Math.round(yMin) + "%", 2, ch)
+                }
+
+                Connections {
+                    target: root
+                    function onSmoothGpuChanged() { gpuSparkCanvas.pushSample(root.smoothGpu) }
+                }
+            }
+
+            // Pulsing glow dot at sparkline endpoint (pink mode)
+            Rectangle {
+                id: gpuSparkGlow
+                visible: root.pinkMode && gpuSparkCanvas.samples.length > 1
+                x: gpuSparkCanvas.x + gpuSparkCanvas.lastDotX - width / 2
+                y: gpuSparkCanvas.y + gpuSparkCanvas.lastDotY - height / 2
+                width: 8 * root.scaleFactor
+                height: width
+                radius: width / 2
+                color: Qt.rgba(1.0, 0.690, 0.533, 1.0)
+                opacity: 0.6
+
+                property real breathScale: 1.0
+                SequentialAnimation on breathScale {
+                    running: root.pinkMode && root.motionScale >= 0.05
+                    loops: Animation.Infinite
+                    NumberAnimation { to: 1.4; duration: 800; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: 1.0; duration: 800; easing.type: Easing.InOutSine }
+                }
+                transform: Scale {
+                    origin.x: gpuSparkGlow.width / 2
+                    origin.y: gpuSparkGlow.height / 2
+                    xScale: gpuSparkGlow.breathScale
+                    yScale: gpuSparkGlow.breathScale
+                }
+            }
+        }
+
         Item { Layout.preferredHeight: root.scaledSpacing * 0.8; Layout.fillWidth: true }
 
         // ── Disk I/O sparklines ──────────────────────────────────────────────
