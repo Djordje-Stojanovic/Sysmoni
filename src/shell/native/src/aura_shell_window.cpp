@@ -47,6 +47,7 @@
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QWindow>
 #include <Qt>
 
 #include <cmath>
@@ -74,6 +75,19 @@ AuraShellWindow::AuraShellWindow(const LaunchConfig& config, QWidget* parent)
     setWindowTitle("Aura | Native Shell");
     setWindowFlags(Qt::FramelessWindowHint | Qt::Window | Qt::WindowMinMaxButtonsHint);
     setMouseTracking(true);
+
+#ifdef _WIN32
+    // Re-add WS_THICKFRAME for native resize borders while keeping frameless look.
+    // This is the standard approach (Chrome, VS Code, etc.).
+    HWND hwnd = reinterpret_cast<HWND>(winId());
+    LONG style = GetWindowLong(hwnd, GWL_STYLE);
+    style |= WS_THICKFRAME | WS_MAXIMIZEBOX | WS_MINIMIZEBOX;
+    SetWindowLong(hwnd, GWL_STYLE, style);
+
+    // Extend DWM frame 1px into client area for proper compositing
+    MARGINS margins = {1, 1, 1, 1};
+    DwmExtendFrameIntoClientArea(hwnd, &margins);
+#endif
 
     // Responsive minimum — enables split-screen on 1080p+
     setMinimumSize(420, 300);
@@ -236,11 +250,21 @@ AuraShellWindow::AuraShellWindow(const LaunchConfig& config, QWidget* parent)
     update_timer_->start();
     apply_theme(current_theme_mode_, false);
     refresh_cockpit();
+
+    // Install app-level event filter so edge resize works even over child widgets
+    qApp->installEventFilter(this);
 }
 
 #ifdef _WIN32
 bool AuraShellWindow::nativeEvent(const QByteArray& /*eventType*/, void* message, qintptr* result) {
     auto* msg = static_cast<MSG*>(message);
+
+    // Suppress the default non-client area (title bar) added by WS_THICKFRAME.
+    if (msg->message == WM_NCCALCSIZE && msg->wParam == TRUE) {
+        *result = 0;
+        return true;
+    }
+
     if (msg->message == WM_NCHITTEST && !isMaximized()) {
         const LONG border = static_cast<LONG>(kResizeBorder);
         RECT rc;
@@ -267,6 +291,35 @@ bool AuraShellWindow::nativeEvent(const QByteArray& /*eventType*/, void* message
 #endif
 
 bool AuraShellWindow::eventFilter(QObject* watched, QEvent* event) {
+    // Intercept mouse events from ANY child widget near window edges for resize
+    if (!isMaximized() && event->type() == QEvent::MouseButtonPress) {
+        auto* me = static_cast<QMouseEvent*>(event);
+        if (me->button() == Qt::LeftButton) {
+            const QPoint win_pos = mapFromGlobal(me->globalPosition().toPoint());
+            const Qt::Edges edges = hit_test_edge(win_pos);
+            if (edges != Qt::Edges{} && windowHandle()) {
+                windowHandle()->startSystemResize(edges);
+                return true;
+            }
+        }
+    }
+    if (!isMaximized() && event->type() == QEvent::MouseMove) {
+        auto* me = static_cast<QMouseEvent*>(event);
+        const QPoint win_pos = mapFromGlobal(me->globalPosition().toPoint());
+        const Qt::Edges edge = hit_test_edge(win_pos);
+        if (edge == (Qt::LeftEdge | Qt::TopEdge) || edge == (Qt::RightEdge | Qt::BottomEdge))
+            setCursor(Qt::SizeFDiagCursor);
+        else if (edge == (Qt::RightEdge | Qt::TopEdge) || edge == (Qt::LeftEdge | Qt::BottomEdge))
+            setCursor(Qt::SizeBDiagCursor);
+        else if (edge & (Qt::LeftEdge | Qt::RightEdge))
+            setCursor(Qt::SizeHorCursor);
+        else if (edge & (Qt::TopEdge | Qt::BottomEdge))
+            setCursor(Qt::SizeVerCursor);
+        else
+            unsetCursor();
+    }
+
+    // Titlebar drag + double-click
     if (watched == titlebar_) {
         if (event->type() == QEvent::MouseButtonPress) {
             auto* mouse_event = static_cast<QMouseEvent*>(event);
@@ -297,10 +350,12 @@ bool AuraShellWindow::eventFilter(QObject* watched, QEvent* event) {
 
 void AuraShellWindow::mousePressEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton && !isMaximized()) {
-        resize_edge_ = hit_test_edge(event->pos());
-        if (resize_edge_ != Qt::Edges{}) {
-            resize_origin_ = event->globalPosition().toPoint();
-            resize_geometry_ = geometry();
+        const Qt::Edges edges = hit_test_edge(event->pos());
+        if (edges != Qt::Edges{}) {
+            // Use native OS resize — works even when child widgets eat events
+            if (windowHandle()) {
+                windowHandle()->startSystemResize(edges);
+            }
             event->accept();
             return;
         }
@@ -309,28 +364,7 @@ void AuraShellWindow::mousePressEvent(QMouseEvent* event) {
 }
 
 void AuraShellWindow::mouseMoveEvent(QMouseEvent* event) {
-    if (resize_edge_ != Qt::Edges{} && (event->buttons() & Qt::LeftButton) && !isMaximized()) {
-        const QPoint delta = event->globalPosition().toPoint() - resize_origin_;
-        QRect geo = resize_geometry_;
-        if (resize_edge_ & Qt::LeftEdge)   geo.setLeft(geo.left() + delta.x());
-        if (resize_edge_ & Qt::RightEdge)  geo.setRight(geo.right() + delta.x());
-        if (resize_edge_ & Qt::TopEdge)    geo.setTop(geo.top() + delta.y());
-        if (resize_edge_ & Qt::BottomEdge) geo.setBottom(geo.bottom() + delta.y());
-        // Enforce minimum size
-        const QSize min_sz = minimumSize();
-        if (geo.width() < min_sz.width()) {
-            if (resize_edge_ & Qt::LeftEdge) geo.setLeft(geo.right() - min_sz.width());
-            else geo.setRight(geo.left() + min_sz.width());
-        }
-        if (geo.height() < min_sz.height()) {
-            if (resize_edge_ & Qt::TopEdge) geo.setTop(geo.bottom() - min_sz.height());
-            else geo.setBottom(geo.top() + min_sz.height());
-        }
-        setGeometry(geo);
-        event->accept();
-        return;
-    }
-    // Update cursor shape on hover
+    // Update cursor shape on hover near edges
     if (!isMaximized()) {
         const Qt::Edges edge = hit_test_edge(event->pos());
         if (edge == (Qt::LeftEdge | Qt::TopEdge) || edge == (Qt::RightEdge | Qt::BottomEdge))
@@ -348,7 +382,6 @@ void AuraShellWindow::mouseMoveEvent(QMouseEvent* event) {
 }
 
 void AuraShellWindow::mouseReleaseEvent(QMouseEvent* event) {
-    resize_edge_ = Qt::Edges{};
     QMainWindow::mouseReleaseEvent(event);
 }
 

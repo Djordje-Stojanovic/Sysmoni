@@ -114,8 +114,6 @@ private:
     bool dragging_{false};
     QPoint drag_origin_{};
     Qt::Edges resize_edge_{};
-    QPoint resize_origin_{};
-    QRect resize_geometry_{};
 };
 
 }  // namespace aura::shell
