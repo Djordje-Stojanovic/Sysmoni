@@ -1,77 +1,59 @@
-# Aura (Sysmoni)
+# Aura
 
-Windows-native, local-first system monitor built with C++20, CMake, and Qt6.
+Windows-native system monitor. C++20, Qt6, real-time telemetry cockpit.
 
-## User-First Entry Point
+## Get Running in 3 Steps
 
-Use `aura.cmd` from repo root for normal usage:
-
-```powershell
-.\aura.cmd
-```
-
-That launches GUI by default.
-
-## Quick Commands
+**Prerequisites:** Visual Studio 2022 Build Tools (C++ workload), CMake 3.23+
 
 ```powershell
-# Help
-.\aura.cmd help
-
-# Launch GUI / CLI
-.\aura.cmd gui
-.\aura.cmd cli --json --no-persist
-
-# Build (all/gui/cli)
-.\aura.cmd build all
-.\aura.cmd build gui
-.\aura.cmd build cli
-
-# Tests (all/shell/render/telemetry/platform)
-.\aura.cmd test all
-.\aura.cmd test platform
-
-# Maintenance
-.\aura.cmd doctor
-.\aura.cmd update dryrun
-.\aura.cmd clean dryrun
-
-# Install / uninstall user launchers
-.\aura.cmd install
-.\aura.cmd uninstall force
-```
-
-### Debug/Release Flags
-
-`aura.cmd` accepts both long flags and user-friendly aliases:
-
-- `--debug` or `debug`
-- `--release` or `release`
-- `--force` or `force`
-- `--dry-run` or `dryrun`
-- `--qt6dir <path>` or `qt6dir <path>`
-
-Examples:
-
-```powershell
-.\aura.cmd build all debug
-.\aura.cmd test telemetry debug
-.\aura.cmd clean dryrun
-```
-
-## One-Time Setup (Windows)
-
-- Visual Studio 2022 Build Tools (Desktop development with C++)
-- CMake 3.23+
-
-Optional (GUI only):
-
-```powershell
+# 1. Install Qt6 (one-time, ~2 min)
 uvx --from aqtinstall aqt.exe install-qt -O C:\Qt windows desktop 6.10.2 win64_msvc2022_64
-powershell -ExecutionPolicy Bypass -File installer/windows/build_shell_native.ps1 -Qt6Dir "C:\Qt\6.10.2\msvc2022_64\lib\cmake\Qt6"
+
+# 2. Build
+.\aura.cmd build gui
+
+# 3. Run
+.\aura.cmd gui
 ```
 
-## AI/Automation Note
+That's it. Qt6 is auto-discovered from `C:\Qt\` — no paths to remember.
 
-`aura.cmd` is the main human-facing interface.  
-For AI/agent workflows, prefer module-specific build/test scripts and docs (`AGENTS.md`, `ai.md`, `coding_guidelines.md`) when you need lower-level control.
+## All Commands
+
+```powershell
+.\aura.cmd gui                      # launch GUI (auto-builds if needed)
+.\aura.cmd cli --json --no-persist  # launch CLI
+
+.\aura.cmd build gui                # build GUI (incremental)
+.\aura.cmd build gui --force        # force full rebuild
+.\aura.cmd build cli                # build CLI only
+.\aura.cmd build all                # build everything
+
+.\aura.cmd test all                 # run all test suites
+.\aura.cmd test shell               # shell module tests only
+.\aura.cmd test platform            # platform module tests only
+
+.\aura.cmd doctor                   # check toolchain + Qt6 status
+.\aura.cmd clean --force            # wipe build artifacts
+.\aura.cmd install                  # install to user profile + desktop shortcut
+.\aura.cmd help                     # full usage reference
+```
+
+### Flags
+
+All build/test commands accept these anywhere:
+
+| Flag | Short | Effect |
+|------|-------|--------|
+| `--debug` | `debug` | Debug build config |
+| `--release` | `release` | Release build config (default) |
+| `--force` | `force` | Force rebuild even if up-to-date |
+| `--dry-run` | `dryrun` | Preview without executing |
+| `--qt6dir <path>` | `qt6dir <path>` | Override Qt6 location |
+
+```powershell
+.\aura.cmd build all debug          # debug build
+.\aura.cmd test shell debug         # test debug config
+.\aura.cmd clean dryrun             # preview what would be deleted
+```

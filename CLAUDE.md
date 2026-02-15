@@ -103,16 +103,23 @@ ctest --test-dir tests/test_telemetry/build -C Release --output-on-failure
 uvx --from aqtinstall aqt.exe install-qt -O C:\Qt windows desktop 6.10.2 win64_msvc2022_64
 ```
 
-## GUI Build
+## Standard Build & Run (use these)
 ```powershell
-powershell -ExecutionPolicy Bypass -File installer/windows/build_shell_native.ps1 -Qt6Dir "C:\Qt\6.10.2\msvc2022_64\lib\cmake\Qt6"
+.\aura.cmd build gui              # build GUI (incremental, skips if up-to-date)
+.\aura.cmd build gui --force      # force full rebuild
+.\aura.cmd build cli              # build CLI only
+.\aura.cmd build all              # build everything
+
+.\aura.cmd gui                    # launch GUI (auto-builds if binary missing)
+.\aura.cmd cli --json --no-persist  # launch CLI
+
+.\aura.cmd test shell             # run shell module tests
+.\aura.cmd test all               # run all test suites
+.\aura.cmd doctor                 # check toolchain + Qt6 discovery
+.\aura.cmd clean --force          # wipe build artifacts
 ```
 
-## One-Command Run
-```powershell
-.\aura.cmd --json --no-persist   # CLI mode
-.\aura.cmd --gui                  # GUI mode
-```
+Qt6 is auto-discovered from `C:\Qt\` — no need to pass `--qt6dir` manually.
 
 ## Technical Standards
 - **C ABI**: Opaque handles, no exceptions across boundary, fallback return values, thread-local error reporting
