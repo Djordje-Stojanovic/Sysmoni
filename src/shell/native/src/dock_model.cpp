@@ -40,11 +40,11 @@ std::array<DockSlot, 3> all_dock_slots() {
 DockState build_default_dock_state() {
     DockState state;
     state.slot_tabs[slot_index(DockSlot::Left)] = {PanelId::TelemetryOverview};
-    state.slot_tabs[slot_index(DockSlot::Center)] = {
+    state.slot_tabs[slot_index(DockSlot::Center)] = {PanelId::RenderSurface};
+    state.slot_tabs[slot_index(DockSlot::Right)] = {
         PanelId::TopProcesses,
         PanelId::DvrTimeline,
     };
-    state.slot_tabs[slot_index(DockSlot::Right)] = {PanelId::RenderSurface};
     state.active_tab = {0U, 0U, 0U};
     return state;
 }

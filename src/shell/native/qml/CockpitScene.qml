@@ -75,8 +75,8 @@ Rectangle {
                                 : root.height < 600 ? "regular"
                                 : root.height < 800 ? "comfortable"
                                 : "spacious"
-    property bool showExtended: sizeCategory !== "compact"
-    property bool showGpuThermal: sizeCategory === "comfortable" || sizeCategory === "spacious"
+    property bool showExtended: true
+    property bool showGpuThermal: true
     property bool showSpacious: sizeCategory === "spacious"
 
     // ── Smoothed animated values used by Canvas gauges ───────────────────────
@@ -375,7 +375,12 @@ Rectangle {
     }
 
     // ── Responsive layout properties ─────────────────────────────────────────
-    property real scaleFactor: Math.max(0.5, Math.min(1.5, root.height / 600.0))
+    // Continuous scale — smooth across any window size
+    property real scaleFactor: {
+        var base = Math.max(0.4, Math.min(2.0, root.height / 600.0))
+        var widthBoost = Math.max(0, Math.min(0.3, (root.width / 1200.0 - 1.0) * 0.15))
+        return base + widthBoost
+    }
     property real scaledMargin: Math.round(10 * scaleFactor)
     property real scaledSpacing: Math.round(6 * scaleFactor)
     property real gaugeSize: Math.round(Math.max(60, Math.min(220, Math.min(root.width * 0.28, root.height * 0.32))))
@@ -387,6 +392,18 @@ Rectangle {
     property int fontSparkLabel: Math.round(Math.max(7, 10 * scaleFactor))
     property int fontSparkValue: Math.round(Math.max(8, 11 * scaleFactor))
     property int fontStatus: Math.round(Math.max(8, 10 * scaleFactor))
+
+    // Fluid resize animations — smooth 60fps transitions
+    Behavior on scaleFactor { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+    Behavior on gaugeSize { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+    Behavior on scaledMargin { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+    Behavior on scaledSpacing { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+    Behavior on fontTitle { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+    Behavior on fontGaugeValue { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+    Behavior on fontGaugeLabel { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+    Behavior on fontSparkLabel { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+    Behavior on fontSparkValue { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+    Behavior on fontStatus { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
 
     // =========================================================================
     // LAYER 0 — background vignette / depth
@@ -1236,12 +1253,12 @@ Rectangle {
                     }
                 }
             }
-            // ── GPU gauge (conditional, smaller) ─────────────────────────────
+            // ── GPU gauge — same size as CPU/MEM, visible whenever data exists
             Item {
                 id: gpuGaugeItem
-                width: root.effectiveGaugeSize * 0.75
-                height: root.effectiveGaugeSize * 0.75
-                visible: root.gpuAvailable && root.showGpuThermal
+                width: root.effectiveGaugeSize
+                height: root.effectiveGaugeSize
+                visible: root.gpuAvailable
 
                 Canvas {
                     id: gpuGlowCanvas
@@ -1271,21 +1288,21 @@ Rectangle {
 
                 Column {
                     anchors.centerIn: parent
-                    anchors.verticalCenterOffset: 3
-                    spacing: 1
+                    anchors.verticalCenterOffset: 4
+                    spacing: 2
 
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: root.smoothGpu.toFixed(0) + "%"
                         color: root.clrTextPrimary
-                        font.pixelSize: Math.round(root.fontGaugeValue * 0.75)
+                        font.pixelSize: root.fontGaugeValue
                         font.weight: Font.Bold
                     }
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: "GPU"
                         color: root.clrTextSecondary
-                        font.pixelSize: Math.round(root.fontGaugeLabel * 0.9)
+                        font.pixelSize: root.fontGaugeLabel
                         font.weight: Font.Medium
                         font.letterSpacing: 2.5
                     }
@@ -1295,7 +1312,7 @@ Rectangle {
                               ? (root.vramUsedBytes / 1073741824).toFixed(1) + "/" + (root.vramTotalBytes / 1073741824).toFixed(0) + " GB"
                               : ""
                         color: root.clrTextMuted
-                        font.pixelSize: Math.max(6, Math.round(root.fontGaugeLabel * 0.7))
+                        font.pixelSize: Math.max(6, Math.round(root.fontGaugeLabel * 0.8))
                         visible: root.vramTotalBytes > 0
                     }
                 }
