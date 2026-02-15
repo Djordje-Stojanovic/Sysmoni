@@ -14,11 +14,21 @@ add_subdirectory(
 )
 
 add_executable(aura_telemetry_native_tests
+    native/test_fakes.cpp
+    native/test_system_snapshot.cpp
+    native/test_process.cpp
+    native/test_disk.cpp
+    native/test_network.cpp
+    native/test_thermal.cpp
+    native/test_per_core_cpu.cpp
+    native/test_gpu.cpp
+    native/test_process_management.cpp
     native/test_telemetry_native.cpp
 )
 
 target_include_directories(aura_telemetry_native_tests PRIVATE
     "${TELEMETRY_NATIVE_DIR}/include"
+    "${CMAKE_CURRENT_LIST_DIR}/native"
 )
 target_link_libraries(aura_telemetry_native_tests PRIVATE aura_telemetry_native)
 
