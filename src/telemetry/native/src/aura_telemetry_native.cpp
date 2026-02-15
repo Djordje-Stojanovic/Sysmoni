@@ -411,7 +411,7 @@ bool initialize_gpu() {
         if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) {
             continue;
         }
-        if (desc.DedicatedVideoMemory > best_vram) {
+        if (best_adapter == nullptr || desc.DedicatedVideoMemory > best_vram) {
             best_vram = desc.DedicatedVideoMemory;
             best_adapter = adapter;
         }

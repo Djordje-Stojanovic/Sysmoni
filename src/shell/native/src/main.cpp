@@ -284,7 +284,12 @@ QString build_app_stylesheet(const aura::shell::UiThemeMode mode, const SizeMetr
         "}"
         // --- Main window ---
         "QMainWindow {"
+        "    background: ${EDGE_COLOR};"
+        "}"
+        // --- Root widget (inside the edge border) ---
+        "QWidget#rootWidget {"
         "    background: ${BG_WINDOW};"
+        "    border-radius: 6px;"
         "}"
         // --- Title bar ---
         "QFrame#titlebar {"
@@ -606,6 +611,11 @@ QString build_app_stylesheet(const aura::shell::UiThemeMode mode, const SizeMetr
     ss.replace(QLatin1String("${TAB_HP}"), QString::number(m.tab_h_padding));
     ss.replace(QLatin1String("${PANEL_TITLE}"), QString::number(m.base_font + 1));
 
+    // Edge border color — visible resize affordance
+    const QString edge_color = (mode == aura::shell::UiThemeMode::PinkCute)
+        ? QStringLiteral("#2a0e20") : QStringLiteral("#0d1a2f");
+    ss.replace(QLatin1String("${EDGE_COLOR}"), edge_color);
+
     // Color tokens
     ss.replace(QLatin1String("${TEXT_PRIMARY}"), p.text_primary);
     ss.replace(QLatin1String("${BG_WINDOW}"), p.bg_window);
@@ -682,8 +692,9 @@ public:
         );
 
         auto* root = new QWidget(this);
+        root->setObjectName("rootWidget");
         auto* root_layout = new QVBoxLayout(root);
-        root_layout->setContentsMargins(0, 0, 0, 0);
+        root_layout->setContentsMargins(3, 3, 3, 3);
         root_layout->setSpacing(0);
 
         // ---------------------------------------------------------------
