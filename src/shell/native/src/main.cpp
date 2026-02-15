@@ -943,14 +943,18 @@ private:
     }
 
     void sync_theme_to_qml() {
-        if (quick_ == nullptr || quick_->rootObject() == nullptr) {
-            return;
+        if (quick_ != nullptr && quick_->rootObject() != nullptr) {
+            quick_->rootObject()->setProperty(
+                "themeMode",
+                QString::fromStdString(aura::shell::ui_theme_mode_key(current_theme_mode_))
+            );
         }
-        QQuickItem* root = quick_->rootObject();
-        root->setProperty(
-            "themeMode",
-            QString::fromStdString(aura::shell::ui_theme_mode_key(current_theme_mode_))
-        );
+        if (timeline_quick_ != nullptr && timeline_quick_->rootObject() != nullptr) {
+            timeline_quick_->rootObject()->setProperty(
+                "themeMode",
+                QString::fromStdString(aura::shell::ui_theme_mode_key(current_theme_mode_))
+            );
+        }
     }
 
     void apply_theme(const aura::shell::UiThemeMode mode, const bool persist) {
@@ -1256,11 +1260,18 @@ private:
 
             QWidget* parent_page = panel_pages_[panel_index(PanelId::DvrTimeline)];
 
+            timeline_quick_ = new QQuickWidget(parent_page);
+            timeline_quick_->setResizeMode(QQuickWidget::SizeRootObjectToView);
+            timeline_quick_->setSource(
+                QUrl::fromLocalFile(QStringLiteral(AURA_SHELL_TIMELINE_QML_PATH)));
+            timeline_quick_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+
             timeline_status_ = new QLabel("Awaiting timeline samples...", parent_page);
             timeline_status_->setObjectName("timelineStatus");
             timeline_status_->setWordWrap(true);
+
+            timeline_layout->addWidget(timeline_quick_, 1);
             timeline_layout->addWidget(timeline_status_);
-            timeline_layout->addStretch(1);
         }
 
         // --- Render Surface ---
@@ -1560,8 +1571,48 @@ private:
                     "themeMode",
                     QString::fromStdString(aura::shell::ui_theme_mode_key(current_theme_mode_))
                 );
-                theme_dirty_ = false;
             }
+        }
+
+        // Timeline QML property bridge
+        if (timeline_quick_ != nullptr && timeline_quick_->rootObject() != nullptr) {
+            QQuickItem* tl_root = timeline_quick_->rootObject();
+
+            QVariantList points;
+            points.reserve(static_cast<int>(state.timeline_points.size()));
+            for (const auto& pt : state.timeline_points) {
+                QVariantMap m;
+                m["timestamp"] = pt.timestamp;
+                m["cpuPercent"] = pt.cpu_percent;
+                m["memPercent"] = pt.memory_percent;
+                m["gpuPercent"] = pt.gpu_percent;
+                points.append(m);
+            }
+            tl_root->setProperty("timelinePoints", points);
+
+            QString source_str = QStringLiteral("none");
+            if (state.timeline_source == aura::shell::TimelineSource::Live)
+                source_str = QStringLiteral("live");
+            else if (state.timeline_source == aura::shell::TimelineSource::Dvr)
+                source_str = QStringLiteral("dvr");
+            tl_root->setProperty("timelineSource", source_str);
+
+            tl_root->setProperty("accentRed", state.style_tokens.accent_red);
+            tl_root->setProperty("accentGreen", state.style_tokens.accent_green);
+            tl_root->setProperty("accentBlue", state.style_tokens.accent_blue);
+            tl_root->setProperty("severityLevel", state.severity_level);
+            tl_root->setProperty("gpuAvailable", state.gpu.available);
+
+            if (theme_dirty_) {
+                tl_root->setProperty(
+                    "themeMode",
+                    QString::fromStdString(aura::shell::ui_theme_mode_key(current_theme_mode_))
+                );
+            }
+        }
+
+        if (theme_dirty_) {
+            theme_dirty_ = false;
         }
 
         if (update_timer_ != nullptr) {
@@ -1588,6 +1639,7 @@ private:
     QFrame* titlebar_{nullptr};
     QPushButton* theme_toggle_btn_{nullptr};
     QQuickWidget* quick_{nullptr};
+    QQuickWidget* timeline_quick_{nullptr};
     QTimer* update_timer_{nullptr};
     QLabel* telemetry_cpu_{nullptr};
     QLabel* telemetry_memory_{nullptr};
