@@ -18,8 +18,6 @@ add_library(aura_shell_core STATIC
     src/timeline_bridge.cpp
     src/ui_theme.cpp
     src/size_metrics.cpp
-    src/shell_utils.cpp
-    src/stylesheet_builder.cpp
 )
 target_include_directories(aura_shell_core
     PUBLIC include
@@ -38,6 +36,8 @@ if(AURA_SHELL_BUILD_APP)
     if(Qt6_FOUND)
         add_executable(aura_shell
             src/main.cpp
+            src/shell_utils.cpp
+            src/stylesheet_builder.cpp
             src/aura_shell_window.cpp
             src/aura_shell_window_panels.cpp
             src/aura_shell_window_refresh.cpp
