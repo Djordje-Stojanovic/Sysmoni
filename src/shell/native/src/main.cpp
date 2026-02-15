@@ -13,6 +13,7 @@
 #include <QQuickItem>
 #include <QQuickWidget>
 #include <QScreen>
+
 #include <QScrollArea>
 #include <QSettings>
 #include <QSizePolicy>
@@ -541,6 +542,7 @@ public:
         );
         setWindowTitle("Aura | Native Shell");
         setWindowFlags(Qt::FramelessWindowHint | Qt::Window | Qt::WindowMinMaxButtonsHint);
+        setMouseTracking(true);
 
         // Screen-relative sizing — minimum 55%w / 60%h with floor 900x560
         if (const QScreen* screen = QApplication::primaryScreen()) {
@@ -737,7 +739,76 @@ protected:
         return QMainWindow::eventFilter(watched, event);
     }
 
+    // Edge resize for frameless window — detect edges and resize via Qt
+    void mousePressEvent(QMouseEvent* event) override {
+        if (event->button() == Qt::LeftButton && !isMaximized()) {
+            resize_edge_ = hit_test_edge(event->pos());
+            if (resize_edge_ != Qt::Edges{}) {
+                resize_origin_ = event->globalPosition().toPoint();
+                resize_geometry_ = geometry();
+                event->accept();
+                return;
+            }
+        }
+        QMainWindow::mousePressEvent(event);
+    }
+
+    void mouseMoveEvent(QMouseEvent* event) override {
+        if (resize_edge_ != Qt::Edges{} && (event->buttons() & Qt::LeftButton) && !isMaximized()) {
+            const QPoint delta = event->globalPosition().toPoint() - resize_origin_;
+            QRect geo = resize_geometry_;
+            if (resize_edge_ & Qt::LeftEdge)   geo.setLeft(geo.left() + delta.x());
+            if (resize_edge_ & Qt::RightEdge)  geo.setRight(geo.right() + delta.x());
+            if (resize_edge_ & Qt::TopEdge)    geo.setTop(geo.top() + delta.y());
+            if (resize_edge_ & Qt::BottomEdge) geo.setBottom(geo.bottom() + delta.y());
+            // Enforce minimum size
+            const QSize min_sz = minimumSize();
+            if (geo.width() < min_sz.width()) {
+                if (resize_edge_ & Qt::LeftEdge) geo.setLeft(geo.right() - min_sz.width());
+                else geo.setRight(geo.left() + min_sz.width());
+            }
+            if (geo.height() < min_sz.height()) {
+                if (resize_edge_ & Qt::TopEdge) geo.setTop(geo.bottom() - min_sz.height());
+                else geo.setBottom(geo.top() + min_sz.height());
+            }
+            setGeometry(geo);
+            event->accept();
+            return;
+        }
+        // Update cursor shape on hover
+        if (!isMaximized()) {
+            const Qt::Edges edge = hit_test_edge(event->pos());
+            if (edge == (Qt::LeftEdge | Qt::TopEdge) || edge == (Qt::RightEdge | Qt::BottomEdge))
+                setCursor(Qt::SizeFDiagCursor);
+            else if (edge == (Qt::RightEdge | Qt::TopEdge) || edge == (Qt::LeftEdge | Qt::BottomEdge))
+                setCursor(Qt::SizeBDiagCursor);
+            else if (edge & (Qt::LeftEdge | Qt::RightEdge))
+                setCursor(Qt::SizeHorCursor);
+            else if (edge & (Qt::TopEdge | Qt::BottomEdge))
+                setCursor(Qt::SizeVerCursor);
+            else
+                unsetCursor();
+        }
+        QMainWindow::mouseMoveEvent(event);
+    }
+
+    void mouseReleaseEvent(QMouseEvent* event) override {
+        resize_edge_ = Qt::Edges{};
+        QMainWindow::mouseReleaseEvent(event);
+    }
+
 private:
+    static constexpr int kResizeBorder = 6;
+
+    Qt::Edges hit_test_edge(const QPoint& pos) const {
+        Qt::Edges edges;
+        if (pos.x() < kResizeBorder)                edges |= Qt::LeftEdge;
+        if (pos.x() >= width() - kResizeBorder)     edges |= Qt::RightEdge;
+        if (pos.y() < kResizeBorder)                edges |= Qt::TopEdge;
+        if (pos.y() >= height() - kResizeBorder)    edges |= Qt::BottomEdge;
+        return edges;
+    }
+
     void sync_theme_to_qml() {
         if (quick_ == nullptr || quick_->rootObject() == nullptr) {
             return;
@@ -1195,6 +1266,9 @@ private:
     bool theme_dirty_{true};
     bool dragging_{false};
     QPoint drag_origin_{};
+    Qt::Edges resize_edge_{};
+    QPoint resize_origin_{};
+    QRect resize_geometry_{};
 };
 
 }  // namespace
