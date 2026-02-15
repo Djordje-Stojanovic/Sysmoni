@@ -1,5 +1,7 @@
 #include "platform_internal.hpp"
 
+#include <sqlite3.h>
+
 #include <algorithm>
 #include <cstring>
 #include <filesystem>
@@ -29,7 +31,7 @@ void EnsureParentDirectory(const std::string& path) {
     }
 }
 
-bool IsLegacySqliteFile(const std::string& path) {
+bool FileStartsWithSqliteMagic(const std::string& path) {
     std::ifstream input(path, std::ios::binary);
     if (!input.is_open()) {
         return false;
@@ -48,6 +50,15 @@ bool IsLegacySqliteFile(const std::string& path) {
     return std::memcmp(header, kSqliteMagic, sizeof(kSqliteMagic)) == 0;
 }
 
+bool FileExistsAndNonEmpty(const std::string& path) {
+    std::error_code ec;
+    if (!std::filesystem::exists(path, ec)) {
+        return false;
+    }
+    const auto size = std::filesystem::file_size(path, ec);
+    return !ec && size > 0;
+}
+
 std::filesystem::path TempStorePath(const std::filesystem::path& db_path) {
     std::filesystem::path temp_path = db_path;
     temp_path += ".tmp";
@@ -57,40 +68,6 @@ std::filesystem::path TempStorePath(const std::filesystem::path& db_path) {
 void RemoveFileBestEffort(const std::filesystem::path& path) {
     std::error_code remove_error;
     std::filesystem::remove(path, remove_error);
-}
-
-void ReplaceFileAtomically(
-    const std::filesystem::path& source_path,
-    const std::filesystem::path& destination_path,
-    const std::string& logical_db_path
-) {
-#ifdef _WIN32
-    const auto source_native = source_path.native();
-    const auto destination_native = destination_path.native();
-
-    if (!MoveFileExW(
-            source_native.c_str(),
-            destination_native.c_str(),
-            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH
-        )) {
-        const auto win_error = static_cast<unsigned long>(GetLastError());
-        RemoveFileBestEffort(source_path);
-        throw std::runtime_error(
-            "Unable to atomically replace telemetry store at: " + logical_db_path +
-            " (win32=" + std::to_string(win_error) + ")."
-        );
-    }
-#else
-    std::error_code rename_error;
-    std::filesystem::rename(source_path, destination_path, rename_error);
-    if (rename_error) {
-        RemoveFileBestEffort(source_path);
-        throw std::runtime_error(
-            "Unable to atomically replace telemetry store at: " + logical_db_path +
-            " (" + rename_error.message() + ")."
-        );
-    }
-#endif
 }
 
 Snapshot ParseSnapshotLine(const std::string& line) {
@@ -129,59 +106,103 @@ Snapshot ParseSnapshotLine(const std::string& line) {
     return out;
 }
 
-std::string SerializeSnapshotLine(const Snapshot& snapshot) {
-    std::ostringstream output;
-    output.precision(17);
-    output << snapshot.timestamp << ',' << snapshot.cpu_percent << ',' << snapshot.memory_percent
-           << ',' << snapshot.disk_read_bps << ',' << snapshot.disk_write_bps;
-    return output.str();
+void SqliteCheck(sqlite3* db, int rc, const char* context) {
+    if (rc != SQLITE_OK && rc != SQLITE_DONE && rc != SQLITE_ROW) {
+        const std::string msg = std::string(context) + ": " +
+            (db ? sqlite3_errmsg(db) : "null db handle");
+        throw std::runtime_error(msg);
+    }
 }
 
-class FileBackedStore final : public TelemetryStore {
+void ExecPragma(sqlite3* db, const char* sql) {
+    char* err_msg = nullptr;
+    const int rc = sqlite3_exec(db, sql, nullptr, nullptr, &err_msg);
+    if (rc != SQLITE_OK) {
+        std::string msg = std::string("pragma failed: ") + sql;
+        if (err_msg) {
+            msg += " — ";
+            msg += err_msg;
+            sqlite3_free(err_msg);
+        }
+        throw std::runtime_error(msg);
+    }
+}
+
+sqlite3_stmt* PrepareStatement(sqlite3* db, const char* sql) {
+    sqlite3_stmt* stmt = nullptr;
+    const int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr);
+    SqliteCheck(db, rc, sql);
+    return stmt;
+}
+
+class SqliteStore final : public TelemetryStore {
   public:
-    FileBackedStore(std::string db_path, const double retention_seconds)
+    SqliteStore(std::string db_path, const double retention_seconds)
         : db_path_(std::move(db_path)), retention_seconds_(retention_seconds) {
         ValidatePositiveFinite(retention_seconds_, "retention_seconds");
         EnsureParentDirectory(db_path_);
+
         if (db_path_ != ":memory:") {
             RecoverPendingTempFile();
-            bool migrated_legacy_sqlite = false;
-            if (IsLegacySqliteFile(db_path_)) {
-                const std::filesystem::path source(db_path_);
-                const std::filesystem::path legacy_path = source.string() + ".legacy.sqlite";
-                std::error_code rename_error;
-                std::filesystem::rename(source, legacy_path, rename_error);
-                if (rename_error) {
-                    std::filesystem::remove(source, rename_error);
-                }
-                migrated_legacy_sqlite = true;
-            }
-            const bool had_parse_failures = LoadFromDisk();
-            const bool pruned = PruneExpiredLocked();
-            if (migrated_legacy_sqlite || had_parse_failures || pruned) {
-                RewriteAllLocked();
-            }
+            MigrateCsvToSqlite();
         }
+
+        OpenAndInitialize();
+        if (!db_ && db_path_ != ":memory:") {
+            // Corrupt SQLite file — remove and retry with fresh DB
+            std::error_code ec;
+            std::filesystem::remove(db_path_, ec);
+            // Also remove WAL/SHM leftovers
+            std::filesystem::remove(db_path_ + "-wal", ec);
+            std::filesystem::remove(db_path_ + "-shm", ec);
+            OpenAndInitialize();
+        }
+        if (!db_) {
+            throw std::runtime_error("Failed to open SQLite store at: " + db_path_);
+        }
+    }
+
+    ~SqliteStore() override {
+        if (stmt_insert_) sqlite3_finalize(stmt_insert_);
+        if (stmt_latest_) sqlite3_finalize(stmt_latest_);
+        if (stmt_count_) sqlite3_finalize(stmt_count_);
+        if (stmt_between_) sqlite3_finalize(stmt_between_);
+        if (stmt_prune_) sqlite3_finalize(stmt_prune_);
+        if (db_) sqlite3_close(db_);
     }
 
     void Append(const Snapshot& snapshot) override {
         ValidateSnapshot(snapshot);
 
         std::lock_guard<std::mutex> lock(mu_);
-        snapshots_.push_back(snapshot);
-        PruneExpiredLocked();
-        if (db_path_ != ":memory:") {
-            RewriteAllLocked();
+
+        sqlite3_reset(stmt_insert_);
+        sqlite3_bind_double(stmt_insert_, 1, snapshot.timestamp);
+        sqlite3_bind_double(stmt_insert_, 2, snapshot.cpu_percent);
+        sqlite3_bind_double(stmt_insert_, 3, snapshot.memory_percent);
+        sqlite3_bind_double(stmt_insert_, 4, snapshot.disk_read_bps);
+        sqlite3_bind_double(stmt_insert_, 5, snapshot.disk_write_bps);
+
+        const int rc = sqlite3_step(stmt_insert_);
+        SqliteCheck(db_, rc, "insert snapshot");
+
+        ++append_counter_;
+        if (append_counter_ >= 100) {
+            PruneLocked();
+            append_counter_ = 0;
         }
     }
 
     int Count() override {
         std::lock_guard<std::mutex> lock(mu_);
-        const bool pruned = PruneExpiredLocked();
-        if (pruned && db_path_ != ":memory:") {
-            RewriteAllLocked();
+
+        sqlite3_reset(stmt_count_);
+        const int rc = sqlite3_step(stmt_count_);
+        if (rc != SQLITE_ROW) {
+            SqliteCheck(db_, rc, "count snapshots");
+            return 0;
         }
-        return static_cast<int>(snapshots_.size());
+        return sqlite3_column_int(stmt_count_, 0);
     }
 
     std::vector<Snapshot> Latest(const int limit) override {
@@ -190,13 +211,30 @@ class FileBackedStore final : public TelemetryStore {
         }
 
         std::lock_guard<std::mutex> lock(mu_);
-        const bool pruned = PruneExpiredLocked();
-        if (pruned && db_path_ != ":memory:") {
-            RewriteAllLocked();
+
+        sqlite3_reset(stmt_latest_);
+        sqlite3_bind_int(stmt_latest_, 1, limit);
+
+        std::vector<Snapshot> results;
+        while (true) {
+            const int rc = sqlite3_step(stmt_latest_);
+            if (rc == SQLITE_DONE) break;
+            if (rc != SQLITE_ROW) {
+                SqliteCheck(db_, rc, "latest snapshots");
+                break;
+            }
+            Snapshot s;
+            s.timestamp = sqlite3_column_double(stmt_latest_, 0);
+            s.cpu_percent = sqlite3_column_double(stmt_latest_, 1);
+            s.memory_percent = sqlite3_column_double(stmt_latest_, 2);
+            s.disk_read_bps = sqlite3_column_double(stmt_latest_, 3);
+            s.disk_write_bps = sqlite3_column_double(stmt_latest_, 4);
+            results.push_back(s);
         }
 
-        const int start = std::max<int>(0, static_cast<int>(snapshots_.size()) - limit);
-        return std::vector<Snapshot>(snapshots_.begin() + start, snapshots_.end());
+        // Results come back DESC, reverse to ASC
+        std::reverse(results.begin(), results.end());
+        return results;
     }
 
     std::vector<Snapshot> Between(
@@ -214,143 +252,232 @@ class FileBackedStore final : public TelemetryStore {
         }
 
         std::lock_guard<std::mutex> lock(mu_);
-        const bool pruned = PruneExpiredLocked();
-        if (pruned && db_path_ != ":memory:") {
-            RewriteAllLocked();
+
+        if (start_timestamp.has_value() && end_timestamp.has_value()) {
+            sqlite3_reset(stmt_between_);
+            sqlite3_bind_double(stmt_between_, 1, *start_timestamp);
+            sqlite3_bind_double(stmt_between_, 2, *end_timestamp);
+
+            std::vector<Snapshot> results;
+            while (true) {
+                const int rc = sqlite3_step(stmt_between_);
+                if (rc == SQLITE_DONE) break;
+                if (rc != SQLITE_ROW) {
+                    SqliteCheck(db_, rc, "between snapshots");
+                    break;
+                }
+                Snapshot s;
+                s.timestamp = sqlite3_column_double(stmt_between_, 0);
+                s.cpu_percent = sqlite3_column_double(stmt_between_, 1);
+                s.memory_percent = sqlite3_column_double(stmt_between_, 2);
+                s.disk_read_bps = sqlite3_column_double(stmt_between_, 3);
+                s.disk_write_bps = sqlite3_column_double(stmt_between_, 4);
+                results.push_back(s);
+            }
+            return results;
         }
 
-        std::vector<Snapshot> out;
-        out.reserve(snapshots_.size());
-        for (const Snapshot& snapshot : snapshots_) {
-            if (start_timestamp.has_value() && snapshot.timestamp < *start_timestamp) {
-                continue;
+        // Fallback: fetch all and filter in-memory for open-ended ranges
+        const double lo = start_timestamp.value_or(-1e308);
+        const double hi = end_timestamp.value_or(1e308);
+
+        sqlite3_reset(stmt_between_);
+        sqlite3_bind_double(stmt_between_, 1, lo);
+        sqlite3_bind_double(stmt_between_, 2, hi);
+
+        std::vector<Snapshot> results;
+        while (true) {
+            const int rc = sqlite3_step(stmt_between_);
+            if (rc == SQLITE_DONE) break;
+            if (rc != SQLITE_ROW) {
+                SqliteCheck(db_, rc, "between snapshots (open)");
+                break;
             }
-            if (end_timestamp.has_value() && snapshot.timestamp > *end_timestamp) {
-                continue;
-            }
-            out.push_back(snapshot);
+            Snapshot s;
+            s.timestamp = sqlite3_column_double(stmt_between_, 0);
+            s.cpu_percent = sqlite3_column_double(stmt_between_, 1);
+            s.memory_percent = sqlite3_column_double(stmt_between_, 2);
+            s.disk_read_bps = sqlite3_column_double(stmt_between_, 3);
+            s.disk_write_bps = sqlite3_column_double(stmt_between_, 4);
+            results.push_back(s);
         }
-        return out;
+        return results;
     }
 
   private:
+    void OpenAndInitialize() {
+        const int rc = sqlite3_open(db_path_.c_str(), &db_);
+        if (rc != SQLITE_OK) {
+            if (db_) { sqlite3_close(db_); db_ = nullptr; }
+            return;
+        }
+
+        // Try to set pragmas and create schema. If this fails on a corrupt
+        // file, close the handle and signal failure via db_=nullptr.
+        char* err_msg = nullptr;
+        auto try_exec = [&](const char* sql) -> bool {
+            int exec_rc = sqlite3_exec(db_, sql, nullptr, nullptr, &err_msg);
+            if (exec_rc != SQLITE_OK) {
+                if (err_msg) sqlite3_free(err_msg);
+                err_msg = nullptr;
+                return false;
+            }
+            return true;
+        };
+
+        if (!try_exec("PRAGMA journal_mode=WAL;") ||
+            !try_exec("PRAGMA synchronous=NORMAL;") ||
+            !try_exec("PRAGMA temp_store=MEMORY;") ||
+            !try_exec("PRAGMA cache_size=-4096;") ||
+            !try_exec("CREATE TABLE IF NOT EXISTS snapshots ("
+                "ts REAL NOT NULL,"
+                "cpu REAL NOT NULL,"
+                "mem REAL NOT NULL,"
+                "disk_r REAL NOT NULL DEFAULT 0,"
+                "disk_w REAL NOT NULL DEFAULT 0"
+                ");") ||
+            !try_exec("CREATE INDEX IF NOT EXISTS idx_snapshots_ts ON snapshots(ts);")) {
+            sqlite3_close(db_);
+            db_ = nullptr;
+            return;
+        }
+
+        stmt_insert_ = PrepareStatement(db_,
+            "INSERT INTO snapshots(ts,cpu,mem,disk_r,disk_w) VALUES(?,?,?,?,?)");
+        stmt_latest_ = PrepareStatement(db_,
+            "SELECT ts,cpu,mem,disk_r,disk_w FROM snapshots ORDER BY ts DESC LIMIT ?");
+        stmt_count_ = PrepareStatement(db_,
+            "SELECT COUNT(*) FROM snapshots");
+        stmt_between_ = PrepareStatement(db_,
+            "SELECT ts,cpu,mem,disk_r,disk_w FROM snapshots WHERE ts BETWEEN ? AND ? ORDER BY ts");
+        stmt_prune_ = PrepareStatement(db_,
+            "DELETE FROM snapshots WHERE ts < ?");
+    }
+
     void RecoverPendingTempFile() {
         const std::filesystem::path db_path(db_path_);
         const std::filesystem::path temp_path = TempStorePath(db_path);
 
-        std::error_code exists_error;
-        const bool temp_exists = std::filesystem::exists(temp_path, exists_error);
-        if (exists_error) {
-            throw std::runtime_error("Unable to inspect telemetry temp store at: " + temp_path.string());
-        }
-        if (!temp_exists) {
+        std::error_code ec;
+        if (!std::filesystem::exists(temp_path, ec) || ec) {
             return;
         }
 
-        const bool db_exists = std::filesystem::exists(db_path, exists_error);
-        if (exists_error) {
-            throw std::runtime_error("Unable to inspect telemetry store at: " + db_path_);
-        }
-
-        if (!db_exists) {
-            ReplaceFileAtomically(temp_path, db_path, db_path_);
+        if (std::filesystem::exists(db_path, ec) && !ec) {
+            RemoveFileBestEffort(temp_path);
             return;
         }
 
-        RemoveFileBestEffort(temp_path);
+        // Main missing, temp exists — this was a CSV-era crash recovery.
+        // Rename temp to main so MigrateCsvToSqlite picks it up.
+#ifdef _WIN32
+        const auto src = temp_path.native();
+        const auto dst = db_path.native();
+        if (!MoveFileExW(src.c_str(), dst.c_str(),
+                MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+            RemoveFileBestEffort(temp_path);
+        }
+#else
+        std::filesystem::rename(temp_path, db_path, ec);
+        if (ec) {
+            RemoveFileBestEffort(temp_path);
+        }
+#endif
     }
 
-    bool LoadFromDisk() {
-        std::ifstream input(db_path_);
-        if (!input.is_open()) {
-            return false;
+    void MigrateCsvToSqlite() {
+        if (!FileExistsAndNonEmpty(db_path_)) {
+            return;
+        }
+        if (FileStartsWithSqliteMagic(db_path_)) {
+            return; // Already SQLite — nothing to do.
         }
 
+        // It's a CSV file (or legacy data). Read all lines.
         std::vector<Snapshot> loaded;
-        std::string line;
-        int parse_failures = 0;
-        while (std::getline(input, line)) {
-            if (line.empty()) {
-                continue;
+        {
+            std::ifstream input(db_path_);
+            if (!input.is_open()) {
+                return;
             }
-            try {
-                loaded.push_back(ParseSnapshotLine(line));
-            } catch (const std::exception&) {
-                parse_failures += 1;
-            }
-        }
-        if (parse_failures > 0 && loaded.empty()) {
-            // Existing file is incompatible with current native format.
-            // Start clean instead of crashing startup.
-            snapshots_.clear();
-            return true;
-        }
-        snapshots_ = std::move(loaded);
-        std::sort(
-            snapshots_.begin(),
-            snapshots_.end(),
-            [](const Snapshot& a, const Snapshot& b) {
-                if (a.timestamp == b.timestamp) {
-                    if (a.cpu_percent == b.cpu_percent) {
-                        return a.memory_percent < b.memory_percent;
-                    }
-                    return a.cpu_percent < b.cpu_percent;
+            std::string line;
+            while (std::getline(input, line)) {
+                if (line.empty()) continue;
+                try {
+                    loaded.push_back(ParseSnapshotLine(line));
+                } catch (const std::exception&) {
+                    // Skip corrupt lines
                 }
-                return a.timestamp < b.timestamp;
             }
-        );
-        return parse_failures > 0;
+        }
+
+        // Rename old CSV to .csv.bak
+        const std::filesystem::path csv_bak = db_path_ + ".csv.bak";
+        std::error_code ec;
+        std::filesystem::rename(db_path_, csv_bak, ec);
+        if (ec) {
+            // If rename fails, just remove the old file
+            std::filesystem::remove(db_path_, ec);
+        }
+
+        // Now open a fresh SQLite DB at db_path_, insert all rows, close it.
+        // The constructor will reopen it normally.
+        sqlite3* mig_db = nullptr;
+        int rc = sqlite3_open(db_path_.c_str(), &mig_db);
+        if (rc != SQLITE_OK) {
+            if (mig_db) sqlite3_close(mig_db);
+            return; // Migration failed — constructor will create fresh DB
+        }
+
+        sqlite3_exec(mig_db, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
+        sqlite3_exec(mig_db, "CREATE TABLE IF NOT EXISTS snapshots ("
+            "ts REAL NOT NULL,"
+            "cpu REAL NOT NULL,"
+            "mem REAL NOT NULL,"
+            "disk_r REAL NOT NULL DEFAULT 0,"
+            "disk_w REAL NOT NULL DEFAULT 0"
+            ");", nullptr, nullptr, nullptr);
+        sqlite3_exec(mig_db, "CREATE INDEX IF NOT EXISTS idx_snapshots_ts ON snapshots(ts);",
+            nullptr, nullptr, nullptr);
+
+        if (!loaded.empty()) {
+            sqlite3_exec(mig_db, "BEGIN TRANSACTION;", nullptr, nullptr, nullptr);
+            sqlite3_stmt* ins = PrepareStatement(mig_db,
+                "INSERT INTO snapshots(ts,cpu,mem,disk_r,disk_w) VALUES(?,?,?,?,?)");
+            for (const auto& s : loaded) {
+                sqlite3_reset(ins);
+                sqlite3_bind_double(ins, 1, s.timestamp);
+                sqlite3_bind_double(ins, 2, s.cpu_percent);
+                sqlite3_bind_double(ins, 3, s.memory_percent);
+                sqlite3_bind_double(ins, 4, s.disk_read_bps);
+                sqlite3_bind_double(ins, 5, s.disk_write_bps);
+                sqlite3_step(ins);
+            }
+            sqlite3_finalize(ins);
+            sqlite3_exec(mig_db, "COMMIT;", nullptr, nullptr, nullptr);
+        }
+
+        sqlite3_close(mig_db);
     }
 
-    bool PruneExpiredLocked() {
-        const std::size_t before = snapshots_.size();
+    void PruneLocked() {
         const double cutoff = NowUnixSeconds() - retention_seconds_;
-        snapshots_.erase(
-            std::remove_if(
-                snapshots_.begin(),
-                snapshots_.end(),
-                [cutoff](const Snapshot& snapshot) { return snapshot.timestamp < cutoff; }
-            ),
-            snapshots_.end()
-        );
-        return snapshots_.size() != before;
-    }
-
-    void RewriteAllLocked() {
-        if (db_path_ == ":memory:") {
-            return;
-        }
-
-        const std::filesystem::path db_path(db_path_);
-        const std::filesystem::path temp_path = TempStorePath(db_path);
-
-        std::ofstream output(temp_path, std::ios::trunc | std::ios::binary);
-        if (!output.is_open()) {
-            throw std::runtime_error("Unable to write telemetry temp store at: " + temp_path.string());
-        }
-        for (const Snapshot& snapshot : snapshots_) {
-            output << SerializeSnapshotLine(snapshot) << '\n';
-        }
-
-        output.flush();
-        if (!output.good()) {
-            output.close();
-            RemoveFileBestEffort(temp_path);
-            throw std::runtime_error("Unable to write telemetry store at: " + db_path_);
-        }
-        output.close();
-        if (!output) {
-            RemoveFileBestEffort(temp_path);
-            throw std::runtime_error("Unable to write telemetry store at: " + db_path_);
-        }
-
-        ReplaceFileAtomically(temp_path, db_path, db_path_);
+        sqlite3_reset(stmt_prune_);
+        sqlite3_bind_double(stmt_prune_, 1, cutoff);
+        const int rc = sqlite3_step(stmt_prune_);
+        SqliteCheck(db_, rc, "prune snapshots");
     }
 
     std::string db_path_;
     double retention_seconds_;
     std::mutex mu_;
-    std::vector<Snapshot> snapshots_;
+    sqlite3* db_ = nullptr;
+    sqlite3_stmt* stmt_insert_ = nullptr;
+    sqlite3_stmt* stmt_latest_ = nullptr;
+    sqlite3_stmt* stmt_count_ = nullptr;
+    sqlite3_stmt* stmt_between_ = nullptr;
+    sqlite3_stmt* stmt_prune_ = nullptr;
+    int append_counter_ = 0;
 };
 
 } // namespace
@@ -380,7 +507,7 @@ std::unique_ptr<TelemetryStore> OpenStore(const std::string& db_path, const doub
     if (db_path.empty()) {
         throw std::runtime_error("db_path cannot be empty when persistence is enabled.");
     }
-    return std::make_unique<FileBackedStore>(db_path, retention_seconds);
+    return std::make_unique<SqliteStore>(db_path, retention_seconds);
 }
 
 } // namespace aura::platform

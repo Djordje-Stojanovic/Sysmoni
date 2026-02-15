@@ -1,10 +1,21 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(aura_platform_native LANGUAGES CXX)
+project(aura_platform_native LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+add_library(sqlite3 STATIC third_party/sqlite/sqlite3.c)
+target_include_directories(sqlite3 PUBLIC third_party/sqlite)
+target_compile_definitions(sqlite3 PRIVATE
+    SQLITE_THREADSAFE=1
+    SQLITE_DEFAULT_WAL_SYNCHRONOUS=1
+    SQLITE_OMIT_LOAD_EXTENSION=1
+)
+if(MSVC)
+    target_compile_options(sqlite3 PRIVATE /W0)
+endif()
 
 set(AURA_NATIVE_SOURCES
     src/c_api.cpp
@@ -21,6 +32,7 @@ target_include_directories(aura_platform
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+target_link_libraries(aura_platform PRIVATE sqlite3)
 
 target_compile_definitions(aura_platform PRIVATE AURA_PLATFORM_BUILD_DLL=1)
 
