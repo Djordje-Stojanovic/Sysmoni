@@ -6,8 +6,16 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(aura_telemetry_native SHARED
-    src/aura_telemetry_native.cpp
     src/telemetry_engine.cpp
+    src/telemetry_utils.cpp
+    src/collect_cpu.cpp
+    src/collect_processes.cpp
+    src/collect_process_details.cpp
+    src/collect_disk.cpp
+    src/collect_network.cpp
+    src/collect_gpu.cpp
+    src/collect_thermal.cpp
+    src/process_management.cpp
 )
 
 target_include_directories(aura_telemetry_native PUBLIC include)
