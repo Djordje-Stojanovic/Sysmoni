@@ -177,13 +177,16 @@ Rectangle {
         }
 
         // ── Column headers ───────────────────────────────────────────────────
-        RowLayout {
+        // Plain Item with absolute positioning — avoids RowLayout recursive
+        // rearrange when children reference parent.width.
+        Item {
             Layout.fillWidth: true
             Layout.preferredHeight: Math.round(20 * scaleFactor)
-            spacing: Math.round(6 * scaleFactor)
 
             Text {
-                Layout.preferredWidth: parent.width * 0.30
+                anchors.verticalCenter: parent.verticalCenter
+                x: 0
+                width: parent.width * 0.30
                 text: pinkMode ? "APP" : "PROCESS"
                 color: clrTextMuted
                 font.pixelSize: Math.round(9 * scaleFactor)
@@ -191,7 +194,9 @@ Rectangle {
                 font.letterSpacing: 1.0
             }
             Text {
-                Layout.preferredWidth: parent.width * 0.10
+                anchors.verticalCenter: parent.verticalCenter
+                x: parent.width * 0.30
+                width: parent.width * 0.10
                 text: "PID"
                 color: clrTextMuted
                 font.pixelSize: Math.round(9 * scaleFactor)
@@ -199,7 +204,9 @@ Rectangle {
                 font.letterSpacing: 1.0
             }
             Text {
-                Layout.preferredWidth: parent.width * 0.25
+                anchors.verticalCenter: parent.verticalCenter
+                x: parent.width * 0.40
+                width: parent.width * 0.24
                 text: "CPU"
                 color: clrTextMuted
                 font.pixelSize: Math.round(9 * scaleFactor)
@@ -207,14 +214,15 @@ Rectangle {
                 font.letterSpacing: 1.0
             }
             Text {
-                Layout.preferredWidth: parent.width * 0.25
+                anchors.verticalCenter: parent.verticalCenter
+                x: parent.width * 0.64
+                width: parent.width * 0.24
                 text: pinkMode ? "MEMORY" : "MEM"
                 color: clrTextMuted
                 font.pixelSize: Math.round(9 * scaleFactor)
                 font.weight: Font.DemiBold
                 font.letterSpacing: 1.0
             }
-            Item { Layout.fillWidth: true }
         }
 
         // ── Process ListView ─────────────────────────────────────────────────
@@ -248,25 +256,59 @@ Rectangle {
                     acceptedButtons: Qt.NoButton
                 }
 
-                RowLayout {
+                // Plain Item with absolute positioning — no layout engine.
+                Item {
                     anchors.fill: parent
                     anchors.leftMargin: Math.round(8 * root.scaleFactor)
                     anchors.rightMargin: Math.round(8 * root.scaleFactor)
-                    spacing: Math.round(6 * root.scaleFactor)
 
-                    // Process name
-                    Text {
-                        Layout.preferredWidth: rowDelegate.width * 0.28
-                        text: model.name || ""
-                        color: root.clrTextPrimary
-                        font.pixelSize: Math.round(11 * root.scaleFactor)
-                        font.weight: Font.Medium
-                        elide: Text.ElideRight
+                    // Process name + instance count
+                    Item {
+                        anchors.verticalCenter: parent.verticalCenter
+                        x: 0
+                        width: parent.width * 0.30
+                        height: nameText.height
+
+                        Text {
+                            id: nameText
+                            anchors.left: parent.left
+                            width: (model.instanceCount > 1)
+                                ? parent.width - countBadge.width - Math.round(4 * root.scaleFactor)
+                                : parent.width
+                            text: model.name || ""
+                            color: root.clrTextPrimary
+                            font.pixelSize: Math.round(11 * root.scaleFactor)
+                            font.weight: Font.Medium
+                            elide: Text.ElideRight
+                        }
+
+                        Rectangle {
+                            id: countBadge
+                            anchors.left: nameText.right
+                            anchors.leftMargin: Math.round(3 * root.scaleFactor)
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: model.instanceCount > 1
+                            width: countLabel.implicitWidth + Math.round(8 * root.scaleFactor)
+                            height: Math.round(14 * root.scaleFactor)
+                            radius: height / 2
+                            color: Qt.rgba(root.clrAccent.r, root.clrAccent.g, root.clrAccent.b, 0.2)
+
+                            Text {
+                                id: countLabel
+                                anchors.centerIn: parent
+                                text: "\u00D7" + model.instanceCount
+                                color: root.clrTextMuted
+                                font.pixelSize: Math.round(8 * root.scaleFactor)
+                                font.weight: Font.DemiBold
+                            }
+                        }
                     }
 
                     // PID
                     Text {
-                        Layout.preferredWidth: rowDelegate.width * 0.08
+                        anchors.verticalCenter: parent.verticalCenter
+                        x: parent.width * 0.30
+                        width: parent.width * 0.10
                         text: model.pid || ""
                         color: root.clrTextMuted
                         font.pixelSize: Math.round(10 * root.scaleFactor)
@@ -275,37 +317,36 @@ Rectangle {
 
                     // CPU bar
                     Item {
-                        Layout.preferredWidth: rowDelegate.width * 0.25
-                        Layout.fillHeight: true
+                        x: parent.width * 0.40
+                        width: parent.width * 0.24
+                        anchors.top: parent.top
+                        anchors.topMargin: Math.round(4 * root.scaleFactor)
+                        anchors.bottom: parent.bottom
+                        anchors.bottomMargin: Math.round(4 * root.scaleFactor)
 
-                        ColumnLayout {
-                            anchors.fill: parent
-                            anchors.topMargin: Math.round(4 * root.scaleFactor)
-                            anchors.bottomMargin: Math.round(4 * root.scaleFactor)
-                            spacing: 1
+                        Text {
+                            anchors.top: parent.top
+                            text: (model.cpuPercent !== undefined ? model.cpuPercent.toFixed(1) : "0.0") + "%"
+                            color: root.gaugeColor(model.cpuPercent || 0)
+                            font.pixelSize: Math.round(9 * root.scaleFactor)
+                            font.weight: Font.DemiBold
+                        }
 
-                            Text {
-                                text: (model.cpuPercent !== undefined ? model.cpuPercent.toFixed(1) : "0.0") + "%"
-                                color: root.gaugeColor(model.cpuPercent || 0)
-                                font.pixelSize: Math.round(9 * root.scaleFactor)
-                                font.weight: Font.DemiBold
-                            }
+                        Rectangle {
+                            anchors.bottom: parent.bottom
+                            width: parent.width
+                            height: Math.round(4 * root.scaleFactor)
+                            radius: 2
+                            color: root.clrTrack
 
                             Rectangle {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: Math.round(4 * root.scaleFactor)
+                                width: parent.width * Math.min(1.0, (model.cpuPercent || 0) / 100.0)
+                                height: parent.height
                                 radius: 2
-                                color: root.clrTrack
+                                color: root.gaugeColor(model.cpuPercent || 0)
 
-                                Rectangle {
-                                    width: parent.width * Math.min(1.0, (model.cpuPercent || 0) / 100.0)
-                                    height: parent.height
-                                    radius: 2
-                                    color: root.gaugeColor(model.cpuPercent || 0)
-
-                                    Behavior on width {
-                                        NumberAnimation { duration: 300; easing.type: Easing.OutQuad }
-                                    }
+                                Behavior on width {
+                                    NumberAnimation { duration: 300; easing.type: Easing.OutQuad }
                                 }
                             }
                         }
@@ -313,50 +354,54 @@ Rectangle {
 
                     // Memory bar
                     Item {
-                        Layout.preferredWidth: rowDelegate.width * 0.25
-                        Layout.fillHeight: true
+                        x: parent.width * 0.64
+                        width: parent.width * 0.24
+                        anchors.top: parent.top
+                        anchors.topMargin: Math.round(4 * root.scaleFactor)
+                        anchors.bottom: parent.bottom
+                        anchors.bottomMargin: Math.round(4 * root.scaleFactor)
 
-                        ColumnLayout {
-                            anchors.fill: parent
-                            anchors.topMargin: Math.round(4 * root.scaleFactor)
-                            anchors.bottomMargin: Math.round(4 * root.scaleFactor)
-                            spacing: 1
+                        Text {
+                            anchors.top: parent.top
+                            text: root.formatMemory(model.memoryBytes || 0)
+                            color: root.clrMemBar
+                            font.pixelSize: Math.round(9 * root.scaleFactor)
+                            font.weight: Font.DemiBold
+                        }
 
-                            Text {
-                                text: root.formatMemory(model.memoryBytes || 0)
-                                color: root.clrMemBar
-                                font.pixelSize: Math.round(9 * root.scaleFactor)
-                                font.weight: Font.DemiBold
-                            }
+                        Rectangle {
+                            anchors.bottom: parent.bottom
+                            width: parent.width
+                            height: Math.round(4 * root.scaleFactor)
+                            radius: 2
+                            color: root.clrTrack
 
                             Rectangle {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: Math.round(4 * root.scaleFactor)
+                                width: parent.width * Math.min(1.0, (model.memoryPercent || 0) / 100.0)
+                                height: parent.height
                                 radius: 2
-                                color: root.clrTrack
+                                color: root.clrMemBar
 
-                                Rectangle {
-                                    width: parent.width * Math.min(1.0, (model.memoryPercent || 0) / 100.0)
-                                    height: parent.height
-                                    radius: 2
-                                    color: root.clrMemBar
-
-                                    Behavior on width {
-                                        NumberAnimation { duration: 300; easing.type: Easing.OutQuad }
-                                    }
+                                Behavior on width {
+                                    NumberAnimation { duration: 300; easing.type: Easing.OutQuad }
                                 }
                             }
                         }
                     }
 
-                    // Kill button (visible on hover)
+                    // Kill button — opacity-based instead of visible toggle
                     Rectangle {
-                        Layout.preferredWidth: Math.round(28 * root.scaleFactor)
-                        Layout.preferredHeight: Math.round(20 * root.scaleFactor)
+                        x: parent.width * 0.90
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: Math.round(28 * root.scaleFactor)
+                        height: Math.round(20 * root.scaleFactor)
                         radius: height / 2
-                        visible: rowDelegate.hovered
+                        opacity: rowDelegate.hovered ? (killBtnMouse.containsMouse ? 1.0 : 0.8) : 0.0
                         color: killBtnMouse.containsMouse ? root.clrDangerHover : root.clrDanger
-                        opacity: killBtnMouse.containsMouse ? 1.0 : 0.8
+
+                        Behavior on opacity {
+                            NumberAnimation { duration: 120 }
+                        }
 
                         Text {
                             anchors.centerIn: parent
@@ -371,6 +416,7 @@ Rectangle {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
+                            enabled: rowDelegate.hovered
                             onClicked: {
                                 if (processModel) processModel.requestKill(model.pid)
                             }
@@ -378,21 +424,11 @@ Rectangle {
                     }
                 }
 
-                // Row entrance animation
-                opacity: 1.0
-                ListView.onAdd: SequentialAnimation {
-                    PropertyAction { target: rowDelegate; property: "opacity"; value: 0.0 }
-                    PropertyAction { target: rowDelegate; property: "y"; value: rowDelegate.y + 10 }
-                    ParallelAnimation {
-                        NumberAnimation { target: rowDelegate; property: "opacity"; to: 1.0; duration: 200; easing.type: Easing.OutQuad }
-                        NumberAnimation { target: rowDelegate; property: "y"; to: rowDelegate.y; duration: 200; easing.type: Easing.OutQuad }
-                    }
-                }
             }
 
-            // Displaced animation when items shift
-            displaced: Transition {
-                NumberAnimation { properties: "y"; duration: 200; easing.type: Easing.OutQuad }
+            // Row entrance animation (non-deprecated pattern)
+            add: Transition {
+                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 200; easing.type: Easing.OutQuad }
             }
         }
 

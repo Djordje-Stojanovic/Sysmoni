@@ -540,57 +540,38 @@ std::vector<ProcessSample> TelemetryBridge::collect_process_details(
     const bool sort_descending,
     std::string& error
 ) {
-    error.clear();
-    std::vector<ProcessSample> output;
-    if (!available()) {
-        error = impl_ != nullptr ? impl_->load_error : "Telemetry bridge is unavailable.";
-        return output;
-    }
-    if (max_results == 0U) {
+    // Always use the lightweight process collector. The detailed ABI function
+    // (aura_collect_process_details) creates a thread snapshot per process,
+    // making it far too expensive for per-tick GUI-thread calls.
+    auto output = collect_top_processes(max_results, error);
+    if (output.size() < 2U) {
         return output;
     }
 
-#ifdef _WIN32
-    if (impl_->collect_process_details_fn == nullptr) {
-        return collect_top_processes(max_results, error);
+    // Client-side sort: ABI columns 0=pid, 1=name, 2=cpu, 3=memory
+    switch (sort_column) {
+        case 1:  // Name
+            std::sort(output.begin(), output.end(), [](const ProcessSample& a, const ProcessSample& b) {
+                return a.name < b.name;
+            });
+            break;
+        case 3:  // Memory
+            std::sort(output.begin(), output.end(), [](const ProcessSample& a, const ProcessSample& b) {
+                return a.memory_rss_bytes > b.memory_rss_bytes;
+            });
+            break;
+        case 2:  // CPU (collect_top_processes already returns CPU-desc, but re-sort for consistency)
+        default:
+            std::sort(output.begin(), output.end(), [](const ProcessSample& a, const ProcessSample& b) {
+                return a.cpu_percent > b.cpu_percent;
+            });
+            break;
     }
-    const std::size_t bounded = std::min(max_results, static_cast<std::size_t>(256));
-    aura_process_query_options opts{};
-    opts.max_results = static_cast<std::uint32_t>(bounded);
-    opts.sort_column = sort_column;
-    opts.sort_descending = sort_descending ? 1 : 0;
 
-    std::vector<aura_process_detail> raw(bounded);
-    std::array<char, kErrorBufferSize> error_buffer{};
-    std::uint32_t out_count = 0;
-    const int status = impl_->collect_process_details_fn(
-        &opts, raw.data(), static_cast<std::uint32_t>(bounded),
-        &out_count, error_buffer.data(), error_buffer.size()
-    );
-    if (status != kStatusOk) {
-        error.assign(error_buffer.data(), c_string_length(error_buffer.data(), error_buffer.size()));
-        if (error.empty()) {
-            error = "Process detail collection failed.";
-        }
-        return output;
+    if (!sort_descending) {
+        std::reverse(output.begin(), output.end());
     }
-    const std::size_t count = std::min<std::size_t>(out_count, bounded);
-    output.reserve(count);
-    for (std::size_t i = 0; i < count; ++i) {
-        ProcessSample s;
-        s.pid = raw[i].pid;
-        const std::size_t name_len = c_string_length(raw[i].name, sizeof(raw[i].name));
-        s.name.assign(raw[i].name, name_len);
-        if (s.name.empty()) {
-            s.name = "pid-" + std::to_string(raw[i].pid);
-        }
-        s.cpu_percent = clamp_percent(raw[i].cpu_percent);
-        s.memory_rss_bytes = raw[i].memory_rss_bytes;
-        output.push_back(std::move(s));
-    }
-#else
-    error = "Telemetry bridge is only supported on Windows.";
-#endif
+
     return output;
 }
 

@@ -32,6 +32,7 @@ public:
         CpuPercentRole,
         MemoryBytesRole,
         MemoryPercentRole,
+        InstanceCountRole,
     };
 
     explicit ProcessListModel(QObject* parent = nullptr);
@@ -74,14 +75,14 @@ private:
         double cpu_percent{0.0};
         std::uint64_t memory_bytes{0};
         double memory_percent{0.0};
+        int instance_count{1};
     };
-
-    bool pids_changed(const std::vector<ProcessSample>& samples) const;
 
     std::vector<Entry> entries_;
     ITelemetryBridge* bridge_{nullptr};
     int sort_column_{0};
     bool sort_descending_{true};
+    bool force_reset_{false};
     std::int32_t pending_kill_pid_{0};
     QString pending_kill_name_;
     QString last_error_;

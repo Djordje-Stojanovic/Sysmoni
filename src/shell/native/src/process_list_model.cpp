@@ -2,6 +2,8 @@
 #include "aura_shell/telemetry_bridge.hpp"
 
 #include <algorithm>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace aura::shell {
 
@@ -32,6 +34,8 @@ QVariant ProcessListModel::data(const QModelIndex& index, const int role) const 
             return static_cast<double>(e.memory_bytes);
         case MemoryPercentRole:
             return e.memory_percent;
+        case InstanceCountRole:
+            return e.instance_count;
         default:
             return {};
     }
@@ -44,23 +48,12 @@ QHash<int, QByteArray> ProcessListModel::roleNames() const {
         {CpuPercentRole, "cpuPercent"},
         {MemoryBytesRole, "memoryBytes"},
         {MemoryPercentRole, "memoryPercent"},
+        {InstanceCountRole, "instanceCount"},
     };
 }
 
 void ProcessListModel::setBridge(ITelemetryBridge* bridge) {
     bridge_ = bridge;
-}
-
-bool ProcessListModel::pids_changed(const std::vector<ProcessSample>& samples) const {
-    if (samples.size() != entries_.size()) {
-        return true;
-    }
-    for (std::size_t i = 0; i < samples.size(); ++i) {
-        if (samples[i].pid != entries_[i].pid) {
-            return true;
-        }
-    }
-    return false;
 }
 
 void ProcessListModel::refresh(ITelemetryBridge* bridge, const std::uint64_t total_memory_bytes) {
@@ -73,7 +66,7 @@ void ProcessListModel::refresh(ITelemetryBridge* bridge, const std::uint64_t tot
     if (sort_column_ == 1) abi_col = 3;
     else if (sort_column_ == 2) abi_col = 1;
 
-    auto samples = bridge->collect_process_details(128, abi_col, sort_descending_, error);
+    auto samples = bridge->collect_process_details(48, abi_col, sort_descending_, error);
     if (!error.empty() && samples.empty()) {
         return;
     }
@@ -82,38 +75,114 @@ void ProcessListModel::refresh(ITelemetryBridge* bridge, const std::uint64_t tot
         ? static_cast<double>(total_memory_bytes)
         : 1.0;
 
-    if (!pids_changed(samples)) {
-        // Same PIDs in same order — update in place without model reset
-        for (std::size_t i = 0; i < samples.size(); ++i) {
-            entries_[i].cpu_percent = samples[i].cpu_percent;
-            entries_[i].memory_bytes = samples[i].memory_rss_bytes;
-            entries_[i].memory_percent =
-                (static_cast<double>(samples[i].memory_rss_bytes) / total_mem) * 100.0;
+    // ── Aggregate by process name ──────────────────────────────────────────
+    struct Group {
+        std::uint32_t representative_pid{0};
+        std::string name;
+        double total_cpu{0.0};
+        std::uint64_t total_memory{0};
+        double top_cpu{-1.0};
+        int count{0};
+    };
+
+    std::unordered_map<std::string, Group> groups;
+    for (const auto& s : samples) {
+        auto& g = groups[s.name];
+        g.name = s.name;
+        g.total_cpu += s.cpu_percent;
+        g.total_memory += s.memory_rss_bytes;
+        g.count++;
+        if (s.cpu_percent > g.top_cpu) {
+            g.top_cpu = s.cpu_percent;
+            g.representative_pid = s.pid;
+        }
+    }
+
+    // Build sorted list of grouped entries
+    std::vector<Entry> new_entries;
+    new_entries.reserve(groups.size());
+    for (auto& [key, g] : groups) {
+        Entry e;
+        e.pid = g.representative_pid;
+        e.name = std::move(g.name);
+        e.cpu_percent = g.total_cpu;
+        e.memory_bytes = g.total_memory;
+        e.memory_percent = (static_cast<double>(g.total_memory) / total_mem) * 100.0;
+        e.instance_count = g.count;
+        new_entries.push_back(std::move(e));
+    }
+
+    // Sort
+    auto sort_entries = [&](std::vector<Entry>& v) {
+        switch (abi_col) {
+            case 1: // name
+                std::sort(v.begin(), v.end(),
+                    [](const Entry& a, const Entry& b) { return a.name < b.name; });
+                break;
+            case 3: // memory
+                std::sort(v.begin(), v.end(),
+                    [](const Entry& a, const Entry& b) { return a.memory_bytes > b.memory_bytes; });
+                break;
+            default: // cpu
+                std::sort(v.begin(), v.end(),
+                    [](const Entry& a, const Entry& b) { return a.cpu_percent > b.cpu_percent; });
+                break;
+        }
+        if (!sort_descending_) {
+            std::reverse(v.begin(), v.end());
+        }
+    };
+
+    sort_entries(new_entries);
+
+    // ── Stable update: only reset when the set of names changes ────────────
+    bool same_names = !force_reset_ && new_entries.size() == entries_.size();
+    if (same_names) {
+        std::unordered_set<std::string> current_names;
+        current_names.reserve(entries_.size());
+        for (const auto& e : entries_) {
+            current_names.insert(e.name);
+        }
+        for (const auto& e : new_entries) {
+            if (current_names.find(e.name) == current_names.end()) {
+                same_names = false;
+                break;
+            }
+        }
+    }
+
+    if (same_names && !entries_.empty()) {
+        // Same process groups — update values in place (preserves scroll & hover)
+        std::unordered_map<std::string, const Entry*> new_map;
+        new_map.reserve(new_entries.size());
+        for (const auto& e : new_entries) {
+            new_map[e.name] = &e;
+        }
+
+        for (std::size_t i = 0; i < entries_.size(); ++i) {
+            auto it = new_map.find(entries_[i].name);
+            if (it != new_map.end()) {
+                entries_[i].pid = it->second->pid;
+                entries_[i].cpu_percent = it->second->cpu_percent;
+                entries_[i].memory_bytes = it->second->memory_bytes;
+                entries_[i].memory_percent = it->second->memory_percent;
+                entries_[i].instance_count = it->second->instance_count;
+            }
         }
         if (!entries_.empty()) {
             emit dataChanged(
                 index(0), index(static_cast<int>(entries_.size()) - 1),
-                {CpuPercentRole, MemoryBytesRole, MemoryPercentRole});
+                {PidRole, CpuPercentRole, MemoryBytesRole, MemoryPercentRole, InstanceCountRole});
         }
-        return;
+        emit processCountChanged();
+    } else {
+        // Process set changed or sort mode changed — full reset
+        force_reset_ = false;
+        beginResetModel();
+        entries_ = std::move(new_entries);
+        endResetModel();
+        emit processCountChanged();
     }
-
-    // PIDs changed — full model reset
-    beginResetModel();
-    entries_.clear();
-    entries_.reserve(samples.size());
-    for (const auto& s : samples) {
-        Entry e;
-        e.pid = s.pid;
-        e.name = s.name;
-        e.cpu_percent = s.cpu_percent;
-        e.memory_bytes = s.memory_rss_bytes;
-        e.memory_percent =
-            (static_cast<double>(s.memory_rss_bytes) / total_mem) * 100.0;
-        entries_.push_back(std::move(e));
-    }
-    endResetModel();
-    emit processCountChanged();
 }
 
 int ProcessListModel::sortColumn() const { return sort_column_; }
@@ -135,7 +204,11 @@ void ProcessListModel::setSortDescending(const bool descending) {
 }
 
 int ProcessListModel::processCount() const {
-    return static_cast<int>(entries_.size());
+    int total = 0;
+    for (const auto& e : entries_) {
+        total += e.instance_count;
+    }
+    return total;
 }
 
 int ProcessListModel::pendingKillPid() const {
@@ -197,6 +270,7 @@ void ProcessListModel::setSortMode(const int column) {
         setSortColumn(column);
         setSortDescending(true);
     }
+    force_reset_ = true;
 }
 
 }  // namespace aura::shell
