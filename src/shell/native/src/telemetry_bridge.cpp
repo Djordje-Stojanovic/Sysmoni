@@ -145,6 +145,9 @@ struct TelemetryBridge::Impl {
     using CollectDiskFn = int (*)(aura_disk_counters*, char*, std::size_t);
     using CollectNetworkFn = int (*)(aura_network_counters*, char*, std::size_t);
     using CollectThermalFn = int (*)(aura_thermal_reading*, std::uint32_t, std::uint32_t*, char*, std::size_t);
+    using CollectProcessDetailsFn = int (*)(const aura_process_query_options*,
+        aura_process_detail*, std::uint32_t, std::uint32_t*, char*, std::size_t);
+    using TerminateProcessFn = int (*)(std::uint32_t, std::uint32_t, char*, std::size_t);
 
     HMODULE module_handle{nullptr};
     CollectSnapshotFn collect_snapshot_fn{nullptr};
@@ -154,6 +157,8 @@ struct TelemetryBridge::Impl {
     CollectDiskFn collect_disk_fn{nullptr};
     CollectNetworkFn collect_network_fn{nullptr};
     CollectThermalFn collect_thermal_fn{nullptr};
+    CollectProcessDetailsFn collect_process_details_fn{nullptr};
+    TerminateProcessFn terminate_process_fn{nullptr};
 
     // Delta state for disk/network rate computation
     bool has_prev_disk{false};
@@ -213,6 +218,12 @@ TelemetryBridge::TelemetryBridge() : impl_(std::make_unique<Impl>()) {
         );
         impl_->collect_thermal_fn = reinterpret_cast<Impl::CollectThermalFn>(
             GetProcAddress(module, "aura_collect_thermal_readings")
+        );
+        impl_->collect_process_details_fn = reinterpret_cast<Impl::CollectProcessDetailsFn>(
+            GetProcAddress(module, "aura_collect_process_details")
+        );
+        impl_->terminate_process_fn = reinterpret_cast<Impl::TerminateProcessFn>(
+            GetProcAddress(module, "aura_terminate_process")
         );
 
         impl_->loaded = true;
@@ -520,6 +531,74 @@ std::optional<ThermalState> TelemetryBridge::collect_thermal(std::string& error)
     return state;
 #else
     return std::nullopt;
+#endif
+}
+
+std::vector<ProcessSample> TelemetryBridge::collect_process_details(
+    const std::size_t max_results,
+    const std::uint8_t sort_column,
+    const bool sort_descending,
+    std::string& error
+) {
+    // Always use the lightweight process collector. The detailed ABI function
+    // (aura_collect_process_details) creates a thread snapshot per process,
+    // making it far too expensive for per-tick GUI-thread calls.
+    auto output = collect_top_processes(max_results, error);
+    if (output.size() < 2U) {
+        return output;
+    }
+
+    // Client-side sort: ABI columns 0=pid, 1=name, 2=cpu, 3=memory
+    switch (sort_column) {
+        case 1:  // Name
+            std::sort(output.begin(), output.end(), [](const ProcessSample& a, const ProcessSample& b) {
+                return a.name < b.name;
+            });
+            break;
+        case 3:  // Memory
+            std::sort(output.begin(), output.end(), [](const ProcessSample& a, const ProcessSample& b) {
+                return a.memory_rss_bytes > b.memory_rss_bytes;
+            });
+            break;
+        case 2:  // CPU (collect_top_processes already returns CPU-desc, but re-sort for consistency)
+        default:
+            std::sort(output.begin(), output.end(), [](const ProcessSample& a, const ProcessSample& b) {
+                return a.cpu_percent > b.cpu_percent;
+            });
+            break;
+    }
+
+    if (!sort_descending) {
+        std::reverse(output.begin(), output.end());
+    }
+
+    return output;
+}
+
+bool TelemetryBridge::terminate_process(const std::uint32_t pid, std::string& error) {
+    error.clear();
+    if (!available()) {
+        error = impl_ != nullptr ? impl_->load_error : "Telemetry bridge is unavailable.";
+        return false;
+    }
+#ifdef _WIN32
+    if (impl_->terminate_process_fn == nullptr) {
+        error = "Process termination is not supported by the loaded telemetry DLL.";
+        return false;
+    }
+    std::array<char, kErrorBufferSize> error_buffer{};
+    const int status = impl_->terminate_process_fn(pid, 1, error_buffer.data(), error_buffer.size());
+    if (status != kStatusOk) {
+        error.assign(error_buffer.data(), c_string_length(error_buffer.data(), error_buffer.size()));
+        if (error.empty()) {
+            error = "Failed to terminate process " + std::to_string(pid) + ".";
+        }
+        return false;
+    }
+    return true;
+#else
+    error = "Telemetry bridge is only supported on Windows.";
+    return false;
 #endif
 }
 

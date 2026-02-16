@@ -20,6 +20,7 @@
 
 #include "aura_shell/cockpit_controller.hpp"
 #include "aura_shell/dock_model.hpp"
+#include "aura_shell/process_list_model.hpp"
 #include "aura_shell/shell_utils.hpp"
 #include "aura_shell/size_metrics.hpp"
 #include "aura_shell/ui_theme.hpp"
@@ -81,13 +82,16 @@ private:
     std::unique_ptr<CockpitController> controller_;
     DockState dock_state_{build_default_dock_state()};
     std::array<SlotWidgets, 3> slot_widgets_{};
-    std::array<QWidget*, 4> panel_pages_{};
-    std::array<std::array<QPushButton*, 3>, 4> panel_move_buttons_{};
+    std::array<QWidget*, 5> panel_pages_{};
+    std::array<std::array<QPushButton*, 3>, 5> panel_move_buttons_{};
     bool syncing_tabs_{false};
     QFrame* titlebar_{nullptr};
     QPushButton* theme_toggle_btn_{nullptr};
     QQuickWidget* quick_{nullptr};
     QQuickWidget* timeline_quick_{nullptr};
+    QQuickWidget* process_quick_{nullptr};
+    ProcessListModel* process_model_{nullptr};
+    ITelemetryBridge* telemetry_bridge_raw_{nullptr};
     QTimer* update_timer_{nullptr};
     QLabel* telemetry_cpu_{nullptr};
     QLabel* telemetry_memory_{nullptr};
@@ -110,7 +114,7 @@ private:
     QLabel* net_value_{nullptr};
     QLabel* thermal_key_{nullptr};
     QLabel* thermal_value_{nullptr};
-    std::array<QLabel*, 4> panel_title_labels_{};
+    std::array<QLabel*, 5> panel_title_labels_{};
     bool dragging_{false};
     QPoint drag_origin_{};
     Qt::Edges resize_edge_{};
