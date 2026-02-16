@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "aura_shell/cockpit_types.hpp"
+#include "aura_shell/persistence_bridge.hpp"
 #include "aura_shell/render_bridge.hpp"
 #include "aura_shell/telemetry_bridge.hpp"
 #include "aura_shell/timeline_bridge.hpp"
@@ -24,13 +25,16 @@ public:
         int timeline_resolution{64};
         std::size_t timeline_refresh_ticks{5};
         bool prefer_dvr_timeline{true};
+        bool persistence_enabled{true};
+        double retention_seconds{604800.0};
     };
 
     CockpitController(
         std::unique_ptr<ITelemetryBridge> telemetry_bridge,
         std::unique_ptr<IRenderBridge> render_bridge,
         std::unique_ptr<ITimelineBridge> timeline_bridge,
-        Config config = {}
+        Config config = {},
+        std::unique_ptr<IPersistenceBridge> persistence_bridge = nullptr
     );
 
     CockpitUiState tick(
@@ -66,6 +70,8 @@ private:
     std::unique_ptr<ITelemetryBridge> telemetry_bridge_;
     std::unique_ptr<IRenderBridge> render_bridge_;
     std::unique_ptr<ITimelineBridge> timeline_bridge_;
+    std::unique_ptr<IPersistenceBridge> persistence_bridge_;
+    bool persistence_active_{false};
     Config config_;
     double frame_phase_{0.0};
     std::size_t ticks_since_timeline_query_{0U};
