@@ -16,6 +16,7 @@ endif()
 
 set(AURA_SHELL_CORE_SOURCES
     src/cockpit_controller.cpp
+    src/cockpit_controller_support.cpp
     src/dock_model.cpp
     src/render_bridge.cpp
     src/telemetry_bridge.cpp

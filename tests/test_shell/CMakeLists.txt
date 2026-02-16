@@ -14,12 +14,14 @@ enable_testing()
 
 add_executable(aura_shell_dock_model_tests
     native/dock_model_tests.cpp
+    native/dock_model_invariant_tests.cpp
 )
 target_link_libraries(aura_shell_dock_model_tests PRIVATE aura_shell_core)
 add_test(NAME aura_shell_dock_model_tests COMMAND aura_shell_dock_model_tests)
 
 add_executable(aura_shell_cockpit_controller_tests
     native/cockpit_controller_tests.cpp
+    native/cockpit_controller_sensor_tests.cpp
 )
 target_link_libraries(aura_shell_cockpit_controller_tests PRIVATE aura_shell_core)
 add_test(NAME aura_shell_cockpit_controller_tests COMMAND aura_shell_cockpit_controller_tests)
