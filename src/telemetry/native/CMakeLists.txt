@@ -7,6 +7,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(aura_telemetry_native SHARED
     src/telemetry_engine.cpp
+    src/telemetry_engine_sensors.cpp
+    src/telemetry_engine_process.cpp
     src/telemetry_utils.cpp
     src/collect_cpu.cpp
     src/collect_processes.cpp

@@ -9,6 +9,7 @@ option(RENDER_NATIVE_ENABLE_QT_WIDGETS "Enable Qt Widgets + RHI native backend h
 
 set(RENDER_NATIVE_SOURCES
     src/c_api.cpp
+    src/c_api_format.cpp
     src/math.cpp
     src/theme.cpp
     src/formatting.cpp
