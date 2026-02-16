@@ -4,6 +4,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
+#include <QQmlContext>
 #include <QQuickWidget>
 #include <QScrollArea>
 #include <QSizePolicy>
@@ -246,6 +247,27 @@ void AuraShellWindow::build_panel_pages() {
         render_layout->addWidget(quick_, 1);
         render_layout->addWidget(render_status_);
     }
+
+    // --- Process Panel (QML) ---
+    {
+        auto* process_layout =
+            create_panel_page(PanelId::ProcessPanel, QStringLiteral("Process Manager"));
+
+        QWidget* parent_page = panel_pages_[panel_index(PanelId::ProcessPanel)];
+
+        process_model_ = new ProcessListModel(this);
+        process_model_->setBridge(telemetry_bridge_raw_);
+
+        process_quick_ = new QQuickWidget(parent_page);
+        process_quick_->setResizeMode(QQuickWidget::SizeRootObjectToView);
+        process_quick_->rootContext()->setContextProperty(
+            QStringLiteral("processModel"), process_model_);
+        process_quick_->setSource(
+            QUrl::fromLocalFile(QStringLiteral(AURA_SHELL_PROCESS_QML_PATH)));
+        process_quick_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+
+        process_layout->addWidget(process_quick_, 1);
+    }
 }
 
 std::optional<DockSlot> AuraShellWindow::panel_slot(const PanelId panel_id) const {
@@ -265,6 +287,7 @@ QString AuraShellWindow::themed_tab_title(const PanelId panel_id) const {
             case PanelId::TopProcesses:      return QStringLiteral("Apps");
             case PanelId::DvrTimeline:        return QStringLiteral("History");
             case PanelId::RenderSurface:      return QStringLiteral("Cockpit");
+            case PanelId::ProcessPanel:       return QStringLiteral("Manager");
         }
     }
     return panel_title(panel_id);

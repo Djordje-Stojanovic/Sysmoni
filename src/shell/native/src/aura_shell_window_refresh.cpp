@@ -63,6 +63,30 @@ void AuraShellWindow::refresh_cockpit() {
         process_labels_[i]->setText(line);
     }
 
+    // Refresh process list model
+    if (process_model_ != nullptr && telemetry_bridge_raw_ != nullptr) {
+        // Default to 16 GB as baseline; the memory_percent bar in QML
+        // uses per-row bytes so this is only for the relative bar sizing
+        constexpr std::uint64_t kDefaultTotalMemory = 16ULL * 1024 * 1024 * 1024;
+        const std::uint64_t total_memory_estimate = kDefaultTotalMemory;
+        process_model_->refresh(telemetry_bridge_raw_, total_memory_estimate);
+    }
+
+    // Bridge theme to process QML root
+    if (process_quick_ != nullptr && process_quick_->rootObject() != nullptr) {
+        QQuickItem* proc_root = process_quick_->rootObject();
+        proc_root->setProperty("accentRed", state.style_tokens.accent_red);
+        proc_root->setProperty("accentGreen", state.style_tokens.accent_green);
+        proc_root->setProperty("accentBlue", state.style_tokens.accent_blue);
+        proc_root->setProperty("severityLevel", state.severity_level);
+        if (theme_dirty_) {
+            proc_root->setProperty(
+                "themeMode",
+                QString::fromStdString(ui_theme_mode_key(current_theme_mode_))
+            );
+        }
+    }
+
     // Footer — compact status summary
     QString footer_text =
         QString("interval=%1s  persist=%2  db=%3  telemetry=%4  render=%5  timeline=%6  style=%7  sev=%8  quality=%9  fps=%10  anomalies=%11  theme=%12")

@@ -24,12 +24,13 @@ std::size_t clamp_active_index(const std::size_t value, const std::size_t tab_co
 
 }  // namespace
 
-std::array<PanelId, 4> all_panel_ids() {
+std::array<PanelId, 5> all_panel_ids() {
     return {
         PanelId::TelemetryOverview,
         PanelId::TopProcesses,
         PanelId::DvrTimeline,
         PanelId::RenderSurface,
+        PanelId::ProcessPanel,
     };
 }
 
@@ -44,6 +45,7 @@ DockState build_default_dock_state() {
     state.slot_tabs[slot_index(DockSlot::Right)] = {
         PanelId::TopProcesses,
         PanelId::DvrTimeline,
+        PanelId::ProcessPanel,
     };
     state.active_tab = {0U, 0U, 0U};
     return state;
@@ -143,6 +145,8 @@ std::string_view to_string(const PanelId panel_id) {
             return "dvr_timeline";
         case PanelId::RenderSurface:
             return "render_surface";
+        case PanelId::ProcessPanel:
+            return "process_panel";
     }
     return "unknown";
 }

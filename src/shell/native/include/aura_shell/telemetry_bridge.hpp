@@ -21,6 +21,10 @@ public:
     virtual std::optional<DiskIoState> collect_disk_io(std::string& error) = 0;
     virtual std::optional<NetworkIoState> collect_network_io(std::string& error) = 0;
     virtual std::optional<ThermalState> collect_thermal(std::string& error) = 0;
+    virtual std::vector<ProcessSample> collect_process_details(
+        std::size_t max_results, std::uint8_t sort_column,
+        bool sort_descending, std::string& error) = 0;
+    virtual bool terminate_process(std::uint32_t pid, std::string& error) = 0;
 };
 
 class TelemetryBridge final : public ITelemetryBridge {
@@ -39,6 +43,10 @@ public:
     std::optional<DiskIoState> collect_disk_io(std::string& error) override;
     std::optional<NetworkIoState> collect_network_io(std::string& error) override;
     std::optional<ThermalState> collect_thermal(std::string& error) override;
+    std::vector<ProcessSample> collect_process_details(
+        std::size_t max_results, std::uint8_t sort_column,
+        bool sort_descending, std::string& error) override;
+    bool terminate_process(std::uint32_t pid, std::string& error) override;
 
     std::string loaded_path() const;
     std::string load_error() const;

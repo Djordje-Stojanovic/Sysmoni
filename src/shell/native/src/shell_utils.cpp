@@ -42,6 +42,8 @@ QString panel_title(const PanelId panel_id) {
             return QStringLiteral("Timeline");
         case PanelId::RenderSurface:
             return QStringLiteral("Render");
+        case PanelId::ProcessPanel:
+            return QStringLiteral("Manage");
     }
     return QStringLiteral("Unknown");
 }

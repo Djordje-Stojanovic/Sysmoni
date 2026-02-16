@@ -85,6 +85,15 @@ public:
         if (!backend_available) { error = "unavailable"; return std::nullopt; }
         return next_thermal;
     }
+    std::vector<aura::shell::ProcessSample> collect_process_details(
+        std::size_t max_results, std::uint8_t /*sort_column*/,
+        bool /*sort_descending*/, std::string& error) override {
+        return collect_top_processes(max_results, error);
+    }
+    bool terminate_process(std::uint32_t /*pid*/, std::string& error) override {
+        error = "not implemented in fake";
+        return false;
+    }
 };
 
 class FakeRenderBridge final : public aura::shell::IRenderBridge {

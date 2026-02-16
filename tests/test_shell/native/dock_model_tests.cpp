@@ -79,23 +79,23 @@ void test_active_tab_clamps_after_panel_removal() {
     using aura::shell::PanelId;
     using aura::shell::PanelMoveRequest;
 
-    // Right has {TopProcesses, DvrTimeline} — set active to 1 (DvrTimeline)
+    // Right has {TopProcesses, DvrTimeline, ProcessPanel} — set active to 2 (ProcessPanel)
     auto state = aura::shell::build_default_dock_state();
-    state = aura::shell::set_active_tab(state, DockSlot::Right, 1U);
+    state = aura::shell::set_active_tab(state, DockSlot::Right, 2U);
 
-    // Move DvrTimeline out — Right now has 1 panel, active should clamp to 0
+    // Move ProcessPanel out — Right now has 2 panels, active should clamp to 1
     const auto moved = aura::shell::move_panel(
         state,
         PanelMoveRequest{
-            .panel_id = PanelId::DvrTimeline,
+            .panel_id = PanelId::ProcessPanel,
             .to_slot = DockSlot::Left,
             .to_index = std::nullopt,
         }
     );
-    assert(moved.active_tab[slot_index(DockSlot::Right)] == 0U);
+    assert(moved.active_tab[slot_index(DockSlot::Right)] == 1U);
     const auto right_panel = aura::shell::active_panel(moved, DockSlot::Right);
     assert(right_panel.has_value());
-    assert(*right_panel == PanelId::TopProcesses);
+    assert(*right_panel == PanelId::DvrTimeline);
 }
 
 void test_destination_active_tab_tracks_inserted_panel() {
@@ -105,7 +105,7 @@ void test_destination_active_tab_tracks_inserted_panel() {
 
     const auto state = aura::shell::build_default_dock_state();
     // Move TelemetryOverview to Right at index 0
-    // Right was {TopProcesses, DvrTimeline} -> becomes {TelemetryOverview, TopProcesses, DvrTimeline}
+    // Right was {TopProcesses, DvrTimeline, ProcessPanel} -> becomes {TelemetryOverview, TopProcesses, DvrTimeline, ProcessPanel}
     const auto moved = aura::shell::move_panel(
         state,
         PanelMoveRequest{
@@ -165,7 +165,7 @@ void test_empty_slot_behavior() {
 // NEW: All panels moved to a single slot
 // ---------------------------------------------------------------------------
 
-// Move all 4 panels to Left. Left should contain exactly 4 panels.
+// Move all 5 panels to Left. Left should contain exactly 5 panels.
 // Center and Right must be empty. active_panel for each must resolve correctly.
 void test_all_panels_to_single_slot() {
     using aura::shell::DockSlot;
@@ -174,7 +174,7 @@ void test_all_panels_to_single_slot() {
 
     auto state = aura::shell::build_default_dock_state();
 
-    // Default: Left={TelemetryOverview}, Center={RenderSurface}, Right={TopProcesses, DvrTimeline}
+    // Default: Left={TelemetryOverview}, Center={RenderSurface}, Right={TopProcesses, DvrTimeline, ProcessPanel}
     // Move RenderSurface -> Left
     state = aura::shell::move_panel(
         state,
@@ -202,9 +202,18 @@ void test_all_panels_to_single_slot() {
             .to_index = std::nullopt,
         }
     );
+    // Move ProcessPanel -> Left
+    state = aura::shell::move_panel(
+        state,
+        PanelMoveRequest{
+            .panel_id = PanelId::ProcessPanel,
+            .to_slot = DockSlot::Left,
+            .to_index = std::nullopt,
+        }
+    );
 
-    // All 4 panels must be in Left
-    assert(state.slot_tabs[slot_index(DockSlot::Left)].size() == 4U);
+    // All 5 panels must be in Left
+    assert(state.slot_tabs[slot_index(DockSlot::Left)].size() == 5U);
 
     // Center and Right must be empty
     assert(state.slot_tabs[slot_index(DockSlot::Center)].empty());
@@ -284,7 +293,7 @@ void test_active_tab_round_trips() {
     using aura::shell::PanelId;
     using aura::shell::PanelMoveRequest;
 
-    // Default: Left={TelemetryOverview[0]}, Center={RenderSurface[0]}, Right={TopProcesses[0], DvrTimeline[1]}
+    // Default: Left={TelemetryOverview[0]}, Center={RenderSurface[0]}, Right={TopProcesses[0], DvrTimeline[1], ProcessPanel[2]}
     auto state = aura::shell::build_default_dock_state();
 
     // Set Right active tab to 1 (DvrTimeline)
@@ -348,7 +357,7 @@ void test_panel_ordering_after_moves() {
 
     // Start fresh
     auto state = aura::shell::build_default_dock_state();
-    // Default: Left={TelemetryOverview}, Center={RenderSurface}, Right={TopProcesses, DvrTimeline}
+    // Default: Left={TelemetryOverview}, Center={RenderSurface}, Right={TopProcesses, DvrTimeline, ProcessPanel}
 
     // Move TopProcesses from Right to Center at index 0
     // Center becomes: {TopProcesses, RenderSurface}
@@ -394,6 +403,18 @@ void test_panel_ordering_after_moves() {
     assert(state.slot_tabs[slot_index(DockSlot::Center)][2] == PanelId::RenderSurface);
     assert(state.slot_tabs[slot_index(DockSlot::Center)][3] == PanelId::DvrTimeline);
 
+    // Move ProcessPanel from Right to Center at end
+    state = aura::shell::move_panel(
+        state,
+        PanelMoveRequest{
+            .panel_id = PanelId::ProcessPanel,
+            .to_slot = DockSlot::Center,
+            .to_index = std::nullopt,
+        }
+    );
+    assert(state.slot_tabs[slot_index(DockSlot::Center)].size() == 5U);
+    assert(state.slot_tabs[slot_index(DockSlot::Center)][4] == PanelId::ProcessPanel);
+
     // Left and Right are both empty
     assert(state.slot_tabs[slot_index(DockSlot::Left)].empty());
     assert(state.slot_tabs[slot_index(DockSlot::Right)].empty());
@@ -428,6 +449,7 @@ void test_to_string_all_slots_and_panels() {
     assert(aura::shell::to_string(PanelId::TopProcesses)      == "top_processes");
     assert(aura::shell::to_string(PanelId::DvrTimeline)       == "dvr_timeline");
     assert(aura::shell::to_string(PanelId::RenderSurface)     == "render_surface");
+    assert(aura::shell::to_string(PanelId::ProcessPanel)      == "process_panel");
 
     // None of the string representations should be "unknown"
     assert(aura::shell::to_string(DockSlot::Left)   != "unknown");
@@ -437,6 +459,7 @@ void test_to_string_all_slots_and_panels() {
     assert(aura::shell::to_string(PanelId::TopProcesses)      != "unknown");
     assert(aura::shell::to_string(PanelId::DvrTimeline)       != "unknown");
     assert(aura::shell::to_string(PanelId::RenderSurface)     != "unknown");
+    assert(aura::shell::to_string(PanelId::ProcessPanel)      != "unknown");
 }
 
 // ---------------------------------------------------------------------------
@@ -445,7 +468,7 @@ void test_to_string_all_slots_and_panels() {
 
 void test_all_panel_ids_and_slots_counts() {
     const auto panels = aura::shell::all_panel_ids();
-    assert(panels.size() == 4U);
+    assert(panels.size() == 5U);
 
     const auto slots = aura::shell::all_dock_slots();
     assert(slots.size() == 3U);
@@ -455,16 +478,19 @@ void test_all_panel_ids_and_slots_counts() {
     bool found_processes = false;
     bool found_dvr = false;
     bool found_render = false;
+    bool found_process_panel = false;
     for (const auto panel_id : panels) {
         if (panel_id == aura::shell::PanelId::TelemetryOverview) { found_telemetry = true; }
         if (panel_id == aura::shell::PanelId::TopProcesses)      { found_processes = true; }
         if (panel_id == aura::shell::PanelId::DvrTimeline)       { found_dvr = true; }
         if (panel_id == aura::shell::PanelId::RenderSurface)     { found_render = true; }
+        if (panel_id == aura::shell::PanelId::ProcessPanel)      { found_process_panel = true; }
     }
     assert(found_telemetry);
     assert(found_processes);
     assert(found_dvr);
     assert(found_render);
+    assert(found_process_panel);
 
     // Verify all expected slots are present
     bool found_left = false;
@@ -501,8 +527,8 @@ void test_move_out_of_range_index_throws() {
     using aura::shell::PanelMoveRequest;
 
     const auto state = aura::shell::build_default_dock_state();
-    // Right has 2 panels (TopProcesses, DvrTimeline).
-    // Valid to_index values are 0, 1, 2 (append). Index 10 is out of range.
+    // Right has 3 panels (TopProcesses, DvrTimeline, ProcessPanel).
+    // Valid to_index values are 0, 1, 2, 3 (append). Index 10 is out of range.
     bool threw = false;
     try {
         static_cast<void>(aura::shell::move_panel(
@@ -562,10 +588,10 @@ void test_move_nullopt_index_appends_to_end() {
     using aura::shell::PanelId;
     using aura::shell::PanelMoveRequest;
 
-    // Default: Right={TopProcesses[0], DvrTimeline[1]}
+    // Default: Right={TopProcesses[0], DvrTimeline[1], ProcessPanel[2]}
     const auto state = aura::shell::build_default_dock_state();
 
-    // Move TelemetryOverview to Right with nullopt → should be appended at index 2
+    // Move TelemetryOverview to Right with nullopt → should be appended at index 3
     const auto moved = aura::shell::move_panel(
         state,
         PanelMoveRequest{
@@ -575,14 +601,15 @@ void test_move_nullopt_index_appends_to_end() {
         }
     );
 
-    // Right now has 3 panels: {TopProcesses, DvrTimeline, TelemetryOverview}
-    assert(moved.slot_tabs[slot_index(DockSlot::Right)].size() == 3U);
+    // Right now has 4 panels: {TopProcesses, DvrTimeline, ProcessPanel, TelemetryOverview}
+    assert(moved.slot_tabs[slot_index(DockSlot::Right)].size() == 4U);
     assert(moved.slot_tabs[slot_index(DockSlot::Right)][0] == PanelId::TopProcesses);
     assert(moved.slot_tabs[slot_index(DockSlot::Right)][1] == PanelId::DvrTimeline);
-    assert(moved.slot_tabs[slot_index(DockSlot::Right)][2] == PanelId::TelemetryOverview);
+    assert(moved.slot_tabs[slot_index(DockSlot::Right)][2] == PanelId::ProcessPanel);
+    assert(moved.slot_tabs[slot_index(DockSlot::Right)][3] == PanelId::TelemetryOverview);
 
-    // Destination active_tab should point to the newly inserted panel at index 2
-    assert(moved.active_tab[slot_index(DockSlot::Right)] == 2U);
+    // Destination active_tab should point to the newly inserted panel at index 3
+    assert(moved.active_tab[slot_index(DockSlot::Right)] == 3U);
     const auto right_active = aura::shell::active_panel(moved, DockSlot::Right);
     assert(right_active.has_value());
     assert(*right_active == PanelId::TelemetryOverview);
@@ -607,7 +634,7 @@ void test_full_panel_shuffle_preserves_uniqueness() {
     // Default:
     //   Left = { TelemetryOverview }
     //   Center = { RenderSurface }
-    //   Right = { TopProcesses, DvrTimeline }
+    //   Right = { TopProcesses, DvrTimeline, ProcessPanel }
 
     auto state = aura::shell::build_default_dock_state();
     assert_single_instance_per_panel(state);
@@ -636,12 +663,18 @@ void test_full_panel_shuffle_preserves_uniqueness() {
     );
     assert_single_instance_per_panel(state);
 
+    // Step 5: ProcessPanel -> Center
+    state = aura::shell::move_panel(
+        state, PanelMoveRequest{PanelId::ProcessPanel, DockSlot::Center, std::nullopt}
+    );
+    assert_single_instance_per_panel(state);
+
     // End state:
     //   Left = { RenderSurface, TopProcesses }
-    //   Center = { TelemetryOverview, DvrTimeline }
+    //   Center = { TelemetryOverview, DvrTimeline, ProcessPanel }
     //   Right = {} (empty)
     assert(state.slot_tabs[slot_index(DockSlot::Left)].size() == 2U);
-    assert(state.slot_tabs[slot_index(DockSlot::Center)].size() == 2U);
+    assert(state.slot_tabs[slot_index(DockSlot::Center)].size() == 3U);
     assert(state.slot_tabs[slot_index(DockSlot::Right)].empty());
 
     assert(state.slot_tabs[slot_index(DockSlot::Left)][0] == PanelId::RenderSurface);
@@ -649,6 +682,7 @@ void test_full_panel_shuffle_preserves_uniqueness() {
 
     assert(state.slot_tabs[slot_index(DockSlot::Center)][0] == PanelId::TelemetryOverview);
     assert(state.slot_tabs[slot_index(DockSlot::Center)][1] == PanelId::DvrTimeline);
+    assert(state.slot_tabs[slot_index(DockSlot::Center)][2] == PanelId::ProcessPanel);
 
     // active_panel for Right must be nullopt
     assert(!aura::shell::active_panel(state, DockSlot::Right).has_value());

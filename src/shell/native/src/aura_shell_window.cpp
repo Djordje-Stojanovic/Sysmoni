@@ -110,8 +110,10 @@ AuraShellWindow::AuraShellWindow(const LaunchConfig& config, QWidget* parent)
     if (config.db_path.has_value()) {
         controller_config.db_path = config.db_path->toStdString();
     }
+    auto telemetry = std::make_unique<TelemetryBridge>();
+    telemetry_bridge_raw_ = telemetry.get();
     controller_ = std::make_unique<CockpitController>(
-        std::make_unique<TelemetryBridge>(),
+        std::move(telemetry),
         std::make_unique<RenderBridge>(),
         std::make_unique<TimelineBridge>(),
         std::move(controller_config)
@@ -434,6 +436,12 @@ void AuraShellWindow::sync_theme_to_qml() {
             QString::fromStdString(ui_theme_mode_key(current_theme_mode_))
         );
     }
+    if (process_quick_ != nullptr && process_quick_->rootObject() != nullptr) {
+        process_quick_->rootObject()->setProperty(
+            "themeMode",
+            QString::fromStdString(ui_theme_mode_key(current_theme_mode_))
+        );
+    }
 }
 
 void AuraShellWindow::apply_theme(const UiThemeMode mode, const bool persist) {
@@ -464,6 +472,9 @@ void AuraShellWindow::apply_theme(const UiThemeMode mode, const bool persist) {
     if (panel_title_labels_[panel_index(PanelId::RenderSurface)])
         panel_title_labels_[panel_index(PanelId::RenderSurface)]->setText(
             is_pink_ ? QStringLiteral("\u2728 COCKPIT") : QStringLiteral("RENDER SURFACE"));
+    if (panel_title_labels_[panel_index(PanelId::ProcessPanel)])
+        panel_title_labels_[panel_index(PanelId::ProcessPanel)]->setText(
+            is_pink_ ? QStringLiteral("\u2728 RUNNING APPS") : QStringLiteral("PROCESS MANAGER"));
 
     // Update tab text in all slot tab bars
     for (const auto slot : all_dock_slots()) {
@@ -484,6 +495,9 @@ void AuraShellWindow::apply_theme(const UiThemeMode mode, const bool persist) {
                     break;
                 case PanelId::RenderSurface:
                     sw.tab_bar->setTabText(i, is_pink_ ? QStringLiteral("Cockpit") : QStringLiteral("Render"));
+                    break;
+                case PanelId::ProcessPanel:
+                    sw.tab_bar->setTabText(i, is_pink_ ? QStringLiteral("Manager") : QStringLiteral("Manage"));
                     break;
             }
         }

@@ -19,6 +19,7 @@ enum class PanelId : std::size_t {
     TopProcesses = 1,
     DvrTimeline = 2,
     RenderSurface = 3,
+    ProcessPanel = 4,
 };
 
 struct DockState {
@@ -32,7 +33,7 @@ struct PanelMoveRequest {
     std::optional<std::size_t> to_index;
 };
 
-std::array<PanelId, 4> all_panel_ids();
+std::array<PanelId, 5> all_panel_ids();
 std::array<DockSlot, 3> all_dock_slots();
 
 DockState build_default_dock_state();
