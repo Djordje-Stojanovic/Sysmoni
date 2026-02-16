@@ -2,6 +2,7 @@
 
 #include <QCommandLineOption>
 #include <QCommandLineParser>
+#include <QStandardPaths>
 #include <QString>
 #include <algorithm>
 #include <cmath>
@@ -141,6 +142,12 @@ LaunchConfig parse_args(QCoreApplication& app) {
     }
     if (parser.isSet(retention_option)) {
         config.retention_seconds = parser.value(retention_option).toDouble();
+    }
+    if (!parser.isSet(db_path_option) && config.persistence_enabled) {
+        QString local_app_data = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+        if (!local_app_data.isEmpty()) {
+            config.db_path = local_app_data + "/telemetry.db";
+        }
     }
     return config;
 }

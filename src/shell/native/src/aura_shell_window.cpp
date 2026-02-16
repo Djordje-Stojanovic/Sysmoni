@@ -23,6 +23,7 @@
 
 #include "aura_shell/aura_shell_window.hpp"
 #include "aura_shell/stylesheet_builder.hpp"
+#include "aura_shell/persistence_bridge.hpp"
 #include "aura_shell/render_bridge.hpp"
 #include "aura_shell/telemetry_bridge.hpp"
 #include "aura_shell/timeline_bridge.hpp"
@@ -60,6 +61,9 @@
 #include <windowsx.h>  // GET_X_LPARAM, GET_Y_LPARAM
 #include <dwmapi.h>
 #pragma comment(lib, "dwmapi.lib")
+#ifndef SM_CXPADDEDBORDERWIDTH
+#define SM_CXPADDEDBORDERWIDTH 92
+#endif
 #endif
 
 namespace aura::shell {
@@ -83,6 +87,11 @@ AuraShellWindow::AuraShellWindow(const LaunchConfig& config, QWidget* parent)
     LONG style = GetWindowLong(hwnd, GWL_STYLE);
     style |= WS_THICKFRAME | WS_MAXIMIZEBOX | WS_MINIMIZEBOX;
     SetWindowLong(hwnd, GWL_STYLE, style);
+
+    // Force Windows to recalculate the frame — without this, WS_THICKFRAME
+    // has no effect on hit testing and resize borders stay dead.
+    SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
+        SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
 
     // Extend DWM frame 1px into client area for proper compositing
     MARGINS margins = {1, 1, 1, 1};
@@ -110,13 +119,18 @@ AuraShellWindow::AuraShellWindow(const LaunchConfig& config, QWidget* parent)
     if (config.db_path.has_value()) {
         controller_config.db_path = config.db_path->toStdString();
     }
+    controller_config.persistence_enabled = config.persistence_enabled;
+    if (config.retention_seconds.has_value()) {
+        controller_config.retention_seconds = *config.retention_seconds;
+    }
     auto telemetry = std::make_unique<TelemetryBridge>();
     telemetry_bridge_raw_ = telemetry.get();
     controller_ = std::make_unique<CockpitController>(
         std::move(telemetry),
         std::make_unique<RenderBridge>(),
         std::make_unique<TimelineBridge>(),
-        std::move(controller_config)
+        std::move(controller_config),
+        std::make_unique<PersistenceBridge>()
     );
 
     auto* root = new QWidget(this);
@@ -267,26 +281,38 @@ bool AuraShellWindow::nativeEvent(const QByteArray& /*eventType*/, void* message
         return true;
     }
 
-    if (msg->message == WM_NCHITTEST && !isMaximized()) {
-        const LONG border = static_cast<LONG>(kResizeBorder);
+    if (msg->message == WM_NCHITTEST) {
+        const HWND hwnd = reinterpret_cast<HWND>(winId());
         RECT rc;
-        GetWindowRect(reinterpret_cast<HWND>(winId()), &rc);
+        GetWindowRect(hwnd, &rc);
         const LONG x = GET_X_LPARAM(msg->lParam);
         const LONG y = GET_Y_LPARAM(msg->lParam);
 
-        const bool left   = (x < rc.left + border);
-        const bool right  = (x >= rc.right - border);
-        const bool top    = (y < rc.top + border);
-        const bool bottom = (y >= rc.bottom - border);
+        if (!isMaximized()) {
+            UINT dpi = GetDpiForWindow(hwnd);
+            if (dpi == 0) dpi = 96;
+            const LONG border = static_cast<LONG>(
+                GetSystemMetricsForDpi(SM_CXSIZEFRAME, dpi) +
+                GetSystemMetricsForDpi(SM_CXPADDEDBORDERWIDTH, dpi));
 
-        if (top && left)      { *result = HTTOPLEFT;     return true; }
-        if (top && right)     { *result = HTTOPRIGHT;    return true; }
-        if (bottom && left)   { *result = HTBOTTOMLEFT;  return true; }
-        if (bottom && right)  { *result = HTBOTTOMRIGHT; return true; }
-        if (left)             { *result = HTLEFT;        return true; }
-        if (right)            { *result = HTRIGHT;       return true; }
-        if (top)              { *result = HTTOP;         return true; }
-        if (bottom)           { *result = HTBOTTOM;      return true; }
+            const bool left   = (x < rc.left + border);
+            const bool right  = (x >= rc.right - border);
+            const bool top    = (y < rc.top + border);
+            const bool bottom = (y >= rc.bottom - border);
+
+            if (top && left)      { *result = HTTOPLEFT;     return true; }
+            if (top && right)     { *result = HTTOPRIGHT;    return true; }
+            if (bottom && left)   { *result = HTBOTTOMLEFT;  return true; }
+            if (bottom && right)  { *result = HTBOTTOMRIGHT; return true; }
+            if (left)             { *result = HTLEFT;        return true; }
+            if (right)            { *result = HTRIGHT;       return true; }
+            if (top)              { *result = HTTOP;         return true; }
+            if (bottom)           { *result = HTBOTTOM;      return true; }
+        }
+
+        // Always handle — never let Qt override with HTCLIENT
+        *result = HTCLIENT;
+        return true;
     }
     return false;
 }

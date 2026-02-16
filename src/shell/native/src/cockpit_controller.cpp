@@ -16,11 +16,13 @@ CockpitController::CockpitController(
     std::unique_ptr<ITelemetryBridge> telemetry_bridge,
     std::unique_ptr<IRenderBridge> render_bridge,
     std::unique_ptr<ITimelineBridge> timeline_bridge,
-    Config config
+    Config config,
+    std::unique_ptr<IPersistenceBridge> persistence_bridge
 )
     : telemetry_bridge_(std::move(telemetry_bridge)),
       render_bridge_(std::move(render_bridge)),
       timeline_bridge_(std::move(timeline_bridge)),
+      persistence_bridge_(std::move(persistence_bridge)),
       config_(std::move(config)) {
     if (!std::isfinite(config_.poll_interval_seconds) || config_.poll_interval_seconds <= 0.0) {
         config_.poll_interval_seconds = 1.0;
@@ -39,6 +41,12 @@ CockpitController::CockpitController(
     }
     if (config_.timeline_refresh_ticks == 0U) {
         config_.timeline_refresh_ticks = 1U;
+    }
+
+    if (persistence_bridge_ != nullptr && config_.persistence_enabled && config_.db_path.has_value()) {
+        std::string persist_error;
+        persistence_active_ = persistence_bridge_->open_store(
+            *config_.db_path, config_.retention_seconds, persist_error);
     }
 }
 
@@ -238,6 +246,16 @@ CockpitUiState CockpitController::tick(
         auto net = telemetry_bridge_->collect_network_io(net_error);
         if (net.has_value()) {
             state.network_io = *net;
+        }
+    }
+
+    // Persist snapshot to DVR store (after disk I/O is available)
+    if (persistence_active_ && persistence_bridge_) {
+        std::string persist_err;
+        if (!persistence_bridge_->append_snapshot(
+                state.timestamp, state.cpu_percent, state.memory_percent,
+                state.disk_io.read_bytes_per_sec, state.disk_io.write_bytes_per_sec, persist_err)) {
+            persistence_active_ = false;
         }
     }
 
