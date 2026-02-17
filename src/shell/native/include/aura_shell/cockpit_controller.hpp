@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+#include "aura_shell/analytics_bridge.hpp"
 #include "aura_shell/cockpit_types.hpp"
 #include "aura_shell/persistence_bridge.hpp"
 #include "aura_shell/render_bridge.hpp"
@@ -27,6 +28,9 @@ public:
         bool prefer_dvr_timeline{true};
         bool persistence_enabled{true};
         double retention_seconds{604800.0};
+        std::size_t snapshot_buffer_capacity{60};
+        double trend_sensitivity{0.5};
+        std::size_t analytics_refresh_ticks{3};
     };
 
     CockpitController(
@@ -34,7 +38,8 @@ public:
         std::unique_ptr<IRenderBridge> render_bridge,
         std::unique_ptr<ITimelineBridge> timeline_bridge,
         Config config = {},
-        std::unique_ptr<IPersistenceBridge> persistence_bridge = nullptr
+        std::unique_ptr<IPersistenceBridge> persistence_bridge = nullptr,
+        std::unique_ptr<IAnalyticsBridge> analytics_bridge = nullptr
     );
 
     CockpitUiState tick(
@@ -43,6 +48,13 @@ public:
     );
 
     const CockpitUiState& last_state() const;
+
+    void set_smoothing_enabled(bool enabled);
+    bool smoothing_enabled() const;
+    bool acknowledge_alert(int rule_id, std::string& error);
+    std::optional<DvrStatsResult> compute_dvr_stats(std::string& error);
+    bool export_dvr_json(const std::string& path, std::string& error);
+    bool export_dvr_csv(const std::string& path, std::string& error);
 
 private:
     static double now_seconds();
@@ -71,6 +83,7 @@ private:
     std::unique_ptr<IRenderBridge> render_bridge_;
     std::unique_ptr<ITimelineBridge> timeline_bridge_;
     std::unique_ptr<IPersistenceBridge> persistence_bridge_;
+    std::unique_ptr<IAnalyticsBridge> analytics_bridge_;
     bool persistence_active_{false};
     Config config_;
     double frame_phase_{0.0};
@@ -84,6 +97,10 @@ private:
     std::size_t tick_count_{0};
     GpuState cached_gpu_;
     ThermalState cached_thermal_;
+
+    std::vector<AnalyticsSnapshot> snapshot_buffer_;
+    std::size_t ticks_since_analytics_{0};
+    bool smoothing_enabled_{false};
 };
 
 }  // namespace aura::shell

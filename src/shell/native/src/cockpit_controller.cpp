@@ -17,12 +17,14 @@ CockpitController::CockpitController(
     std::unique_ptr<IRenderBridge> render_bridge,
     std::unique_ptr<ITimelineBridge> timeline_bridge,
     Config config,
-    std::unique_ptr<IPersistenceBridge> persistence_bridge
+    std::unique_ptr<IPersistenceBridge> persistence_bridge,
+    std::unique_ptr<IAnalyticsBridge> analytics_bridge
 )
     : telemetry_bridge_(std::move(telemetry_bridge)),
       render_bridge_(std::move(render_bridge)),
       timeline_bridge_(std::move(timeline_bridge)),
       persistence_bridge_(std::move(persistence_bridge)),
+      analytics_bridge_(std::move(analytics_bridge)),
       config_(std::move(config)) {
     if (!std::isfinite(config_.poll_interval_seconds) || config_.poll_interval_seconds <= 0.0) {
         config_.poll_interval_seconds = 1.0;
@@ -42,6 +44,14 @@ CockpitController::CockpitController(
     if (config_.timeline_refresh_ticks == 0U) {
         config_.timeline_refresh_ticks = 1U;
     }
+    if (config_.snapshot_buffer_capacity == 0U) {
+        config_.snapshot_buffer_capacity = 60U;
+    }
+    if (config_.analytics_refresh_ticks == 0U) {
+        config_.analytics_refresh_ticks = 3U;
+    }
+    // Fire analytics on the very first tick
+    ticks_since_analytics_ = config_.analytics_refresh_ticks - 1U;
 
     if (persistence_bridge_ != nullptr && config_.persistence_enabled && config_.db_path.has_value()) {
         std::string persist_error;
@@ -279,6 +289,76 @@ CockpitUiState CockpitController::tick(
     }
     state.thermal = cached_thermal_;
 
+    // ── Analytics processing ───────────────────────────────────────────
+    if (analytics_bridge_ != nullptr && analytics_bridge_->available()) {
+        // Build analytics snapshot from current telemetry
+        AnalyticsSnapshot a_snap;
+        a_snap.timestamp = state.timestamp;
+        a_snap.cpu_percent = state.cpu_percent;
+        a_snap.memory_percent = state.memory_percent;
+        a_snap.disk_read_bps = state.disk_io.read_bytes_per_sec;
+        a_snap.disk_write_bps = state.disk_io.write_bytes_per_sec;
+        a_snap.net_recv_bps = state.network_io.recv_bytes_per_sec;
+        a_snap.net_sent_bps = state.network_io.sent_bytes_per_sec;
+
+        // Append to ring buffer (every tick)
+        snapshot_buffer_.push_back(a_snap);
+        if (snapshot_buffer_.size() > config_.snapshot_buffer_capacity) {
+            snapshot_buffer_.erase(snapshot_buffer_.begin());
+        }
+
+        // Smoothing (every tick, if enabled)
+        if (smoothing_enabled_ && analytics_bridge_->smoother_available()) {
+            std::string smooth_err;
+            auto smoothed = analytics_bridge_->smooth(a_snap, smooth_err);
+            if (smoothed.has_value()) {
+                state.cpu_percent = clamp_percent(smoothed->cpu_percent);
+                state.memory_percent = clamp_percent(smoothed->memory_percent);
+                state.smoothing_active = true;
+            }
+        }
+
+        // Alert evaluation (every tick)
+        if (analytics_bridge_->alerts_available()) {
+            std::string alert_err;
+            if (analytics_bridge_->evaluate_alerts(a_snap, alert_err)) {
+                state.active_alerts = analytics_bridge_->get_active_alerts(alert_err);
+            }
+        }
+
+        // Tiered analytics: health score + trends (every N ticks)
+        ++ticks_since_analytics_;
+        if (ticks_since_analytics_ >= config_.analytics_refresh_ticks) {
+            ticks_since_analytics_ = 0;
+
+            // Health score
+            if (analytics_bridge_->health_available()) {
+                std::string health_err;
+                auto health = analytics_bridge_->compute_health_score(a_snap, health_err);
+                if (health.has_value()) {
+                    state.health = *health;
+                }
+            }
+
+            // Trend detection (needs minimum 10 samples)
+            if (analytics_bridge_->trend_available() && snapshot_buffer_.size() >= 10U) {
+                std::string trend_err;
+
+                auto cpu_trend = analytics_bridge_->detect_trend(
+                    snapshot_buffer_, 0, config_.trend_sensitivity, trend_err);
+                if (cpu_trend.has_value()) {
+                    state.cpu_trend = cpu_trend->direction;
+                }
+
+                auto mem_trend = analytics_bridge_->detect_trend(
+                    snapshot_buffer_, 1, config_.trend_sensitivity, trend_err);
+                if (mem_trend.has_value()) {
+                    state.memory_trend = mem_trend->direction;
+                }
+            }
+        }
+    }
+
     populate_timeline_state(state, stream_error);
 
     state.status_line = fallback_status_line(stream_error);
@@ -313,6 +393,77 @@ CockpitUiState CockpitController::tick(
 
 const CockpitUiState& CockpitController::last_state() const {
     return last_state_;
+}
+
+void CockpitController::set_smoothing_enabled(const bool enabled) {
+    smoothing_enabled_ = enabled;
+    if (!enabled && analytics_bridge_ != nullptr) {
+        std::string err;
+        analytics_bridge_->reset_smoother(err);
+    }
+}
+
+bool CockpitController::smoothing_enabled() const {
+    return smoothing_enabled_;
+}
+
+bool CockpitController::acknowledge_alert(const int rule_id, std::string& error) {
+    if (analytics_bridge_ == nullptr) {
+        error = "Analytics bridge not available.";
+        return false;
+    }
+    return analytics_bridge_->acknowledge_alert(rule_id, error);
+}
+
+std::optional<DvrStatsResult> CockpitController::compute_dvr_stats(std::string& error) {
+    if (analytics_bridge_ == nullptr || !analytics_bridge_->dvr_stats_available()) {
+        error = "DVR stats not available.";
+        return std::nullopt;
+    }
+    if (persistence_bridge_ == nullptr) {
+        error = "Persistence bridge not available.";
+        return std::nullopt;
+    }
+    void* handle = persistence_bridge_->store_handle();
+    if (handle == nullptr) {
+        error = "Store not open.";
+        return std::nullopt;
+    }
+    return analytics_bridge_->compute_dvr_stats(handle, 0.0, 0.0, error);
+}
+
+bool CockpitController::export_dvr_json(const std::string& path, std::string& error) {
+    if (analytics_bridge_ == nullptr) {
+        error = "Analytics bridge not available.";
+        return false;
+    }
+    if (persistence_bridge_ == nullptr) {
+        error = "Persistence bridge not available.";
+        return false;
+    }
+    void* handle = persistence_bridge_->store_handle();
+    if (handle == nullptr) {
+        error = "Store not open.";
+        return false;
+    }
+    return analytics_bridge_->export_json(handle, 0.0, 0.0, true, path, error);
+}
+
+bool CockpitController::export_dvr_csv(const std::string& path, std::string& error) {
+    if (analytics_bridge_ == nullptr) {
+        error = "Analytics bridge not available.";
+        return false;
+    }
+    if (persistence_bridge_ == nullptr) {
+        error = "Persistence bridge not available.";
+        return false;
+    }
+    void* handle = persistence_bridge_->store_handle();
+    if (handle == nullptr) {
+        error = "Store not open.";
+        return false;
+    }
+    return analytics_bridge_->export_csv(handle, 0.0, 0.0, path, error);
 }
 
 }  // namespace aura::shell

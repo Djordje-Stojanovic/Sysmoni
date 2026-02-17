@@ -178,6 +178,14 @@ void PersistenceBridge::close_store() {
 #endif
 }
 
+void* PersistenceBridge::store_handle() const {
+#ifdef _WIN32
+    return impl_ != nullptr ? static_cast<void*>(impl_->open_store) : nullptr;
+#else
+    return nullptr;
+#endif
+}
+
 std::string PersistenceBridge::loaded_path() const {
     return impl_ != nullptr ? impl_->loaded_path : std::string{};
 }

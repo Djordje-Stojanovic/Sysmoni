@@ -284,6 +284,130 @@ public:
     }
 };
 
+class FakePersistenceBridge final : public aura::shell::IPersistenceBridge {
+public:
+    bool backend_available = false;
+    bool store_opened = false;
+    void* fake_store_handle = nullptr;
+
+    bool available() const override { return backend_available; }
+
+    bool open_store(const std::string& /*db_path*/, double /*retention_seconds*/, std::string& error) override {
+        if (!backend_available) { error = "unavailable"; return false; }
+        store_opened = true;
+        return true;
+    }
+
+    bool append_snapshot(double /*ts*/, double /*cpu*/, double /*mem*/, double /*disk_r*/, double /*disk_w*/, std::string& error) override {
+        if (!backend_available) { error = "unavailable"; return false; }
+        return true;
+    }
+
+    void close_store() override { store_opened = false; }
+
+    void* store_handle() const override { return fake_store_handle; }
+};
+
+class FakeAnalyticsBridge final : public aura::shell::IAnalyticsBridge {
+public:
+    bool backend_available = true;
+    bool health_enabled = true;
+    bool trend_enabled = true;
+    bool smoother_enabled = false;
+    bool alerts_enabled = false;
+    bool dvr_stats_enabled = false;
+
+    aura::shell::HealthScoreState next_health{true, 75.0, 80.0, 70.0, 85.0, 90.0};
+    aura::shell::TrendResult next_cpu_trend{aura::shell::TrendDirection::Rising, 0.5, 0.8};
+    aura::shell::TrendResult next_mem_trend{aura::shell::TrendDirection::Stable, 0.0, 0.1};
+    aura::shell::AnalyticsSnapshot next_smoothed{};
+    std::vector<aura::shell::ActiveAlert> next_alerts;
+    aura::shell::DvrStatsResult next_dvr_stats;
+
+    int health_call_count = 0;
+    int trend_call_count = 0;
+    int smooth_call_count = 0;
+    int evaluate_call_count = 0;
+    int acknowledge_call_count = 0;
+    int last_acknowledged_rule_id = -1;
+
+    bool available() const override { return backend_available; }
+    bool smoother_available() const override { return backend_available && smoother_enabled; }
+    bool alerts_available() const override { return backend_available && alerts_enabled; }
+    bool health_available() const override { return backend_available && health_enabled; }
+    bool trend_available() const override { return backend_available && trend_enabled; }
+    bool dvr_stats_available() const override { return backend_available && dvr_stats_enabled; }
+
+    std::optional<aura::shell::HealthScoreState> compute_health_score(
+        const aura::shell::AnalyticsSnapshot& /*snapshot*/, std::string& error) override {
+        ++health_call_count;
+        if (!health_available()) { error = "health unavailable"; return std::nullopt; }
+        return next_health;
+    }
+
+    std::optional<aura::shell::TrendResult> detect_trend(
+        const std::vector<aura::shell::AnalyticsSnapshot>& /*snapshots*/,
+        int metric, double /*sensitivity*/, std::string& error) override {
+        ++trend_call_count;
+        if (!trend_available()) { error = "trend unavailable"; return std::nullopt; }
+        if (metric == 0) return next_cpu_trend;
+        if (metric == 1) return next_mem_trend;
+        error = "unknown metric";
+        return std::nullopt;
+    }
+
+    std::optional<aura::shell::AnalyticsSnapshot> smooth(
+        const aura::shell::AnalyticsSnapshot& snapshot, std::string& error) override {
+        ++smooth_call_count;
+        if (!smoother_available()) { error = "smoother unavailable"; return std::nullopt; }
+        next_smoothed = snapshot;
+        next_smoothed.cpu_percent = snapshot.cpu_percent * 0.5 + 10.0;
+        next_smoothed.memory_percent = snapshot.memory_percent * 0.5 + 10.0;
+        return next_smoothed;
+    }
+
+    bool reset_smoother(std::string& error) override {
+        if (!smoother_available()) { error = "smoother unavailable"; return false; }
+        return true;
+    }
+
+    bool evaluate_alerts(const aura::shell::AnalyticsSnapshot& /*snapshot*/, std::string& error) override {
+        ++evaluate_call_count;
+        if (!alerts_available()) { error = "alerts unavailable"; return false; }
+        return true;
+    }
+
+    std::vector<aura::shell::ActiveAlert> get_active_alerts(std::string& error) override {
+        if (!alerts_available()) { error = "alerts unavailable"; return {}; }
+        return next_alerts;
+    }
+
+    bool acknowledge_alert(int rule_id, std::string& error) override {
+        ++acknowledge_call_count;
+        if (!alerts_available()) { error = "alerts unavailable"; return false; }
+        last_acknowledged_rule_id = rule_id;
+        return true;
+    }
+
+    std::optional<aura::shell::DvrStatsResult> compute_dvr_stats(
+        void* /*store_handle*/, double /*start*/, double /*end*/, std::string& error) override {
+        if (!dvr_stats_available()) { error = "dvr stats unavailable"; return std::nullopt; }
+        return next_dvr_stats;
+    }
+
+    bool export_json(void* /*store_handle*/, double /*start*/, double /*end*/,
+        bool /*include_stats*/, const std::string& /*path*/, std::string& error) override {
+        if (!available()) { error = "unavailable"; return false; }
+        return true;
+    }
+
+    bool export_csv(void* /*store_handle*/, double /*start*/, double /*end*/,
+        const std::string& /*path*/, std::string& error) override {
+        if (!available()) { error = "unavailable"; return false; }
+        return true;
+    }
+};
+
 // ---------------------------------------------------------------------------
 // Assertion helpers
 // ---------------------------------------------------------------------------

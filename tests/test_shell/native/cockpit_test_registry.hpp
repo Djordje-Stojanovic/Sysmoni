@@ -19,3 +19,17 @@ bool test_disk_network_rate_flows_through();
 bool test_tiered_polling_gpu_every_2_ticks();
 bool test_graceful_degradation_new_sensors();
 bool test_thermal_every_5_ticks();
+
+// Tests defined in analytics_bridge_tests.cpp (12 tests):
+bool test_health_score_flows_through_tick();
+bool test_health_unavailable_preserves_defaults();
+bool test_cpu_trend_rising_with_enough_samples();
+bool test_trends_need_minimum_10_samples();
+bool test_smoothing_toggle_affects_values();
+bool test_smoothing_off_by_default();
+bool test_alert_evaluation_populates_active_alerts();
+bool test_alert_acknowledge();
+bool test_analytics_graceful_degradation();
+bool test_tiered_analytics_every_n_ticks();
+bool test_snapshot_buffer_ring_capacity();
+bool test_no_analytics_bridge_works_fine();
