@@ -38,7 +38,6 @@ class AuraShellWindow;
 // dragged beyond a small threshold. Destination slot frames accept the
 // drop and call move_panel_to_slot().
 class DragTabBar final : public QTabBar {
-    Q_OBJECT
 public:
     explicit DragTabBar(DockSlot slot, AuraShellWindow* window, QWidget* parent = nullptr);
 protected:
@@ -58,7 +57,6 @@ struct SlotWidgets {
 };
 
 class AuraShellWindow final : public QMainWindow {
-    Q_OBJECT
     friend class DragTabBar;
 public:
     explicit AuraShellWindow(const LaunchConfig& config, QWidget* parent = nullptr);

@@ -74,6 +74,8 @@
 
 namespace aura::shell {
 
+static constexpr const char* k_panel_mime = "application/x-aura-panel-id";
+
 AuraShellWindow::AuraShellWindow(const LaunchConfig& config, QWidget* parent)
     : QMainWindow(parent),
       config_(config) {
@@ -571,8 +573,6 @@ SlotWidgets AuraShellWindow::build_slot(const DockSlot slot, QWidget* parent) {
 }
 
 // ── DragTabBar implementation ────────────────────────────────────────────────
-
-static constexpr const char* k_panel_mime = "application/x-aura-panel-id";
 
 DragTabBar::DragTabBar(const DockSlot slot, AuraShellWindow* window, QWidget* parent)
     : QTabBar(parent), slot_(slot), window_(window) {}
