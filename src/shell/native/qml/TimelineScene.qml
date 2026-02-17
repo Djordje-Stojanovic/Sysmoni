@@ -36,10 +36,12 @@ Rectangle {
     property bool gpuAvailable: false
 
     // ── Analytics properties ──────────────────────────────────────────────
+    // Bug #15: exportRequested was a bool property polled every C++ tick.
+    // Replaced with a proper QML signal connected to AuraShellWindow::handle_export_requested().
+    signal exportRequested()
     property bool dvrStatsAvailable: false
     property var dvrStats: ({})
     property bool showStats: false
-    property bool exportRequested: false
     property string exportStatus: ""
 
     // ── Legend toggle state ───────────────────────────────────────────────
@@ -276,7 +278,7 @@ Rectangle {
             MouseArea {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
-                onClicked: root.exportRequested = true
+                onClicked: root.exportRequested()
             }
         }
     }

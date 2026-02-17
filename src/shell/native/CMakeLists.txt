@@ -56,6 +56,8 @@ if(AURA_SHELL_BUILD_APP)
             src/aura_shell_window.cpp
             src/aura_shell_window_panels.cpp
             src/aura_shell_window_refresh.cpp
+            # Header listed so AUTOMOC generates moc_aura_shell_window.cpp (Q_OBJECT).
+            include/aura_shell/aura_shell_window.hpp
         )
         target_compile_definitions(aura_shell PRIVATE
             AURA_SHELL_QML_PATH="${CMAKE_CURRENT_SOURCE_DIR}/qml/CockpitScene.qml"

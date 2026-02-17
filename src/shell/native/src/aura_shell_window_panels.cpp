@@ -5,6 +5,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QQmlContext>
+#include <QQuickItem>
 #include <QQuickWidget>
 #include <QScrollArea>
 #include <QSizePolicy>
@@ -223,7 +224,16 @@ void AuraShellWindow::build_panel_pages() {
         // startup race where apply_theme() fires before rootObject() is available.
         connect(timeline_quick_, &QQuickWidget::statusChanged,
                 this, [this](QQuickWidget::Status status) {
-            if (status == QQuickWidget::Ready) { theme_dirty_ = true; }
+            if (status != QQuickWidget::Ready) { return; }
+            theme_dirty_ = true;
+            // Bug #15: connect QML exportRequested() signal to C++ slot now that
+            // rootObject() is available.  String-based SIGNAL/SLOT is required
+            // here because QML-defined signals have no compile-time pointer.
+            QQuickItem* tl_root = timeline_quick_->rootObject();
+            if (tl_root != nullptr) {
+                connect(static_cast<QObject*>(tl_root), SIGNAL(exportRequested()),
+                        this,                            SLOT(handle_export_requested()));
+            }
         });
 
         timeline_status_ = new QLabel("Awaiting timeline samples...", parent_page);

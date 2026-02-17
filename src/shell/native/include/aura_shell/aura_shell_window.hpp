@@ -57,6 +57,7 @@ struct SlotWidgets {
 };
 
 class AuraShellWindow final : public QMainWindow {
+    Q_OBJECT
     friend class DragTabBar;
 public:
     explicit AuraShellWindow(const LaunchConfig& config, QWidget* parent = nullptr);
@@ -71,6 +72,10 @@ protected:
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
+
+private Q_SLOTS:
+    // Bug #15: proper slot for QML exportRequested() signal, replacing polling.
+    void handle_export_requested();
 
 private:
     // --- Panel management (aura_shell_window_panels.cpp) ---

@@ -295,36 +295,9 @@ void AuraShellWindow::refresh_cockpit() {
             tl_root->setProperty("dvrStatsAvailable", false);
         }
 
-        // Handle export request from QML
-        if (tl_root->property("exportRequested").toBool()) {
-            tl_root->setProperty("exportRequested", false);
-
-            // Build export path: ~/aura_export_<timestamp>.json
-            std::string home_dir;
-            if (const char* userprofile = std::getenv("USERPROFILE")) {
-                home_dir = userprofile;
-            } else if (const char* home = std::getenv("HOME")) {
-                home_dir = home;
-            } else {
-                home_dir = ".";
-            }
-
-            const auto now = std::chrono::system_clock::now();
-            const auto epoch = std::chrono::duration_cast<std::chrono::seconds>(
-                now.time_since_epoch()).count();
-            const std::string export_path = home_dir + "/aura_export_" +
-                std::to_string(epoch) + ".json";
-
-            std::string export_err;
-            const bool export_ok = controller_->export_dvr_json(export_path, export_err);
-            if (export_ok) {
-                tl_root->setProperty("exportStatus",
-                    QString("Exported to %1").arg(QString::fromStdString(export_path)));
-            } else {
-                tl_root->setProperty("exportStatus",
-                    QString("Export failed: %1").arg(QString::fromStdString(export_err)));
-            }
-        }
+        // Bug #15: export is now handled by handle_export_requested() slot,
+        // connected to the QML exportRequested() signal on scene load.
+        // Polling block removed.
 
         if (theme_dirty_) {
             tl_root->setProperty(
@@ -350,6 +323,46 @@ void AuraShellWindow::refresh_cockpit() {
     // current_interval_seconds_ is set once at construction from config and
     // never needs to be re-read from the timer — the timer doesn't change its
     // own interval, so this was a no-op on every tick.
+}
+
+// ---------------------------------------------------------------------------
+// Bug #15 — export slot (was polled every tick; now driven by QML signal)
+// ---------------------------------------------------------------------------
+
+void AuraShellWindow::handle_export_requested() {
+    if (!controller_) {
+        return;
+    }
+
+    // Build export path: ~/aura_export_<timestamp>.json
+    std::string home_dir;
+    if (const char* userprofile = std::getenv("USERPROFILE")) {
+        home_dir = userprofile;
+    } else if (const char* home = std::getenv("HOME")) {
+        home_dir = home;
+    } else {
+        home_dir = ".";
+    }
+
+    const auto now = std::chrono::system_clock::now();
+    const auto epoch = std::chrono::duration_cast<std::chrono::seconds>(
+        now.time_since_epoch()).count();
+    const std::string export_path = home_dir + "/aura_export_" +
+        std::to_string(epoch) + ".json";
+
+    std::string export_err;
+    const bool export_ok = controller_->export_dvr_json(export_path, export_err);
+
+    if (timeline_quick_ != nullptr && timeline_quick_->rootObject() != nullptr) {
+        QQuickItem* tl_root = timeline_quick_->rootObject();
+        if (export_ok) {
+            tl_root->setProperty("exportStatus",
+                QString("Exported to %1").arg(QString::fromStdString(export_path)));
+        } else {
+            tl_root->setProperty("exportStatus",
+                QString("Export failed: %1").arg(QString::fromStdString(export_err)));
+        }
+    }
 }
 
 }  // namespace aura::shell
