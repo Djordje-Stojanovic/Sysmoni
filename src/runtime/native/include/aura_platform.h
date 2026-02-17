@@ -142,6 +142,134 @@ AURA_PLATFORM_EXPORT int aura_dvr_query_timeline(
 
 AURA_PLATFORM_EXPORT int aura_store_close(aura_store_t* store);
 
+/* -----------------------------------------------------------------------
+ * Alert Engine
+ * ----------------------------------------------------------------------- */
+
+typedef struct aura_alert_engine aura_alert_engine_t;
+
+enum aura_alert_metric_t {
+    AURA_METRIC_CPU_PERCENT    = 0,
+    AURA_METRIC_MEMORY_PERCENT = 1,
+    AURA_METRIC_DISK_READ_BPS  = 2,
+    AURA_METRIC_DISK_WRITE_BPS = 3,
+    AURA_METRIC_NET_RECV_BPS   = 4,
+    AURA_METRIC_NET_SENT_BPS   = 5
+};
+
+enum aura_alert_comparator_t {
+    AURA_COMPARATOR_ABOVE = 0,
+    AURA_COMPARATOR_BELOW = 1
+};
+
+enum aura_alert_state_t {
+    AURA_ALERT_IDLE      = 0,
+    AURA_ALERT_PENDING   = 1,
+    AURA_ALERT_TRIGGERED = 2,
+    AURA_ALERT_COOLDOWN  = 3
+};
+
+typedef struct aura_alert_rule_t {
+    int    id;
+    int    metric;
+    int    comparator;
+    double threshold;
+    double sustained_seconds;
+    double cooldown_seconds;
+    char   name[256];
+} aura_alert_rule_t;
+
+typedef struct aura_alert_status_t {
+    int    rule_id;
+    int    state;
+    double last_value;
+    double peak_value;
+    double triggered_at;
+    double duration;
+    int    acknowledged;
+} aura_alert_status_t;
+
+typedef struct aura_alert_event_t {
+    int    rule_id;
+    int    event_type;
+    double timestamp;
+    double value;
+} aura_alert_event_t;
+
+AURA_PLATFORM_EXPORT int aura_alert_engine_create(
+    aura_alert_engine_t** out_engine,
+    aura_error_t* out_error
+);
+
+AURA_PLATFORM_EXPORT int aura_alert_engine_destroy(
+    aura_alert_engine_t* engine
+);
+
+AURA_PLATFORM_EXPORT int aura_alert_engine_add_rule(
+    aura_alert_engine_t* engine,
+    const aura_alert_rule_t* rule,
+    aura_error_t* out_error
+);
+
+AURA_PLATFORM_EXPORT int aura_alert_engine_remove_rule(
+    aura_alert_engine_t* engine,
+    int rule_id,
+    aura_error_t* out_error
+);
+
+AURA_PLATFORM_EXPORT int aura_alert_engine_get_rule(
+    aura_alert_engine_t* engine,
+    int rule_id,
+    aura_alert_rule_t* out_rule,
+    aura_error_t* out_error
+);
+
+AURA_PLATFORM_EXPORT int aura_alert_engine_rule_count(
+    aura_alert_engine_t* engine,
+    int* out_count,
+    aura_error_t* out_error
+);
+
+AURA_PLATFORM_EXPORT int aura_alert_engine_evaluate(
+    aura_alert_engine_t* engine,
+    const aura_snapshot_t* snapshot,
+    aura_error_t* out_error
+);
+
+AURA_PLATFORM_EXPORT int aura_alert_engine_get_status(
+    aura_alert_engine_t* engine,
+    int rule_id,
+    aura_alert_status_t* out_status,
+    aura_error_t* out_error
+);
+
+AURA_PLATFORM_EXPORT int aura_alert_engine_get_active(
+    aura_alert_engine_t* engine,
+    aura_alert_status_t* out_statuses,
+    int out_capacity,
+    int* out_count,
+    aura_error_t* out_error
+);
+
+AURA_PLATFORM_EXPORT int aura_alert_engine_acknowledge(
+    aura_alert_engine_t* engine,
+    int rule_id,
+    aura_error_t* out_error
+);
+
+AURA_PLATFORM_EXPORT int aura_alert_engine_get_history(
+    aura_alert_engine_t* engine,
+    aura_alert_event_t* out_events,
+    int out_capacity,
+    int* out_count,
+    aura_error_t* out_error
+);
+
+AURA_PLATFORM_EXPORT int aura_alert_engine_clear_history(
+    aura_alert_engine_t* engine,
+    aura_error_t* out_error
+);
+
 #ifdef __cplusplus
 }
 #endif
