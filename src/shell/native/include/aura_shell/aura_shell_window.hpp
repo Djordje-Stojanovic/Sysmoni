@@ -1,9 +1,11 @@
 #pragma once
 
 #include <QApplication>
+#include <QDrag>
 #include <QFrame>
 #include <QLabel>
 #include <QMainWindow>
+#include <QMimeData>
 #include <QMouseEvent>
 #include <QPushButton>
 #include <QQuickWidget>
@@ -28,6 +30,27 @@
 
 namespace aura::shell {
 
+// Forward declaration
+class AuraShellWindow;
+
+// ── DragTabBar: tab bar that supports cross-zone drag-and-drop ──
+// Starts a QDrag with MIME "application/x-aura-panel-id" when a tab is
+// dragged beyond a small threshold. Destination slot frames accept the
+// drop and call move_panel_to_slot().
+class DragTabBar final : public QTabBar {
+    Q_OBJECT
+public:
+    explicit DragTabBar(DockSlot slot, AuraShellWindow* window, QWidget* parent = nullptr);
+protected:
+    void mousePressEvent(QMouseEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
+private:
+    DockSlot slot_;
+    AuraShellWindow* window_;
+    QPoint drag_start_;
+    int drag_tab_index_{-1};
+};
+
 struct SlotWidgets {
     QFrame* frame;
     QTabBar* tab_bar;
@@ -35,6 +58,8 @@ struct SlotWidgets {
 };
 
 class AuraShellWindow final : public QMainWindow {
+    Q_OBJECT
+    friend class DragTabBar;
 public:
     explicit AuraShellWindow(const LaunchConfig& config, QWidget* parent = nullptr);
 
