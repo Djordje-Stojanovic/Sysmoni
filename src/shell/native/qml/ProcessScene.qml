@@ -389,9 +389,10 @@ Rectangle {
                         }
                     }
 
-                    // Kill button — opacity-based instead of visible toggle
+                    // Kill button — anchored to right edge, never clipped
                     Rectangle {
-                        x: parent.width * 0.90
+                        anchors.right: parent.right
+                        anchors.rightMargin: Math.round(4 * root.scaleFactor)
                         anchors.verticalCenter: parent.verticalCenter
                         width: Math.round(28 * root.scaleFactor)
                         height: Math.round(20 * root.scaleFactor)
@@ -400,7 +401,7 @@ Rectangle {
                         color: killBtnMouse.containsMouse ? root.clrDangerHover : root.clrDanger
 
                         Behavior on opacity {
-                            NumberAnimation { duration: 120 }
+                            NumberAnimation { duration: 120; easing.type: Easing.OutQuad }
                         }
 
                         Text {

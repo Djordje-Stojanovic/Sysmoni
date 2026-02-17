@@ -1205,6 +1205,7 @@ Rectangle {
                 height: root.effectiveGaugeSize
 
                 MouseArea {
+                    z: 10
                     anchors.fill: parent
                     hoverEnabled: true
                     acceptedButtons: Qt.NoButton
@@ -1268,6 +1269,7 @@ Rectangle {
 
                 Canvas {
                     id: cpuArcCanvas
+                    antialiasing: true
                     anchors.centerIn: parent
                     width: parent.width
                     height: parent.height
@@ -1363,6 +1365,7 @@ Rectangle {
                 height: root.effectiveGaugeSize
 
                 MouseArea {
+                    z: 10
                     anchors.fill: parent
                     hoverEnabled: true
                     acceptedButtons: Qt.NoButton
@@ -1397,6 +1400,7 @@ Rectangle {
 
                 Canvas {
                     id: memArcCanvas
+                    antialiasing: true
                     anchors.centerIn: parent
                     width: parent.width
                     height: parent.height
@@ -1487,6 +1491,7 @@ Rectangle {
                 visible: root.gpuAvailable
 
                 MouseArea {
+                    z: 10
                     anchors.fill: parent
                     hoverEnabled: true
                     acceptedButtons: Qt.NoButton
@@ -1521,6 +1526,7 @@ Rectangle {
 
                 Canvas {
                     id: gpuArcCanvas
+                    antialiasing: true
                     anchors.centerIn: parent
                     width: parent.width
                     height: parent.height
@@ -1571,6 +1577,7 @@ Rectangle {
                 visible: root.healthAvailable
 
                 MouseArea {
+                    z: 10
                     anchors.fill: parent
                     hoverEnabled: true
                     acceptedButtons: Qt.NoButton
@@ -1607,6 +1614,7 @@ Rectangle {
 
                 Canvas {
                     id: healthArcCanvas
+                    antialiasing: true
                     anchors.centerIn: parent
                     width: parent.width
                     height: parent.height
@@ -2818,7 +2826,8 @@ Rectangle {
     Rectangle {
         id: gaugeTooltip
         visible: false
-        z: 100
+        z: 200
+        clip: false
         width: tooltipCol.implicitWidth + 20
         height: tooltipCol.implicitHeight + 14
         radius: 6

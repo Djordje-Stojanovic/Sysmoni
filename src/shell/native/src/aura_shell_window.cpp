@@ -49,6 +49,7 @@
 #include <QScreen>
 #include <QSizePolicy>
 #include <QSplitter>
+#include <QStyle>
 #include <QStackedWidget>
 #include <QTabBar>
 #include <QTimer>
@@ -372,8 +373,20 @@ bool AuraShellWindow::eventFilter(QObject* watched, QEvent* event) {
     if (event->type() == QEvent::DragEnter) {
         auto* de = static_cast<QDragEnterEvent*>(event);
         if (de->mimeData()->hasFormat(QString::fromLatin1(k_panel_mime))) {
+            // Highlight target slot frame
+            if (auto* frame = qobject_cast<QFrame*>(watched)) {
+                frame->setProperty("auraDragOver", true);
+                frame->style()->polish(frame);
+            }
             de->acceptProposedAction();
             return true;
+        }
+    }
+    if (event->type() == QEvent::DragLeave) {
+        // Remove slot highlight
+        if (auto* frame = qobject_cast<QFrame*>(watched)) {
+            frame->setProperty("auraDragOver", QVariant());
+            frame->style()->polish(frame);
         }
     }
     if (event->type() == QEvent::Drop) {
@@ -381,6 +394,12 @@ bool AuraShellWindow::eventFilter(QObject* watched, QEvent* event) {
         if (de->mimeData()->hasFormat(QString::fromLatin1(k_panel_mime))) {
             const int panel_int = de->mimeData()->data(QString::fromLatin1(k_panel_mime)).toInt();
             const auto panel_id = static_cast<PanelId>(panel_int);
+
+            // Clear drag highlight on drop target
+            if (auto* frame = qobject_cast<QFrame*>(watched)) {
+                frame->setProperty("auraDragOver", QVariant());
+                frame->style()->polish(frame);
+            }
 
             // Find which slot frame received the drop
             for (const auto target_slot : all_dock_slots()) {
@@ -624,6 +643,15 @@ void DragTabBar::mouseMoveEvent(QMouseEvent* event) {
 
         auto* drag = new QDrag(this);
         drag->setMimeData(mime);
+
+        // Visual ghost preview of the tab being dragged
+        const QRect tab_rect = tabRect(drag_tab_index_);
+        if (tab_rect.isValid()) {
+            QPixmap pix = grab(tab_rect);
+            drag->setPixmap(pix.scaledToWidth(qMin(140, pix.width()), Qt::SmoothTransformation));
+            drag->setHotSpot(QPoint(20, 16));
+        }
+
         drag->exec(Qt::MoveAction);
         drag_tab_index_ = -1;
         return;
