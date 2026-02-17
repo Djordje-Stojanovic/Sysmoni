@@ -12,6 +12,7 @@ public:
     virtual bool open_store(const std::string& db_path, double retention_seconds, std::string& error) = 0;
     virtual bool append_snapshot(double ts, double cpu, double mem, double disk_r, double disk_w, std::string& error) = 0;
     virtual void close_store() = 0;
+    virtual void* store_handle() const = 0;
 };
 
 class PersistenceBridge final : public IPersistenceBridge {
@@ -26,6 +27,7 @@ public:
     bool open_store(const std::string& db_path, double retention_seconds, std::string& error) override;
     bool append_snapshot(double ts, double cpu, double mem, double disk_r, double disk_w, std::string& error) override;
     void close_store() override;
+    void* store_handle() const override;
 
     std::string loaded_path() const;
     std::string load_error() const;

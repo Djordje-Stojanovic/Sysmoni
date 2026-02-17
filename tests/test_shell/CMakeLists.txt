@@ -37,3 +37,9 @@ add_executable(aura_shell_ui_theme_tests
 )
 target_link_libraries(aura_shell_ui_theme_tests PRIVATE aura_shell_core)
 add_test(NAME aura_shell_ui_theme_tests COMMAND aura_shell_ui_theme_tests)
+
+add_executable(aura_shell_analytics_tests
+    native/analytics_bridge_tests.cpp
+)
+target_link_libraries(aura_shell_analytics_tests PRIVATE aura_shell_core)
+add_test(NAME aura_shell_analytics_tests COMMAND aura_shell_analytics_tests)

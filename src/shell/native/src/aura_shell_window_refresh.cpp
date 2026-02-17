@@ -174,6 +174,32 @@ void AuraShellWindow::refresh_cockpit() {
         }
         root->setProperty("thermalSensors", sensor_list);
 
+        // Health score
+        root->setProperty("healthAvailable", state.health.available);
+        root->setProperty("healthOverall", state.health.overall);
+        root->setProperty("healthCpu", state.health.cpu);
+        root->setProperty("healthMemory", state.health.memory);
+        root->setProperty("healthDisk", state.health.disk);
+        root->setProperty("healthNetwork", state.health.network);
+
+        // Trends (0=stable, 1=rising, 2=falling)
+        root->setProperty("cpuTrend", static_cast<int>(state.cpu_trend));
+        root->setProperty("memoryTrend", static_cast<int>(state.memory_trend));
+        root->setProperty("smoothingActive", state.smoothing_active);
+
+        // Active alerts as QVariantList
+        QVariantList alertList;
+        for (const auto& a : state.active_alerts) {
+            QVariantMap m;
+            m["ruleId"] = a.rule_id;
+            m["state"] = a.state;
+            m["peakValue"] = a.peak_value;
+            m["duration"] = a.duration;
+            m["acknowledged"] = a.acknowledged;
+            alertList.append(m);
+        }
+        root->setProperty("activeAlerts", alertList);
+
         if (theme_dirty_) {
             root->setProperty(
                 "themeMode",

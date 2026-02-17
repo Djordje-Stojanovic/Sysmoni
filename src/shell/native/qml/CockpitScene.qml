@@ -62,6 +62,26 @@ Rectangle {
     property real thermalHottest: 0.0
     property var thermalSensors: []
 
+    // ── Analytics bridge properties ────────────────────────────────────────
+    property bool healthAvailable: false
+    property real healthOverall: 50.0
+    property real healthCpu: 50.0
+    property real healthMemory: 50.0
+    property real healthDisk: 50.0
+    property real healthNetwork: 50.0
+    property int cpuTrend: 0    // 0=stable, 1=rising, 2=falling
+    property int memoryTrend: 0
+    property bool smoothingActive: false
+    property var activeAlerts: []
+
+    // Smoothed health for gauge animation
+    property real smoothHealth: 50.0
+    property bool hasHealthSample: false
+    onHealthOverallChanged: {
+        if (!hasHealthSample) { smoothHealth = healthOverall; hasHealthSample = true }
+        else { smoothHealth = smoothHealth * 0.80 + healthOverall * 0.20 }
+    }
+
     // Smoothed GPU value
     property real smoothGpu: 0.0
     property bool hasGpuSample: false
@@ -220,6 +240,105 @@ Rectangle {
             Math.max(0, Math.min(1, b)),
             alpha
         )
+    }
+
+    // ── Health gauge color (inverted: high=green, low=red) ─────────────────
+    function healthGaugeColor(score, alpha) {
+        var r, g, b
+        if (score < 50) {
+            var t = score / 50.0
+            r = 0.937 + (0.961 - 0.937) * t
+            g = 0.267 + (0.620 - 0.267) * t
+            b = 0.267 + (0.043 - 0.267) * t
+        } else if (score < 80) {
+            var t2 = (score - 50) / 30.0
+            r = 0.961 + (0.133 - 0.961) * t2
+            g = 0.620 + (0.773 - 0.620) * t2
+            b = 0.043 + (0.369 - 0.043) * t2
+        } else {
+            var t3 = (score - 80) / 20.0
+            r = 0.133 + (0.133 - 0.133) * t3
+            g = 0.773 + (0.773 - 0.773) * t3
+            b = 0.369 + (0.369 - 0.369) * t3
+        }
+        return Qt.rgba(
+            Math.max(0, Math.min(1, r)),
+            Math.max(0, Math.min(1, g)),
+            Math.max(0, Math.min(1, b)),
+            alpha
+        )
+    }
+
+    // ── Health gauge arc drawing ──────────────────────────────────────────
+    function drawHealthGauge(ctx, w, h, score, sf) {
+        ctx.clearRect(0, 0, w, h)
+        var cx = w / 2, cy = h / 2
+        var r = w / 2 - Math.max(6, Math.round(10 * sf))
+        var trackW = Math.max(5, Math.round(11 * sf))
+        var startAngle = Math.PI * 0.75
+        var fullSweep = Math.PI * 1.50
+        var endAngle = startAngle + fullSweep * (score / 100.0)
+
+        // Track arc
+        ctx.beginPath()
+        ctx.arc(cx, cy, r, startAngle, startAngle + fullSweep, false)
+        ctx.strokeStyle = root.clrTrack
+        ctx.lineWidth = trackW
+        ctx.lineCap = "butt"
+        ctx.stroke()
+
+        // Tick marks at 25%, 50%, 75%
+        ctx.strokeStyle = root.clrTrackTick
+        ctx.lineWidth = 2
+        var ticks = [0.25, 0.50, 0.75]
+        for (var i = 0; i < ticks.length; i++) {
+            var ta = startAngle + fullSweep * ticks[i]
+            ctx.beginPath()
+            ctx.arc(cx, cy, r, ta, ta + 0.012, false)
+            ctx.lineWidth = trackW + 2
+            ctx.stroke()
+        }
+
+        // Value arc
+        if (score > 0.2) {
+            var gc = root.healthGaugeColor(score, 1.0)
+            var grad = ctx.createLinearGradient(
+                cx + r * Math.cos(startAngle), cy + r * Math.sin(startAngle),
+                cx + r * Math.cos(endAngle), cy + r * Math.sin(endAngle)
+            )
+            var gcStart = root.healthGaugeColor(Math.max(0, score * 0.5), 1.0)
+            grad.addColorStop(0.0, Qt.rgba(gcStart.r, gcStart.g, gcStart.b, 0.85))
+            grad.addColorStop(1.0, Qt.rgba(gc.r, gc.g, gc.b, 1.00))
+            ctx.beginPath()
+            ctx.arc(cx, cy, r, startAngle, endAngle, false)
+            ctx.strokeStyle = grad
+            ctx.lineWidth = trackW
+            ctx.lineCap = "round"
+            ctx.stroke()
+
+            // Leading dot
+            var dotX = cx + r * Math.cos(endAngle)
+            var dotY = cy + r * Math.sin(endAngle)
+            ctx.beginPath()
+            ctx.arc(dotX, dotY, trackW * 0.55, 0, Math.PI * 2, false)
+            ctx.fillStyle = Qt.rgba(gc.r, gc.g, gc.b, 1.0)
+            ctx.fill()
+        }
+    }
+
+    // ── Trend arrow helper ───────────────────────────────────────────────
+    function trendArrow(direction) {
+        if (direction === 1) return "\u2191"  // Rising
+        if (direction === 2) return "\u2193"  // Falling
+        return "\u2192"                        // Stable
+    }
+    function trendColor(direction) {
+        if (direction === 1) return "#f47272"  // Red — rising usage is bad
+        if (direction === 2) return "#6ee7b7"  // Green — falling usage is good
+        return root.clrTextMuted               // Muted for stable
+    }
+    function trendOpacity(direction) {
+        return direction === 0 ? 0.4 : 0.85
     }
 
     // ── Rate formatting helper ──────────────────────────────────────────────
@@ -1143,6 +1262,17 @@ Rectangle {
                         font.letterSpacing: 2.5
                     }
 
+                    // Trend arrow
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        visible: root.healthAvailable
+                        text: root.trendArrow(root.cpuTrend)
+                        color: root.trendColor(root.cpuTrend)
+                        font.pixelSize: Math.max(7, root.fontGaugeLabel * 0.75)
+                        font.weight: Font.Bold
+                        opacity: root.trendOpacity(root.cpuTrend)
+                    }
+
                     // Kawaii mood face (pink mode)
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
@@ -1242,6 +1372,17 @@ Rectangle {
                         font.letterSpacing: 2.5
                     }
 
+                    // Trend arrow
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        visible: root.healthAvailable
+                        text: root.trendArrow(root.memoryTrend)
+                        color: root.trendColor(root.memoryTrend)
+                        font.pixelSize: Math.max(7, root.fontGaugeLabel * 0.75)
+                        font.weight: Font.Bold
+                        opacity: root.trendOpacity(root.memoryTrend)
+                    }
+
                     // Kawaii mood face (pink mode)
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
@@ -1317,6 +1458,93 @@ Rectangle {
                     }
                 }
             }
+            // ── Health gauge — visible when analytics engine available ────
+            Item {
+                id: healthGaugeItem
+                width: root.effectiveGaugeSize
+                height: root.effectiveGaugeSize
+                visible: root.healthAvailable
+
+                Canvas {
+                    id: healthGlowCanvas
+                    anchors.centerIn: parent
+                    width: parent.width + Math.round(10 + 10 * root.scaleFactor)
+                    height: parent.height + Math.round(10 + 10 * root.scaleFactor)
+                    opacity: 0.30 + root.accentIntensity * 0.15
+                    onPaint: root.drawGlowHalo(getContext("2d"), width, height, root.smoothHealth, parent.width, root.scaleFactor)
+                    Connections {
+                        target: root
+                        function onSmoothHealthChanged() { healthGlowCanvas.requestPaint() }
+                    }
+                }
+
+                Canvas {
+                    id: healthArcCanvas
+                    anchors.centerIn: parent
+                    width: parent.width
+                    height: parent.height
+                    onPaint: root.drawHealthGauge(getContext("2d"), width, height, root.smoothHealth, root.scaleFactor)
+                    Connections {
+                        target: root
+                        function onSmoothHealthChanged() { healthArcCanvas.requestPaint() }
+                    }
+                }
+
+                Column {
+                    anchors.centerIn: parent
+                    anchors.verticalCenterOffset: 4
+                    spacing: 2
+
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: root.smoothHealth.toFixed(0)
+                        color: root.clrTextPrimary
+                        font.pixelSize: root.fontGaugeValue
+                        font.weight: Font.Bold
+                    }
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: "HEALTH"
+                        color: root.clrTextSecondary
+                        font.pixelSize: root.fontGaugeLabel
+                        font.weight: Font.Medium
+                        font.letterSpacing: 2.5
+                    }
+                }
+            }
+
+            // ── Health sub-score pills (below health gauge) ──────────────
+            Column {
+                visible: root.healthAvailable && root.showExtended
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Math.round(3 * root.scaleFactor)
+
+                Repeater {
+                    model: [
+                        { label: "CPU", score: root.healthCpu },
+                        { label: "MEM", score: root.healthMemory },
+                        { label: "DISK", score: root.healthDisk },
+                        { label: "NET", score: root.healthNetwork }
+                    ]
+                    Rectangle {
+                        width: Math.max(44, Math.round(52 * root.scaleFactor))
+                        height: Math.max(14, Math.round(16 * root.scaleFactor))
+                        radius: height * 0.3
+                        color: root.healthGaugeColor(modelData.score, 0.12)
+                        border.width: 1
+                        border.color: root.healthGaugeColor(modelData.score, 0.30)
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: modelData.label + " " + modelData.score.toFixed(0)
+                            color: root.healthGaugeColor(modelData.score, 0.90)
+                            font.pixelSize: Math.max(7, Math.round(root.fontGaugeLabel * 0.7))
+                            font.weight: Font.DemiBold
+                            font.letterSpacing: 0.5
+                        }
+                    }
+                }
+            }
         } // Row gaugeRow
 
         // ── Between-gauge kawaii connector (pink mode) ─────────────────────
@@ -1351,6 +1579,37 @@ Rectangle {
                         }
                     }
                 }
+            }
+        }
+
+        // ── Alert badge ──────────────────────────────────────────────────────
+        Rectangle {
+            id: alertBadge
+            Layout.alignment: Qt.AlignHCenter
+            Layout.preferredHeight: alertBadgeText.implicitHeight + Math.round(8 * root.scaleFactor)
+            Layout.preferredWidth: alertBadgeText.implicitWidth + Math.round(24 * root.scaleFactor)
+            visible: root.activeAlerts.length > 0
+            radius: height / 2
+            color: Qt.rgba(0.93, 0.27, 0.27, 0.15)
+            border.width: 1
+            border.color: Qt.rgba(0.93, 0.27, 0.27, 0.45)
+
+            property real pulseOpacity: 1.0
+            SequentialAnimation on pulseOpacity {
+                running: alertBadge.visible
+                loops: Animation.Infinite
+                NumberAnimation { to: 0.6; duration: 800; easing.type: Easing.InOutSine }
+                NumberAnimation { to: 1.0; duration: 800; easing.type: Easing.InOutSine }
+            }
+
+            Text {
+                id: alertBadgeText
+                anchors.centerIn: parent
+                text: root.activeAlerts.length + (root.activeAlerts.length === 1 ? " ALERT" : " ALERTS")
+                color: Qt.rgba(0.93, 0.27, 0.27, parent.pulseOpacity)
+                font.pixelSize: Math.max(8, Math.round(root.fontGaugeLabel * 0.85))
+                font.weight: Font.Bold
+                font.letterSpacing: 1.5
             }
         }
 

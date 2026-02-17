@@ -103,6 +103,57 @@ struct ThermalState {
     double hottest_celsius{0.0};
 };
 
+enum class TrendDirection : int { Stable = 0, Rising = 1, Falling = 2 };
+
+struct HealthScoreState {
+    bool available{false};
+    double overall{50.0};
+    double cpu{50.0};
+    double memory{50.0};
+    double disk{50.0};
+    double network{50.0};
+};
+
+struct ActiveAlert {
+    int rule_id{0};
+    int state{0};       // 0=idle, 1=pending, 2=triggered, 3=cooldown
+    double last_value{0.0};
+    double peak_value{0.0};
+    double duration{0.0};
+    bool acknowledged{false};
+};
+
+struct MetricStats {
+    double avg{0.0};
+    double min_val{0.0};
+    double max_val{0.0};
+    double p50{0.0};
+    double p95{0.0};
+    double p99{0.0};
+    double stddev{0.0};
+};
+
+struct DvrStatsResult {
+    int count{0};
+    double duration_seconds{0.0};
+    MetricStats cpu;
+    MetricStats memory;
+    MetricStats disk_read;
+    MetricStats disk_write;
+    MetricStats net_recv;
+    MetricStats net_sent;
+};
+
+struct AnalyticsSnapshot {
+    double timestamp{0.0};
+    double cpu_percent{0.0};
+    double memory_percent{0.0};
+    double disk_read_bps{0.0};
+    double disk_write_bps{0.0};
+    double net_recv_bps{0.0};
+    double net_sent_bps{0.0};
+};
+
 struct CockpitUiState {
     double timestamp{0.0};
     double cpu_percent{0.0};
@@ -134,6 +185,12 @@ struct CockpitUiState {
     DiskIoState disk_io;
     NetworkIoState network_io;
     ThermalState thermal;
+
+    HealthScoreState health;
+    TrendDirection cpu_trend{TrendDirection::Stable};
+    TrendDirection memory_trend{TrendDirection::Stable};
+    bool smoothing_active{false};
+    std::vector<ActiveAlert> active_alerts;
 };
 
 }  // namespace aura::shell

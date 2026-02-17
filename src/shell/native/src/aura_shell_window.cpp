@@ -22,6 +22,7 @@
 // ============================================================================
 
 #include "aura_shell/aura_shell_window.hpp"
+#include "aura_shell/analytics_bridge.hpp"
 #include "aura_shell/stylesheet_builder.hpp"
 #include "aura_shell/persistence_bridge.hpp"
 #include "aura_shell/render_bridge.hpp"
@@ -130,7 +131,8 @@ AuraShellWindow::AuraShellWindow(const LaunchConfig& config, QWidget* parent)
         std::make_unique<RenderBridge>(),
         std::make_unique<TimelineBridge>(),
         std::move(controller_config),
-        std::make_unique<PersistenceBridge>()
+        std::make_unique<PersistenceBridge>(),
+        std::make_unique<AnalyticsBridge>()
     );
 
     auto* root = new QWidget(this);

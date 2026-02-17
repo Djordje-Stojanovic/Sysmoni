@@ -35,6 +35,12 @@ Rectangle {
     property int severityLevel: 0
     property bool gpuAvailable: false
 
+    // ── Analytics properties ──────────────────────────────────────────────
+    property bool dvrStatsAvailable: false
+    property var dvrStats: ({})
+    property bool showStats: false
+    property bool exportRequested: false
+
     readonly property bool pinkMode: themeMode === "pink_cute"
     readonly property bool hasData: timelinePoints.length >= 2
 
@@ -150,6 +156,119 @@ Rectangle {
                     font.letterSpacing: 1
                     font.family: "Segoe UI"
                 }
+            }
+        }
+    }
+
+    // ── Stats + Export pills (top-right, below legend) ─────────────────────
+    Row {
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.rightMargin: marginH
+        anchors.topMargin: marginV + badgeSize * 2.2
+        spacing: Math.max(4, root.width * 0.012)
+        visible: root.hasData
+
+        Rectangle {
+            width: statsPillText.implicitWidth + badgeSize * 1.2
+            height: statsPillText.implicitHeight + badgeSize * 0.5
+            radius: height * 0.3
+            color: root.showStats ? Qt.rgba(accentRed, accentGreen, accentBlue, 0.20) : "transparent"
+            border.width: 1
+            border.color: Qt.rgba(accentRed, accentGreen, accentBlue, root.showStats ? 0.50 : 0.25)
+            visible: root.dvrStatsAvailable
+
+            Text {
+                id: statsPillText
+                anchors.centerIn: parent
+                text: "STATS"
+                color: Qt.rgba(accentRed, accentGreen, accentBlue, root.showStats ? 1.0 : 0.6)
+                font.pixelSize: badgeSize
+                font.weight: Font.DemiBold
+                font.letterSpacing: 1
+                font.family: "Segoe UI"
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.showStats = !root.showStats
+            }
+        }
+
+        Rectangle {
+            width: exportPillText.implicitWidth + badgeSize * 1.2
+            height: exportPillText.implicitHeight + badgeSize * 0.5
+            radius: height * 0.3
+            color: "transparent"
+            border.width: 1
+            border.color: Qt.rgba(0.96, 0.62, 0.04, 0.25)
+
+            Text {
+                id: exportPillText
+                anchors.centerIn: parent
+                text: "EXPORT"
+                color: Qt.rgba(0.96, 0.62, 0.04, 0.7)
+                font.pixelSize: badgeSize
+                font.weight: Font.DemiBold
+                font.letterSpacing: 1
+                font.family: "Segoe UI"
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.exportRequested = true
+            }
+        }
+    }
+
+    // ── Stats overlay (bottom-left of chart area) ────────────────────────
+    Rectangle {
+        id: statsOverlay
+        anchors.left: chartCanvas.left
+        anchors.bottom: chartCanvas.bottom
+        anchors.leftMargin: 4
+        anchors.bottomMargin: 4
+        width: statsColumn.implicitWidth + Math.round(16 * (root.height / 300))
+        height: statsColumn.implicitHeight + Math.round(12 * (root.height / 300))
+        radius: 4
+        color: root.pinkMode ? Qt.rgba(0.12, 0.04, 0.09, 0.85) : Qt.rgba(0.03, 0.05, 0.10, 0.85)
+        border.width: 1
+        border.color: Qt.rgba(accentRed, accentGreen, accentBlue, 0.15)
+        visible: root.showStats && root.dvrStatsAvailable && root.hasData
+        z: 10
+
+        Column {
+            id: statsColumn
+            anchors.centerIn: parent
+            spacing: 2
+
+            Text {
+                text: {
+                    var s = root.dvrStats
+                    if (!s || !s.cpuAvg) return "CPU: --"
+                    return "CPU: avg " + Number(s.cpuAvg).toFixed(0) + "%" +
+                           " | p95 " + Number(s.cpuP95).toFixed(0) + "%" +
+                           " | max " + Number(s.cpuMax).toFixed(0) + "%" +
+                           " | \u03c3 " + Number(s.cpuStddev).toFixed(1)
+                }
+                color: root.clrTextSecondary
+                font.pixelSize: root.smallSize
+                font.family: "Segoe UI"
+            }
+            Text {
+                text: {
+                    var s = root.dvrStats
+                    if (!s || !s.memAvg) return "MEM: --"
+                    return "MEM: avg " + Number(s.memAvg).toFixed(0) + "%" +
+                           " | p95 " + Number(s.memP95).toFixed(0) + "%" +
+                           " | max " + Number(s.memMax).toFixed(0) + "%" +
+                           " | \u03c3 " + Number(s.memStddev).toFixed(1)
+                }
+                color: root.clrTextSecondary
+                font.pixelSize: root.smallSize
+                font.family: "Segoe UI"
             }
         }
     }
