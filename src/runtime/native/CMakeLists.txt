@@ -19,10 +19,12 @@ endif()
 
 set(AURA_NATIVE_SOURCES
     src/c_api.cpp
+    src/c_api_alert.cpp
     src/config_win.cpp
     src/store_sqlite.cpp
     src/dvr_lttb.cpp
     src/system_snapshot_win.cpp
+    src/alert_engine.cpp
 )
 
 add_library(aura_platform SHARED ${AURA_NATIVE_SOURCES})

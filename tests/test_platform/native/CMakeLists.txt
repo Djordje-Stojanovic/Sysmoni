@@ -3,6 +3,7 @@ add_executable(platform_native_tests
     test_platform_config.cpp
     test_platform_store.cpp
     test_platform_dvr.cpp
+    test_alert_engine.cpp
 )
 
 target_include_directories(platform_native_tests

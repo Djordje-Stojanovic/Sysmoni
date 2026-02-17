@@ -339,6 +339,73 @@ int main() {
     TestAbiSnapshotNetFieldsRoundTrip();
     TestAbiSnapshotNetFieldsZeroInit();
 
+    // Alert engine — lifecycle (3)
+    TestAlertEngineCreateDestroy();
+    TestAlertEngineDestroyNull();
+    TestAlertEngineCreateNullOut();
+
+    // Alert engine — rule management (7)
+    TestAlertAddRule();
+    TestAlertAddRuleDuplicateId();
+    TestAlertRemoveRule();
+    TestAlertRemoveRuleNotFound();
+    TestAlertGetRule();
+    TestAlertGetRuleNotFound();
+    TestAlertAddRuleValidation();
+
+    // Alert engine — evaluation basics (5)
+    TestAlertEvalBelowThresholdIdle();
+    TestAlertEvalInstantTrigger();
+    TestAlertEvalPending();
+    TestAlertEvalBelowComparator();
+    TestAlertEvalNullPointers();
+
+    // Alert engine — state transitions (8)
+    TestAlertFullCycle();
+    TestAlertPendingClearsEarly();
+    TestAlertTriggeredStays();
+    TestAlertCooldownIgnoresCondition();
+    TestAlertZeroCooldown();
+    TestAlertZeroSustained();
+    TestAlertAcknowledgeTriggered();
+    TestAlertAcknowledgeNonTriggered();
+
+    // Alert engine — value tracking (4)
+    TestAlertPeakAbove();
+    TestAlertPeakBelow();
+    TestAlertLastValue();
+    TestAlertDuration();
+
+    // Alert engine — metric extraction (6)
+    TestAlertMetricCpu();
+    TestAlertMetricMemory();
+    TestAlertMetricDiskRead();
+    TestAlertMetricDiskWrite();
+    TestAlertMetricNetRecv();
+    TestAlertMetricNetSent();
+
+    // Alert engine — edge cases (6)
+    TestAlertNaNThresholdRejected();
+    TestAlertExactThresholdNoTrigger();
+    TestAlertZeroBothTimers();
+    TestAlertMultipleRulesIndependent();
+    TestAlertNaNSnapshotFieldSafe();
+    TestAlertInfThresholdRejected();
+
+    // Alert engine — history (4)
+    TestAlertHistoryRecords();
+    TestAlertHistoryClear();
+    TestAlertHistoryCapacity();
+    TestAlertHistoryNullBuffer();
+
+    // Alert engine — active alerts query (2)
+    TestAlertGetActiveEmpty();
+    TestAlertGetActiveMultiple();
+
+    // Alert engine — C ABI safety (2)
+    TestAlertAbiNullEngine();
+    TestAlertAbiNullErrorSafe();
+
     std::cout << "platform_native_tests: PASS" << std::endl;
     return 0;
 }
