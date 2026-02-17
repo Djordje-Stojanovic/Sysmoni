@@ -139,7 +139,7 @@ AuraShellWindow::AuraShellWindow(const LaunchConfig& config, QWidget* parent)
     auto* root = new QWidget(this);
     root->setObjectName("rootWidget");
     auto* root_layout = new QVBoxLayout(root);
-    root_layout->setContentsMargins(3, 3, 3, 3);
+    root_layout->setContentsMargins(6, 6, 6, 6);
     root_layout->setSpacing(0);
 
     // ---------------------------------------------------------------
@@ -173,33 +173,45 @@ AuraShellWindow::AuraShellWindow(const LaunchConfig& config, QWidget* parent)
 
     title_layout->addStretch(1);
 
-    // Window-control buttons with Unicode glyphs
-    auto* min_btn = new QPushButton("\u2212", titlebar_);   // − (minus)
-    auto* max_btn = new QPushButton("\u25a1", titlebar_);   // □ (square)
-    auto* close_btn = new QPushButton("\u00d7", titlebar_); // × (times)
+    // Window-control buttons — Segoe Fluent Icons (Win11 native icon font)
+    QFont icon_font(QStringLiteral("Segoe Fluent Icons"), 10);
+
+    auto* min_btn = new QPushButton(titlebar_);
+    min_btn->setFont(icon_font);
+    min_btn->setText(QChar(0xE921));  // ChromeMinimize
+
+    max_btn_ = new QPushButton(titlebar_);
+    max_btn_->setFont(icon_font);
+    max_btn_->setText(QChar(0xE922));  // ChromeMaximize
+
+    auto* close_btn = new QPushButton(titlebar_);
+    close_btn->setFont(icon_font);
+    close_btn->setText(QChar(0xE8BB));  // ChromeClose
 
     min_btn->setObjectName("minBtn");
-    max_btn->setObjectName("maxBtn");
+    max_btn_->setObjectName("maxBtn");
     close_btn->setObjectName("closeBtn");
 
     min_btn->setToolTip("Minimize");
-    max_btn->setToolTip("Maximize / Restore");
+    max_btn_->setToolTip("Maximize / Restore");
     close_btn->setToolTip("Close");
 
     min_btn->setCursor(Qt::ArrowCursor);
-    max_btn->setCursor(Qt::ArrowCursor);
+    max_btn_->setCursor(Qt::ArrowCursor);
     close_btn->setCursor(Qt::ArrowCursor);
 
     min_btn->setFocusPolicy(Qt::NoFocus);
-    max_btn->setFocusPolicy(Qt::NoFocus);
+    max_btn_->setFocusPolicy(Qt::NoFocus);
     close_btn->setFocusPolicy(Qt::NoFocus);
 
     connect(min_btn, &QPushButton::clicked, this, &QWidget::showMinimized);
-    connect(max_btn, &QPushButton::clicked, this, [this]() {
+    connect(max_btn_, &QPushButton::clicked, this, [this]() {
         if (isMaximized()) {
             showNormal();
+            max_btn_->setText(QChar(0xE922));  // ChromeMaximize
         } else {
             showMaximized();
+            max_btn_->setText(QChar(0xE923));  // ChromeRestore
         }
     });
     connect(close_btn, &QPushButton::clicked, this, &QWidget::close);
@@ -208,9 +220,7 @@ AuraShellWindow::AuraShellWindow(const LaunchConfig& config, QWidget* parent)
     });
 
     title_layout->addWidget(min_btn);
-    title_layout->addSpacing(2);
-    title_layout->addWidget(max_btn);
-    title_layout->addSpacing(2);
+    title_layout->addWidget(max_btn_);
     title_layout->addWidget(close_btn);
 
     root_layout->addWidget(titlebar_);
@@ -227,7 +237,7 @@ AuraShellWindow::AuraShellWindow(const LaunchConfig& config, QWidget* parent)
     body_layout->setSpacing(0);
 
     splitter_ = new QSplitter(Qt::Horizontal, body_);
-    splitter_->setHandleWidth(current_metrics_.body_spacing > 0 ? current_metrics_.body_spacing : 6);
+    splitter_->setHandleWidth(qMax(8, current_metrics_.body_spacing));
     splitter_->setChildrenCollapsible(false);
 
     for (const auto slot : all_dock_slots()) {
@@ -238,6 +248,11 @@ AuraShellWindow::AuraShellWindow(const LaunchConfig& config, QWidget* parent)
         });
         splitter_->addWidget(slot_widgets_[index].frame);
     }
+
+    // Minimum widths prevent panels from collapsing to zero
+    slot_widgets_[0].frame->setMinimumWidth(120);
+    slot_widgets_[1].frame->setMinimumWidth(200);
+    slot_widgets_[2].frame->setMinimumWidth(120);
 
     // Set initial sizes proportional to 1:3:1
     const int total_w = width() - 2 * current_metrics_.body_margin;
@@ -292,23 +307,22 @@ bool AuraShellWindow::nativeEvent(const QByteArray& /*eventType*/, void* message
     }
 
     if (msg->message == WM_NCHITTEST) {
-        const HWND hwnd = reinterpret_cast<HWND>(winId());
-        RECT rc;
-        GetWindowRect(hwnd, &rc);
-        const LONG x = GET_X_LPARAM(msg->lParam);
-        const LONG y = GET_Y_LPARAM(msg->lParam);
-
         if (!isMaximized()) {
-            UINT dpi = GetDpiForWindow(hwnd);
-            if (dpi == 0) dpi = 96;
-            const LONG border = static_cast<LONG>(
-                GetSystemMetricsForDpi(SM_CXSIZEFRAME, dpi) +
-                GetSystemMetricsForDpi(SM_CXPADDEDBORDERWIDTH, dpi));
+            // Use client-relative coordinates to avoid DWM invisible shadow
+            // offset. GetWindowRect on Win11+DWM includes ~7px of invisible
+            // shadow — ScreenToClient + GetClientRect eliminates that entirely.
+            const HWND hwnd = reinterpret_cast<HWND>(winId());
+            POINT pt = { GET_X_LPARAM(msg->lParam), GET_Y_LPARAM(msg->lParam) };
+            ScreenToClient(hwnd, &pt);
+            RECT rc;
+            GetClientRect(hwnd, &rc);
 
-            const bool left   = (x < rc.left + border);
-            const bool right  = (x >= rc.right - border);
-            const bool top    = (y < rc.top + border);
-            const bool bottom = (y >= rc.bottom - border);
+            const int border = qMax(6, static_cast<int>(8.0 * devicePixelRatioF()));
+
+            const bool left   = pt.x < border;
+            const bool right  = pt.x >= rc.right - border;
+            const bool top    = pt.y < border;
+            const bool bottom = pt.y >= rc.bottom - border;
 
             if (top && left)      { *result = HTTOPLEFT;     return true; }
             if (top && right)     { *result = HTTOPRIGHT;    return true; }
@@ -349,8 +363,10 @@ bool AuraShellWindow::eventFilter(QObject* watched, QEvent* event) {
         } else if (event->type() == QEvent::MouseButtonDblClick) {
             if (isMaximized()) {
                 showNormal();
+                if (max_btn_) max_btn_->setText(QChar(0xE922));
             } else {
                 showMaximized();
+                if (max_btn_) max_btn_->setText(QChar(0xE923));
             }
             return true;
         }
@@ -383,8 +399,7 @@ void AuraShellWindow::resizeEvent(QResizeEvent* event) {
                 current_metrics_.body_margin, current_metrics_.body_margin);
         }
         if (splitter_ != nullptr) {
-            splitter_->setHandleWidth(
-                current_metrics_.body_spacing > 0 ? current_metrics_.body_spacing : 6);
+            splitter_->setHandleWidth(qMax(8, current_metrics_.body_spacing));
         }
         // Update slot internal padding to match new category
         for (const auto slot : all_dock_slots()) {

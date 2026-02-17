@@ -50,6 +50,14 @@ Rectangle {
     readonly property bool pinkMode: themeMode === "pink_cute"
     readonly property bool hasData: timelinePoints.length >= 2
 
+    // ── Dynamic Y-axis range (auto-scaled per visible series) ────────────
+    property real chartYMin: 0
+    property real chartYMax: 100
+    property var yAxisTicks: [0, 25, 50, 75, 100]
+
+    Behavior on chartYMin { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+    Behavior on chartYMax { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+
     // ── Resolution-agnostic helpers ──────────────────────────────────────────
     // All text sizes derive from root height. Clamp to stay readable at any
     // resolution from 200px to 4000px+.
@@ -337,6 +345,35 @@ Rectangle {
         if (exportStatus.length > 0) toastAnim.restart()
     }
 
+    // ── Y-axis labels (QML Text, positioned in the gutter left of canvas) ──
+    Item {
+        id: yAxisLabels
+        anchors.left: parent.left
+        anchors.leftMargin: marginH * 0.3
+        anchors.top: chartCanvas.top
+        anchors.bottom: chartCanvas.bottom
+        width: yAxisWidth
+        visible: root.hasData
+
+        Repeater {
+            model: root.yAxisTicks
+            Text {
+                property real tickFrac: {
+                    var range = root.chartYMax - root.chartYMin
+                    return range > 0 ? (modelData - root.chartYMin) / range : 0
+                }
+                anchors.right: parent.right
+                anchors.rightMargin: 4
+                y: parent.height * (1.0 - tickFrac) - height * 0.5
+                text: Math.round(modelData) + "%"
+                color: root.clrTextMuted
+                opacity: 0.6
+                font.pixelSize: root.smallSize
+                font.family: "Cascadia Mono, Consolas, monospace"
+            }
+        }
+    }
+
     // ── Main chart canvas ────────────────────────────────────────────────────
     Canvas {
         id: chartCanvas
@@ -367,9 +404,54 @@ Rectangle {
             var dotR = Math.max(2.0, ch * 0.018)
             var glowR = dotR * 2.5
             var gridAlpha = root.pinkMode ? 0.07 : 0.05
-            var fontSize = Math.max(8, Math.round(ch * 0.065))
 
-            // ── Grid lines at 25%, 50%, 75% ──
+            // ── Auto-scale: compute Y range from visible series ──
+            var dataMin = Infinity
+            var dataMax = -Infinity
+            for (var i = 0; i < n; i++) {
+                if (root.showCpu) {
+                    var cpuV = pts[i].cpuPercent
+                    if (cpuV < dataMin) dataMin = cpuV
+                    if (cpuV > dataMax) dataMax = cpuV
+                }
+                if (root.showMem) {
+                    var memV = pts[i].memPercent
+                    if (memV < dataMin) dataMin = memV
+                    if (memV > dataMax) dataMax = memV
+                }
+                if (root.gpuAvailable && root.showGpu) {
+                    var gpuV = pts[i].gpuPercent
+                    if (gpuV < dataMin) dataMin = gpuV
+                    if (gpuV > dataMax) dataMax = gpuV
+                }
+            }
+
+            // Fallback when no series visible
+            if (dataMin > dataMax) { dataMin = 0; dataMax = 100 }
+
+            // 15% headroom, snap to 5% grid, enforce minimum 10% range
+            var headroom = Math.max(1, (dataMax - dataMin) * 0.15)
+            var yMin = Math.max(0, Math.floor((dataMin - headroom) / 5) * 5)
+            var yMax = Math.min(100, Math.ceil((dataMax + headroom) / 5) * 5)
+            if (yMax - yMin < 10) {
+                var mid = (yMin + yMax) / 2
+                yMin = Math.max(0, Math.round(mid - 5))
+                yMax = Math.min(100, yMin + 10)
+                if (yMax > 100) { yMax = 100; yMin = 90 }
+            }
+
+            // Publish to root properties (drives Y-axis labels + Behavior animations)
+            root.chartYMin = yMin
+            root.chartYMax = yMax
+            var yRange = yMax - yMin
+
+            // Build tick marks: 5 evenly spaced values
+            var ticks = []
+            for (var t = 0; t <= 4; t++)
+                ticks.push(yMin + (yRange * t / 4))
+            root.yAxisTicks = ticks
+
+            // ── Grid lines at tick positions ──
             var gridColor = Qt.rgba(root.accentRed, root.accentGreen, root.accentBlue, gridAlpha)
             ctx.strokeStyle = gridColor
             ctx.lineWidth = 1
@@ -383,28 +465,16 @@ Rectangle {
             }
             ctx.setLineDash([])
 
-            // ── Y-axis labels (in canvas for pixel-perfect placement) ──
-            ctx.font = fontSize + "px 'Cascadia Mono', 'Consolas', monospace"
-            ctx.textAlign = "right"
-            ctx.textBaseline = "middle"
-            var labelColor = root.pinkMode ? "rgba(216, 135, 177, 0.5)" : "rgba(77, 109, 135, 0.5)"
-            ctx.fillStyle = labelColor
-            ctx.fillText("100%", -Math.max(4, cw * 0.015), ch * 0.02)
-            ctx.fillText("75%",  -Math.max(4, cw * 0.015), ch * 0.25)
-            ctx.fillText("50%",  -Math.max(4, cw * 0.015), ch * 0.50)
-            ctx.fillText("25%",  -Math.max(4, cw * 0.015), ch * 0.75)
-            ctx.fillText("0%",   -Math.max(4, cw * 0.015), ch * 0.98)
-
-            // ── Compute point arrays ──
+            // ── Compute point arrays (auto-scaled) ──
             var cpuPts = new Array(n)
             var memPts = new Array(n)
             var gpuPts = root.gpuAvailable ? new Array(n) : null
             for (var i = 0; i < n; i++) {
                 var x = (i / (n - 1)) * cw
-                cpuPts[i] = { x: x, y: ch * (1.0 - pts[i].cpuPercent / 100.0) }
-                memPts[i] = { x: x, y: ch * (1.0 - pts[i].memPercent / 100.0) }
+                cpuPts[i] = { x: x, y: ch * (1.0 - (pts[i].cpuPercent - yMin) / yRange) }
+                memPts[i] = { x: x, y: ch * (1.0 - (pts[i].memPercent - yMin) / yRange) }
                 if (gpuPts !== null)
-                    gpuPts[i] = { x: x, y: ch * (1.0 - pts[i].gpuPercent / 100.0) }
+                    gpuPts[i] = { x: x, y: ch * (1.0 - (pts[i].gpuPercent - yMin) / yRange) }
             }
 
             // ── Helper: draw smooth quadratic curve through points ──

@@ -33,7 +33,7 @@ void AuraShellWindow::refresh_cockpit() {
                 .arg(vram_total_gb, 0, 'f', 1)
         );
     } else {
-        gpu_value_->setText(QStringLiteral("Not available"));
+        gpu_value_->setText(QStringLiteral("\u2014"));
     }
 
     // Disk I/O
@@ -54,7 +54,7 @@ void AuraShellWindow::refresh_cockpit() {
             QString("CPU %1\u00b0C").arg(static_cast<int>(state.thermal.hottest_celsius))
         );
     } else {
-        thermal_value_->setText(QStringLiteral("Not available"));
+        thermal_value_->setText(QStringLiteral("\u2014"));
     }
     process_status_->setText(QString::fromStdString(state.status_line));
     render_status_->setText(QString::fromStdString(state.status_line));
