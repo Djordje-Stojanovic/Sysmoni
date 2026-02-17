@@ -57,7 +57,19 @@ void AuraShellWindow::refresh_cockpit() {
         thermal_value_->setText(QStringLiteral("\u2014"));
     }
     process_status_->setText(QString::fromStdString(state.status_line));
-    render_status_->setText(QString::fromStdString(state.status_line));
+    if (!state.render_available) {
+        const QString err = state.style_token_error.empty()
+            ? QStringLiteral("unknown error")
+            : QString::fromStdString(state.style_token_error);
+        render_status_->setText(QStringLiteral("Render degraded \u2014 ") + err);
+    } else {
+        render_status_->setText(
+            QString::asprintf("Render ok | fps=%d | sev=%d | tokens=%s",
+                state.fps_target,
+                state.severity_level,
+                state.style_tokens_available ? "ok" : "missing")
+        );
+    }
     timeline_status_->setText(QString::fromStdString(state.timeline_line));
 
     for (std::size_t i = 0; i < process_labels_.size(); ++i) {
@@ -302,7 +314,15 @@ void AuraShellWindow::refresh_cockpit() {
     }
 
     if (theme_dirty_) {
-        theme_dirty_ = false;
+        // Only clear once all three QML scenes have successfully received the update.
+        // If any root is still nullptr (QML loading), the flag stays dirty and is
+        // retried on the next tick — preventing silent theme loss at startup.
+        const bool cockpit_ready  = (quick_ != nullptr && quick_->rootObject() != nullptr);
+        const bool timeline_ready = (timeline_quick_ != nullptr && timeline_quick_->rootObject() != nullptr);
+        const bool process_ready  = (process_quick_ != nullptr && process_quick_->rootObject() != nullptr);
+        if (cockpit_ready && timeline_ready && process_ready) {
+            theme_dirty_ = false;
+        }
     }
 
     if (update_timer_ != nullptr) {

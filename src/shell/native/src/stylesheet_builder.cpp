@@ -105,15 +105,17 @@ QString build_app_stylesheet(const UiThemeMode mode, const SizeMetrics& m) {
         "    border-color: ${ACCENT};"
         "}"
         // --- Dock slot frames ---
+        // Fixed 2px border in both states — prevents 1px layout shift during drag hover.
+        // Radius stays constant so content doesn't jump when auraDragOver toggles.
         "QFrame#slot {"
         "    background: ${BG_PANEL};"
-        "    border: 1px solid ${BORDER_SUBTLE};"
+        "    border: 2px solid ${BORDER_SUBTLE};"
         "    border-radius: 10px;"
         "    padding: 0px;"
         "}"
         "QFrame#slot[auraDragOver=\"true\"] {"
         "    border: 2px solid ${ACCENT};"
-        "    border-radius: 12px;"
+        "    border-radius: 10px;"
         "}"
         // --- Slot zone label ---
         "QLabel#slotZoneLabel {"

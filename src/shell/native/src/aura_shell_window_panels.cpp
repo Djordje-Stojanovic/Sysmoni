@@ -219,6 +219,12 @@ void AuraShellWindow::build_panel_pages() {
         timeline_quick_->setSource(
             QUrl::fromLocalFile(QStringLiteral(AURA_SHELL_TIMELINE_QML_PATH)));
         timeline_quick_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+        // Re-arm theme dirty flag when QML scene finishes loading — handles the
+        // startup race where apply_theme() fires before rootObject() is available.
+        connect(timeline_quick_, &QQuickWidget::statusChanged,
+                this, [this](QQuickWidget::Status status) {
+            if (status == QQuickWidget::Ready) { theme_dirty_ = true; }
+        });
 
         timeline_status_ = new QLabel("Awaiting timeline samples...", parent_page);
         timeline_status_->setObjectName("timelineStatus");
@@ -239,6 +245,10 @@ void AuraShellWindow::build_panel_pages() {
         quick_->setResizeMode(QQuickWidget::SizeRootObjectToView);
         quick_->setSource(QUrl::fromLocalFile(QStringLiteral(AURA_SHELL_QML_PATH)));
         quick_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+        connect(quick_, &QQuickWidget::statusChanged,
+                this, [this](QQuickWidget::Status status) {
+            if (status == QQuickWidget::Ready) { theme_dirty_ = true; }
+        });
 
         render_status_ = new QLabel("Cockpit scene online", parent_page);
         render_status_->setObjectName("renderStatus");
@@ -265,6 +275,10 @@ void AuraShellWindow::build_panel_pages() {
         process_quick_->setSource(
             QUrl::fromLocalFile(QStringLiteral(AURA_SHELL_PROCESS_QML_PATH)));
         process_quick_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+        connect(process_quick_, &QQuickWidget::statusChanged,
+                this, [this](QQuickWidget::Status status) {
+            if (status == QQuickWidget::Ready) { theme_dirty_ = true; }
+        });
 
         process_layout->addWidget(process_quick_, 1);
     }
