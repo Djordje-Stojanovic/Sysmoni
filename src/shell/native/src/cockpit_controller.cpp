@@ -322,7 +322,7 @@ CockpitUiState CockpitController::tick(
         if (analytics_bridge_->alerts_available()) {
             std::string alert_err;
             if (analytics_bridge_->evaluate_alerts(a_snap, alert_err)) {
-                state.active_alerts = analytics_bridge_->get_active_alerts(alert_err);
+                cached_alerts_ = analytics_bridge_->get_active_alerts(alert_err);
             }
         }
 
@@ -336,7 +336,7 @@ CockpitUiState CockpitController::tick(
                 std::string health_err;
                 auto health = analytics_bridge_->compute_health_score(a_snap, health_err);
                 if (health.has_value()) {
-                    state.health = *health;
+                    cached_health_ = *health;
                 }
             }
 
@@ -347,16 +347,22 @@ CockpitUiState CockpitController::tick(
                 auto cpu_trend = analytics_bridge_->detect_trend(
                     snapshot_buffer_, 0, config_.trend_sensitivity, trend_err);
                 if (cpu_trend.has_value()) {
-                    state.cpu_trend = cpu_trend->direction;
+                    cached_cpu_trend_ = cpu_trend->direction;
                 }
 
                 auto mem_trend = analytics_bridge_->detect_trend(
                     snapshot_buffer_, 1, config_.trend_sensitivity, trend_err);
                 if (mem_trend.has_value()) {
-                    state.memory_trend = mem_trend->direction;
+                    cached_memory_trend_ = mem_trend->direction;
                 }
             }
         }
+
+        // Always apply cached analytics results (stable between refresh ticks)
+        state.health = cached_health_;
+        state.cpu_trend = cached_cpu_trend_;
+        state.memory_trend = cached_memory_trend_;
+        state.active_alerts = cached_alerts_;
     }
 
     populate_timeline_state(state, stream_error);

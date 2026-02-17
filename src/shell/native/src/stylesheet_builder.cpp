@@ -291,6 +291,18 @@ QString build_app_stylesheet(const UiThemeMode mode, const SizeMetrics& m) {
         "    margin-left: 12px;"
         "    margin-bottom: 4px;"
         "}"
+        // --- Splitter handles ---
+        "QSplitter::handle {"
+        "    background: ${BORDER_SUBTLE};"
+        "    border-radius: 2px;"
+        "    margin: 40px 0px;"
+        "}"
+        "QSplitter::handle:hover {"
+        "    background: ${ACCENT};"
+        "}"
+        "QSplitter::handle:pressed {"
+        "    background: ${ACCENT_HOVER};"
+        "}"
         // --- Scrollbars ---
         "QScrollBar:vertical {"
         "    background: ${BG_WINDOW};"

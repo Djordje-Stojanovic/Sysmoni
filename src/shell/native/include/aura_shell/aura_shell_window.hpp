@@ -8,6 +8,7 @@
 #include <QPushButton>
 #include <QQuickWidget>
 #include <QSettings>
+#include <QSplitter>
 #include <QStackedWidget>
 #include <QTabBar>
 #include <QTimer>
@@ -63,12 +64,10 @@ private:
 
     // --- Core methods (aura_shell_window.cpp) ---
     SlotWidgets build_slot(DockSlot slot, QWidget* parent);
-    Qt::Edges hit_test_edge(const QPoint& pos) const;
     void sync_theme_to_qml();
     void apply_theme(UiThemeMode mode, bool persist);
 
     // --- Constants ---
-    static constexpr int kResizeBorder = 14;
     static constexpr const char* k_theme_mode_setting_key = "ui/theme_mode";
 
     // --- Member data ---
@@ -78,6 +77,7 @@ private:
     SizeCategory current_size_category_{SizeCategory::Regular};
     SizeMetrics current_metrics_{metrics_for_category(SizeCategory::Regular)};
     QWidget* body_{nullptr};
+    QSplitter* splitter_{nullptr};
     double current_interval_seconds_{1.0};
     std::unique_ptr<CockpitController> controller_;
     DockState dock_state_{build_default_dock_state()};
@@ -117,7 +117,6 @@ private:
     std::array<QLabel*, 5> panel_title_labels_{};
     bool dragging_{false};
     QPoint drag_origin_{};
-    Qt::Edges resize_edge_{};
 };
 
 }  // namespace aura::shell

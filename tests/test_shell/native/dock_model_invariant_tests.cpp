@@ -103,8 +103,8 @@ void test_move_out_of_range_index_throws() {
     using aura::shell::PanelMoveRequest;
 
     const auto state = aura::shell::build_default_dock_state();
-    // Right has 3 panels (TopProcesses, DvrTimeline, ProcessPanel).
-    // Valid to_index values are 0, 1, 2, 3 (append). Index 10 is out of range.
+    // Right has 2 panels (ProcessPanel, TopProcesses).
+    // Valid to_index values are 0, 1, 2 (append). Index 10 is out of range.
     bool threw = false;
     try {
         static_cast<void>(aura::shell::move_panel(
@@ -130,12 +130,20 @@ void test_set_active_tab_zero_on_empty_slot_allowed() {
     using aura::shell::PanelId;
     using aura::shell::PanelMoveRequest;
 
-    // Create a state where Center has no panels (move RenderSurface out)
+    // Create a state where Center has no panels (move both RenderSurface and DvrTimeline out)
     const auto state = aura::shell::build_default_dock_state();
-    const auto empty_state = aura::shell::move_panel(
+    auto intermediate = aura::shell::move_panel(
         state,
         PanelMoveRequest{
             .panel_id = PanelId::RenderSurface,
+            .to_slot = DockSlot::Right,
+            .to_index = std::nullopt,
+        }
+    );
+    const auto empty_state = aura::shell::move_panel(
+        intermediate,
+        PanelMoveRequest{
+            .panel_id = PanelId::DvrTimeline,
             .to_slot = DockSlot::Right,
             .to_index = std::nullopt,
         }
@@ -164,10 +172,10 @@ void test_move_nullopt_index_appends_to_end() {
     using aura::shell::PanelId;
     using aura::shell::PanelMoveRequest;
 
-    // Default: Right={TopProcesses[0], DvrTimeline[1], ProcessPanel[2]}
+    // Default: Right={ProcessPanel[0], TopProcesses[1]}
     const auto state = aura::shell::build_default_dock_state();
 
-    // Move TelemetryOverview to Right with nullopt -> should be appended at index 3
+    // Move TelemetryOverview to Right with nullopt -> should be appended at index 2
     const auto moved = aura::shell::move_panel(
         state,
         PanelMoveRequest{
@@ -177,15 +185,14 @@ void test_move_nullopt_index_appends_to_end() {
         }
     );
 
-    // Right now has 4 panels: {TopProcesses, DvrTimeline, ProcessPanel, TelemetryOverview}
-    assert(moved.slot_tabs[slot_index(DockSlot::Right)].size() == 4U);
-    assert(moved.slot_tabs[slot_index(DockSlot::Right)][0] == PanelId::TopProcesses);
-    assert(moved.slot_tabs[slot_index(DockSlot::Right)][1] == PanelId::DvrTimeline);
-    assert(moved.slot_tabs[slot_index(DockSlot::Right)][2] == PanelId::ProcessPanel);
-    assert(moved.slot_tabs[slot_index(DockSlot::Right)][3] == PanelId::TelemetryOverview);
+    // Right now has 3 panels: {ProcessPanel, TopProcesses, TelemetryOverview}
+    assert(moved.slot_tabs[slot_index(DockSlot::Right)].size() == 3U);
+    assert(moved.slot_tabs[slot_index(DockSlot::Right)][0] == PanelId::ProcessPanel);
+    assert(moved.slot_tabs[slot_index(DockSlot::Right)][1] == PanelId::TopProcesses);
+    assert(moved.slot_tabs[slot_index(DockSlot::Right)][2] == PanelId::TelemetryOverview);
 
-    // Destination active_tab should point to the newly inserted panel at index 3
-    assert(moved.active_tab[slot_index(DockSlot::Right)] == 3U);
+    // Destination active_tab should point to the newly inserted panel at index 2
+    assert(moved.active_tab[slot_index(DockSlot::Right)] == 2U);
     const auto right_active = aura::shell::active_panel(moved, DockSlot::Right);
     assert(right_active.has_value());
     assert(*right_active == PanelId::TelemetryOverview);
@@ -209,8 +216,8 @@ void test_full_panel_shuffle_preserves_uniqueness() {
 
     // Default:
     //   Left = { TelemetryOverview }
-    //   Center = { RenderSurface }
-    //   Right = { TopProcesses, DvrTimeline, ProcessPanel }
+    //   Center = { RenderSurface, DvrTimeline }
+    //   Right = { ProcessPanel, TopProcesses }
 
     auto state = aura::shell::build_default_dock_state();
     assert_single_instance_per_panel(state);

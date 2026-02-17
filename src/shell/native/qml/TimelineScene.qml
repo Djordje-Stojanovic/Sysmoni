@@ -42,6 +42,11 @@ Rectangle {
     property bool exportRequested: false
     property string exportStatus: ""
 
+    // ── Legend toggle state ───────────────────────────────────────────────
+    property bool showCpu: true
+    property bool showMem: true
+    property bool showGpu: true
+
     readonly property bool pinkMode: themeMode === "pink_cute"
     readonly property bool hasData: timelinePoints.length >= 2
 
@@ -73,10 +78,13 @@ Rectangle {
     readonly property var gpuStrokeColor: pinkMode
         ? [1.0, 0.690, 0.533, 0.75] : [0.961, 0.620, 0.043, 0.65]
 
-    // ── Trigger repaint on data or theme change ──────────────────────────────
+    // ── Trigger repaint on data, theme, or visibility change ─────────────────
     onTimelinePointsChanged: chartCanvas.requestPaint()
     onThemeModeChanged: chartCanvas.requestPaint()
     onGpuAvailableChanged: chartCanvas.requestPaint()
+    onShowCpuChanged: chartCanvas.requestPaint()
+    onShowMemChanged: chartCanvas.requestPaint()
+    onShowGpuChanged: chartCanvas.requestPaint()
 
     // ── Background gradient ──────────────────────────────────────────────────
     Rectangle {
@@ -120,7 +128,7 @@ Rectangle {
         }
     }
 
-    // ── Legend pills (top-right) ─────────────────────────────────────────────
+    // ── Legend pills (top-right) — click to toggle series ───────────────────
     Row {
         anchors.right: parent.right
         anchors.top: parent.top
@@ -132,20 +140,27 @@ Rectangle {
         Repeater {
             model: {
                 var items = [
-                    { label: "CPU", sc: root.cpuStrokeColor },
-                    { label: "MEM", sc: root.memStrokeColor }
+                    { label: "CPU", sc: root.cpuStrokeColor, key: "cpu" },
+                    { label: "MEM", sc: root.memStrokeColor, key: "mem" }
                 ]
                 if (root.gpuAvailable)
-                    items.push({ label: "GPU", sc: root.gpuStrokeColor })
+                    items.push({ label: "GPU", sc: root.gpuStrokeColor, key: "gpu" })
                 return items
             }
             Rectangle {
+                property bool seriesVisible: modelData.key === "cpu" ? root.showCpu
+                                           : modelData.key === "mem" ? root.showMem
+                                           : root.showGpu
                 width: pillText.implicitWidth + badgeSize * 1.2
                 height: pillText.implicitHeight + badgeSize * 0.5
                 radius: height * 0.3
-                color: "transparent"
+                color: seriesVisible
+                    ? Qt.rgba(modelData.sc[0], modelData.sc[1], modelData.sc[2], 0.15)
+                    : "transparent"
                 border.width: 1
-                border.color: Qt.rgba(modelData.sc[0], modelData.sc[1], modelData.sc[2], modelData.sc[3] * 0.7)
+                border.color: Qt.rgba(modelData.sc[0], modelData.sc[1], modelData.sc[2],
+                    seriesVisible ? modelData.sc[3] * 0.7 : 0.20)
+                opacity: seriesVisible ? 1.0 : 0.45
 
                 Text {
                     id: pillText
@@ -156,6 +171,16 @@ Rectangle {
                     font.weight: Font.DemiBold
                     font.letterSpacing: 1
                     font.family: "Segoe UI"
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (modelData.key === "cpu") root.showCpu = !root.showCpu
+                        else if (modelData.key === "mem") root.showMem = !root.showMem
+                        else root.showGpu = !root.showGpu
+                    }
                 }
             }
         }
@@ -431,17 +456,19 @@ Rectangle {
                 ctx.fill()
             }
 
-            // ── Draw series back-to-front ──
+            // ── Draw series back-to-front (respecting toggle state) ──
 
             // 1. Memory (teal — furthest back)
             var mc = root.memStrokeColor
-            var memFill = root.pinkMode
-                ? [[0.0, Qt.rgba(0.431, 0.906, 0.718, 0.22)], [1.0, Qt.rgba(0.431, 0.906, 0.718, 0.01)]]
-                : [[0.0, Qt.rgba(0.20, 0.70, 0.65, 0.20)], [1.0, Qt.rgba(0.20, 0.70, 0.65, 0.01)]]
-            drawSeries(memPts, memFill, mc)
+            if (root.showMem) {
+                var memFill = root.pinkMode
+                    ? [[0.0, Qt.rgba(0.431, 0.906, 0.718, 0.22)], [1.0, Qt.rgba(0.431, 0.906, 0.718, 0.01)]]
+                    : [[0.0, Qt.rgba(0.20, 0.70, 0.65, 0.20)], [1.0, Qt.rgba(0.20, 0.70, 0.65, 0.01)]]
+                drawSeries(memPts, memFill, mc)
+            }
 
-            // 2. GPU (gold — middle layer, only if available)
-            if (gpuPts !== null) {
+            // 2. GPU (gold — middle layer, only if available and visible)
+            if (gpuPts !== null && root.showGpu) {
                 var gc = root.gpuStrokeColor
                 var gpuFill = root.pinkMode
                     ? [[0.0, Qt.rgba(1.0, 0.690, 0.533, 0.20)], [1.0, Qt.rgba(1.0, 0.690, 0.533, 0.01)]]
@@ -451,19 +478,23 @@ Rectangle {
 
             // 3. CPU (accent — front, most prominent)
             var cc = root.cpuStrokeColor
-            var cpuFill = root.pinkMode
-                ? [[0.0, Qt.rgba(0.753, 0.518, 0.988, 0.28)],
-                   [0.5, Qt.rgba(1.0, 0.302, 0.651, 0.15)],
-                   [1.0, Qt.rgba(1.0, 0.690, 0.533, 0.01)]]
-                : [[0.0, Qt.rgba(accentRed, accentGreen, accentBlue, 0.26)],
-                   [1.0, Qt.rgba(accentRed, accentGreen, accentBlue, 0.01)]]
-            drawSeries(cpuPts, cpuFill, cc)
+            if (root.showCpu) {
+                var cpuFill = root.pinkMode
+                    ? [[0.0, Qt.rgba(0.753, 0.518, 0.988, 0.28)],
+                       [0.5, Qt.rgba(1.0, 0.302, 0.651, 0.15)],
+                       [1.0, Qt.rgba(1.0, 0.690, 0.533, 0.01)]]
+                    : [[0.0, Qt.rgba(accentRed, accentGreen, accentBlue, 0.26)],
+                       [1.0, Qt.rgba(accentRed, accentGreen, accentBlue, 0.01)]]
+                drawSeries(cpuPts, cpuFill, cc)
+            }
 
             // ── Glow dots at latest values ──
-            drawGlowDot(memPts[n - 1], mc)
-            if (gpuPts !== null)
+            if (root.showMem)
+                drawGlowDot(memPts[n - 1], mc)
+            if (gpuPts !== null && root.showGpu)
                 drawGlowDot(gpuPts[n - 1], gc)
-            drawGlowDot(cpuPts[n - 1], cc)
+            if (root.showCpu)
+                drawGlowDot(cpuPts[n - 1], cc)
         }
     }
 
