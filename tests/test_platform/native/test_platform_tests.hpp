@@ -1,12 +1,14 @@
 #pragma once
 
 // ---------------------------------------------------------------------------
-// Forward declarations for all 66 platform test functions.
-// Each is defined in one of the four translation units:
+// Forward declarations for all platform test functions.
+// Each is defined in one of the six translation units:
 //   test_platform_config.cpp  (5 config tests)
 //   test_platform_store.cpp   (20 store tests)
 //   test_platform_dvr.cpp     (35 DVR tests)
 //   test_platform_native.cpp  (6 remaining tests)
+//   test_dvr_stats.cpp        (35 stats engine tests)
+//   test_dvr_export.cpp       (20 export tests)
 // ---------------------------------------------------------------------------
 
 // Config tests
@@ -155,3 +157,74 @@ void TestAlertGetActiveEmpty();
 void TestAlertGetActiveMultiple();
 void TestAlertAbiNullEngine();
 void TestAlertAbiNullErrorSafe();
+
+// DVR Statistics Engine — basic correctness (8)
+void TestStatsEmptyInput();
+void TestStatsSingleSnapshot();
+void TestStatsTwoSnapshots();
+void TestStatsKnownLinearDistribution();
+void TestStatsConstantValues();
+void TestStatsTimestampRange();
+void TestStatsCountField();
+void TestStatsAllMetricsPopulated();
+
+// DVR Statistics Engine — percentile correctness (7)
+void TestStatsP50EvenCount();
+void TestStatsP50OddCount();
+void TestStatsP95LargeInput();
+void TestStatsP99LargeInput();
+void TestStatsPercentilesOrdered();
+void TestStatsPercentilesWithinMinMax();
+void TestStatsPercentilesThreeValues();
+
+// DVR Statistics Engine — standard deviation (4)
+void TestStatsStddevZeroForConstant();
+void TestStatsStddevKnownValues();
+void TestStatsStddevSingleValue();
+void TestStatsStddevLargeSpread();
+
+// DVR Statistics Engine — per-metric isolation (6)
+void TestStatsCpuMetricIsolated();
+void TestStatsMemoryMetricIsolated();
+void TestStatsDiskReadMetricIsolated();
+void TestStatsDiskWriteMetricIsolated();
+void TestStatsNetRecvMetricIsolated();
+void TestStatsNetSentMetricIsolated();
+
+// DVR Statistics Engine — C ABI safety (6)
+void TestStatsAbiNullSnapshots();
+void TestStatsAbiNullOutStats();
+void TestStatsAbiNullError();
+void TestStatsAbiNegativeCount();
+void TestStatsAbiZeroCount();
+void TestStatsAbiNullErrorInvalid();
+
+// DVR Statistics Engine — store integration (4)
+void TestDvrComputeStatsFullRange();
+void TestDvrComputeStatsSubRange();
+void TestDvrComputeStatsEmptyRange();
+void TestDvrComputeStatsNullStore();
+
+// DVR Export — JSON (10)
+void TestExportJsonBasic();
+void TestExportJsonWithStats();
+void TestExportJsonWithoutStats();
+void TestExportJsonEmptyRange();
+void TestExportJsonFieldValues();
+void TestExportJsonVersionField();
+void TestExportJsonTimePrecision();
+void TestExportJsonNullStore();
+void TestExportJsonNullFilePath();
+void TestExportJsonLargeDataset();
+
+// DVR Export — CSV (10)
+void TestExportCsvBasic();
+void TestExportCsvHeader();
+void TestExportCsvFieldCount();
+void TestExportCsvEmptyRange();
+void TestExportCsvRoundTrip();
+void TestExportCsvTimePrecision();
+void TestExportCsvNullStore();
+void TestExportCsvNullFilePath();
+void TestExportCsvNullError();
+void TestExportCsvLargeDataset();
