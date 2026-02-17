@@ -169,6 +169,9 @@ Rectangle {
                 border.color: Qt.rgba(modelData.sc[0], modelData.sc[1], modelData.sc[2],
                     seriesVisible ? modelData.sc[3] * 0.7 : 0.20)
                 opacity: seriesVisible ? 1.0 : 0.45
+                Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+                Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
+                Behavior on border.color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
                 Text {
                     id: pillText
@@ -386,6 +389,7 @@ Rectangle {
         anchors.rightMargin: marginH
         anchors.topMargin: marginV * 2.2
         anchors.bottomMargin: marginV * 0.3
+        antialiasing: true
 
         onPaint: {
             var ctx = getContext("2d")

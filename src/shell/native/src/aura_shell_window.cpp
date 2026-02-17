@@ -30,11 +30,15 @@
 #include "aura_shell/timeline_bridge.hpp"
 
 #include <QApplication>
+#include <QDrag>
+#include <QDragEnterEvent>
+#include <QDropEvent>
 #include <QEvent>
 #include <QFont>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QMimeData>
 #include <QMouseEvent>
 #include <QResizeEvent>
 #include <QObject>
@@ -343,6 +347,31 @@ bool AuraShellWindow::nativeEvent(const QByteArray& /*eventType*/, void* message
 #endif
 
 bool AuraShellWindow::eventFilter(QObject* watched, QEvent* event) {
+    // ── Cross-zone drag-and-drop on slot frames ──────────────────────────
+    if (event->type() == QEvent::DragEnter) {
+        auto* de = static_cast<QDragEnterEvent*>(event);
+        if (de->mimeData()->hasFormat(QString::fromLatin1(k_panel_mime))) {
+            de->acceptProposedAction();
+            return true;
+        }
+    }
+    if (event->type() == QEvent::Drop) {
+        auto* de = static_cast<QDropEvent*>(event);
+        if (de->mimeData()->hasFormat(QString::fromLatin1(k_panel_mime))) {
+            const int panel_int = de->mimeData()->data(QString::fromLatin1(k_panel_mime)).toInt();
+            const auto panel_id = static_cast<PanelId>(panel_int);
+
+            // Find which slot frame received the drop
+            for (const auto target_slot : all_dock_slots()) {
+                if (slot_widgets_[slot_index(target_slot)].frame == watched) {
+                    move_panel_to_slot(panel_id, target_slot);
+                    de->acceptProposedAction();
+                    return true;
+                }
+            }
+        }
+    }
+
     // Titlebar drag + double-click (resize is handled natively via WM_NCHITTEST)
     if (watched == titlebar_) {
         if (event->type() == QEvent::MouseButtonPress) {
@@ -517,8 +546,8 @@ SlotWidgets AuraShellWindow::build_slot(const DockSlot slot, QWidget* parent) {
     zone_label->setObjectName("slotZoneLabel");
     zone_label->setContentsMargins(12, 0, 0, 2);
 
-    // Tab bar sits flush below the zone label — movable for reordering
-    auto* tab_bar = new QTabBar(frame);
+    // Tab bar with cross-zone drag-and-drop support
+    auto* tab_bar = new DragTabBar(slot, this, frame);
     tab_bar->setDocumentMode(true);
     tab_bar->setExpanding(false);
     tab_bar->setMovable(true);
@@ -534,7 +563,53 @@ SlotWidgets AuraShellWindow::build_slot(const DockSlot slot, QWidget* parent) {
     layout->addWidget(tab_bar);
     layout->addWidget(stack, 1);
 
+    // Enable drop on frame for cross-zone panel moves
+    frame->setAcceptDrops(true);
+    frame->installEventFilter(this);
+
     return {frame, tab_bar, stack};
+}
+
+// ── DragTabBar implementation ────────────────────────────────────────────────
+
+static constexpr const char* k_panel_mime = "application/x-aura-panel-id";
+
+DragTabBar::DragTabBar(const DockSlot slot, AuraShellWindow* window, QWidget* parent)
+    : QTabBar(parent), slot_(slot), window_(window) {}
+
+void DragTabBar::mousePressEvent(QMouseEvent* event) {
+    if (event->button() == Qt::LeftButton) {
+        drag_start_ = event->pos();
+        drag_tab_index_ = tabAt(event->pos());
+    }
+    QTabBar::mousePressEvent(event);
+}
+
+void DragTabBar::mouseMoveEvent(QMouseEvent* event) {
+    if (drag_tab_index_ >= 0
+        && (event->buttons() & Qt::LeftButton)
+        && (event->pos() - drag_start_).manhattanLength() >= QApplication::startDragDistance() * 2) {
+
+        // Resolve which PanelId is at this tab index
+        const auto slot_idx = slot_index(slot_);
+        const auto& tabs = window_->dock_state_.slot_tabs[slot_idx];
+        if (drag_tab_index_ >= static_cast<int>(tabs.size())) {
+            drag_tab_index_ = -1;
+            return;
+        }
+        const auto panel_id = tabs[static_cast<std::size_t>(drag_tab_index_)];
+
+        auto* mime = new QMimeData();
+        mime->setData(QString::fromLatin1(k_panel_mime),
+                      QByteArray::number(static_cast<int>(panel_id)));
+
+        auto* drag = new QDrag(this);
+        drag->setMimeData(mime);
+        drag->exec(Qt::MoveAction);
+        drag_tab_index_ = -1;
+        return;
+    }
+    QTabBar::mouseMoveEvent(event);
 }
 
 }  // namespace aura::shell

@@ -1204,6 +1204,25 @@ Rectangle {
                 width: root.effectiveGaugeSize
                 height: root.effectiveGaugeSize
 
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    acceptedButtons: Qt.NoButton
+                    property bool hovered: false
+                    onEntered: { hovered = true; hoverTimer.restart() }
+                    onExited: { hovered = false; hoverTimer.stop(); root.hideTooltip() }
+                    Timer {
+                        id: hoverTimer
+                        interval: 400
+                        onTriggered: {
+                            var trend = root.cpuTrend === 1 ? "Rising" : root.cpuTrend === 2 ? "Falling" : "Stable"
+                            root.showTooltip(cpuGaugeItem, "CPU",
+                                "Processor utilization across all cores",
+                                root.smoothCpu.toFixed(1) + "% \u2022 " + root.coreCount + " threads \u2022 " + trend)
+                        }
+                    }
+                }
+
                 Canvas {
                     id: cpuGlowCanvas
                     anchors.centerIn: parent
@@ -1343,6 +1362,25 @@ Rectangle {
                 width: root.effectiveGaugeSize
                 height: root.effectiveGaugeSize
 
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    acceptedButtons: Qt.NoButton
+                    property bool hovered: false
+                    onEntered: { hovered = true; memHoverTimer.restart() }
+                    onExited: { hovered = false; memHoverTimer.stop(); root.hideTooltip() }
+                    Timer {
+                        id: memHoverTimer
+                        interval: 400
+                        onTriggered: {
+                            var trend = root.memoryTrend === 1 ? "Rising" : root.memoryTrend === 2 ? "Falling" : "Stable"
+                            root.showTooltip(memGaugeItem, "MEMORY",
+                                "Physical memory utilization",
+                                root.smoothMem.toFixed(1) + "% \u2022 " + trend)
+                        }
+                    }
+                }
+
                 Canvas {
                     id: memGlowCanvas
                     anchors.centerIn: parent
@@ -1448,6 +1486,26 @@ Rectangle {
                 height: root.effectiveGaugeSize
                 visible: root.gpuAvailable
 
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    acceptedButtons: Qt.NoButton
+                    property bool hovered: false
+                    onEntered: { hovered = true; gpuHoverTimer.restart() }
+                    onExited: { hovered = false; gpuHoverTimer.stop(); root.hideTooltip() }
+                    Timer {
+                        id: gpuHoverTimer
+                        interval: 400
+                        onTriggered: {
+                            var vramUsed = (root.vramUsedBytes / 1073741824).toFixed(1)
+                            var vramTotal = (root.vramTotalBytes / 1073741824).toFixed(0)
+                            root.showTooltip(gpuGaugeItem, "GPU",
+                                "Graphics processor utilization",
+                                root.smoothGpu.toFixed(1) + "% \u2022 " + vramUsed + "/" + vramTotal + " GB VRAM")
+                        }
+                    }
+                }
+
                 Canvas {
                     id: gpuGlowCanvas
                     anchors.centerIn: parent
@@ -1511,6 +1569,28 @@ Rectangle {
                 width: root.effectiveGaugeSize
                 height: root.effectiveGaugeSize
                 visible: root.healthAvailable
+
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    acceptedButtons: Qt.NoButton
+                    property bool hovered: false
+                    onEntered: { hovered = true; healthHoverTimer.restart() }
+                    onExited: { hovered = false; healthHoverTimer.stop(); root.hideTooltip() }
+                    Timer {
+                        id: healthHoverTimer
+                        interval: 400
+                        onTriggered: {
+                            root.showTooltip(healthGaugeItem, "HEALTH",
+                                "Composite system health score (0\u2013100)",
+                                "Overall " + root.smoothHealth.toFixed(0) +
+                                " \u2022 CPU " + root.healthCpu.toFixed(0) +
+                                " \u2022 MEM " + root.healthMemory.toFixed(0) +
+                                " \u2022 DISK " + root.healthDisk.toFixed(0) +
+                                " \u2022 NET " + root.healthNetwork.toFixed(0))
+                        }
+                    }
+                }
 
                 Canvas {
                     id: healthGlowCanvas
@@ -2730,5 +2810,76 @@ Rectangle {
         Behavior on border.color {
             ColorAnimation { duration: 400; easing.type: Easing.OutCubic }
         }
+    }
+
+    // =========================================================================
+    // SHARED GAUGE TOOLTIP — positioned near hovered gauge
+    // =========================================================================
+    Rectangle {
+        id: gaugeTooltip
+        visible: false
+        z: 100
+        width: tooltipCol.implicitWidth + 20
+        height: tooltipCol.implicitHeight + 14
+        radius: 6
+        color: root.pinkMode ? Qt.rgba(0.12, 0.04, 0.09, 0.92) : Qt.rgba(0.05, 0.08, 0.14, 0.92)
+        border.width: 1
+        border.color: root.clrAccent
+
+        property string title: ""
+        property string description: ""
+        property string value: ""
+
+        Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+
+        Column {
+            id: tooltipCol
+            anchors.centerIn: parent
+            spacing: 3
+
+            Text {
+                text: gaugeTooltip.title
+                color: root.clrTextPrimary
+                font.pixelSize: Math.max(9, root.fontGaugeLabel)
+                font.weight: Font.Bold
+                font.letterSpacing: 1
+                font.family: "Segoe UI"
+            }
+            Text {
+                text: gaugeTooltip.description
+                color: root.clrTextMuted
+                font.pixelSize: Math.max(8, root.fontGaugeLabel - 1)
+                font.family: "Segoe UI"
+                visible: text.length > 0
+            }
+            Text {
+                text: gaugeTooltip.value
+                color: root.clrTextSecondary
+                font.pixelSize: Math.max(8, root.fontGaugeLabel - 1)
+                font.weight: Font.DemiBold
+                font.family: "Segoe UI"
+                visible: text.length > 0
+            }
+        }
+    }
+
+    // Tooltip show/hide helpers
+    function showTooltip(item, title, description, value) {
+        var pos = item.mapToItem(root, item.width / 2, item.height + 6)
+        gaugeTooltip.title = title
+        gaugeTooltip.description = description
+        gaugeTooltip.value = value
+        // Clamp to root bounds
+        var tx = Math.max(4, Math.min(pos.x - gaugeTooltip.width / 2, root.width - gaugeTooltip.width - 4))
+        var ty = pos.y
+        if (ty + gaugeTooltip.height > root.height - 4)
+            ty = item.mapToItem(root, 0, -gaugeTooltip.height - 6).y
+        gaugeTooltip.x = tx
+        gaugeTooltip.y = ty
+        gaugeTooltip.visible = true
+    }
+
+    function hideTooltip() {
+        gaugeTooltip.visible = false
     }
 }
