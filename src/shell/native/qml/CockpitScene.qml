@@ -74,6 +74,24 @@ Rectangle {
     property bool smoothingActive: false
     property var activeAlerts: []
 
+    // CPU alert active: rule_id=1, state=2 (triggered), not acknowledged
+    property bool cpuAlertActive: {
+        for (var i = 0; i < activeAlerts.length; i++) {
+            if (activeAlerts[i].ruleId === 1 && activeAlerts[i].state === 2 && !activeAlerts[i].acknowledged)
+                return true
+        }
+        return false
+    }
+
+    // Alert glow breathing intensity
+    property real alertBreath: 0.0
+    SequentialAnimation on alertBreath {
+        running: root.cpuAlertActive
+        loops: Animation.Infinite
+        NumberAnimation { to: 1.0; duration: 600; easing.type: Easing.InOutSine }
+        NumberAnimation { to: 0.3; duration: 600; easing.type: Easing.InOutSine }
+    }
+
     // Smoothed health for gauge animation
     property real smoothHealth: 50.0
     property bool hasHealthSample: false
@@ -1197,6 +1215,35 @@ Rectangle {
                         target: root
                         function onSmoothCpuChanged() { cpuGlowCanvas.requestPaint() }
                         function onAccentIntensityChanged() { cpuGlowCanvas.requestPaint() }
+                    }
+                }
+
+                // Alert glow overlay — red breathing halo when CPU alert triggered
+                Canvas {
+                    id: cpuAlertGlowCanvas
+                    anchors.centerIn: parent
+                    width: parent.width + Math.round(16 + 16 * root.scaleFactor)
+                    height: parent.height + Math.round(16 + 16 * root.scaleFactor)
+                    visible: root.cpuAlertActive
+                    opacity: root.alertBreath * 0.5
+                    onPaint: {
+                        var ctx = getContext("2d")
+                        ctx.clearRect(0, 0, width, height)
+                        var cx = width / 2, cy = height / 2
+                        var r = (parent.width / 2) + 8
+                        var grad = ctx.createRadialGradient(cx, cy, r * 0.7, cx, cy, r * 1.3)
+                        grad.addColorStop(0.0, Qt.rgba(0.93, 0.27, 0.27, 0.35))
+                        grad.addColorStop(0.5, Qt.rgba(0.93, 0.27, 0.27, 0.15))
+                        grad.addColorStop(1.0, "transparent")
+                        ctx.beginPath()
+                        ctx.arc(cx, cy, r * 1.3, 0, Math.PI * 2, false)
+                        ctx.fillStyle = grad
+                        ctx.fill()
+                    }
+                    Connections {
+                        target: root
+                        function onCpuAlertActiveChanged() { cpuAlertGlowCanvas.requestPaint() }
+                        function onAlertBreathChanged() { if (root.cpuAlertActive) cpuAlertGlowCanvas.requestPaint() }
                     }
                 }
 
