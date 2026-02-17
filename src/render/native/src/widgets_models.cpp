@@ -160,10 +160,12 @@ std::vector<double> SparkLineModel::normalized_buffer() const {
     out.reserve(buffer_.size());
 
     if (range < 1e-9) {
-        // All values are effectively equal — map them all to 0.5 so the
-        // spark line still renders at mid-height rather than collapsing.
+        // All values are effectively equal. Map to the actual percent position
+        // in [0, 1] so an idle CPU at 4% renders near-bottom, not at midpoint.
+        // Floor at 0.05 so the line is always visible (not collapsed to zero).
+        const double actual_pos = std::clamp(buffer_.front() / 100.0, 0.05, 0.95);
         for (std::size_t i = 0; i < buffer_.size(); ++i) {
-            out.push_back(0.5);
+            out.push_back(actual_pos);
         }
     } else {
         for (const double v : buffer_) {

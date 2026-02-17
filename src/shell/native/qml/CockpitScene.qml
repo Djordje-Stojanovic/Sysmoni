@@ -85,11 +85,34 @@ Rectangle {
 
     // Alert glow breathing intensity
     property real alertBreath: 0.0
-    SequentialAnimation on alertBreath {
-        running: root.cpuAlertActive
+
+    SequentialAnimation {
+        id: alertBreathLoop
         loops: Animation.Infinite
-        NumberAnimation { to: 1.0; duration: 600; easing.type: Easing.InOutSine }
-        NumberAnimation { to: 0.3; duration: 600; easing.type: Easing.InOutSine }
+        NumberAnimation { target: root; property: "alertBreath"; to: 1.0; duration: 600; easing.type: Easing.InOutSine }
+        NumberAnimation { target: root; property: "alertBreath"; to: 0.3; duration: 600; easing.type: Easing.InOutSine }
+    }
+
+    NumberAnimation {
+        id: alertBreathFadeOut
+        target: root
+        property: "alertBreath"
+        to: 0.0
+        duration: 400
+        easing.type: Easing.OutCubic
+    }
+
+    Connections {
+        target: root
+        function onCpuAlertActiveChanged() {
+            if (root.cpuAlertActive) {
+                alertBreathFadeOut.stop()
+                alertBreathLoop.start()
+            } else {
+                alertBreathLoop.stop()
+                alertBreathFadeOut.start()
+            }
+        }
     }
 
     // Smoothed health for gauge animation
@@ -274,10 +297,11 @@ Rectangle {
             g = 0.620 + (0.773 - 0.620) * t2
             b = 0.043 + (0.369 - 0.043) * t2
         } else {
+            // 80 → 100: #22c55e → #00ff87 (saturated mint, peak health — visually distinct)
             var t3 = (score - 80) / 20.0
-            r = 0.133 + (0.133 - 0.133) * t3
-            g = 0.773 + (0.773 - 0.773) * t3
-            b = 0.369 + (0.369 - 0.369) * t3
+            r = 0.133 + (0.000 - 0.133) * t3
+            g = 0.773 + (1.000 - 0.773) * t3
+            b = 0.369 + (0.529 - 0.369) * t3
         }
         return Qt.rgba(
             Math.max(0, Math.min(1, r)),
