@@ -15,6 +15,8 @@ add_executable(render_native_tests
     test_formatting.cpp
     test_qt_hooks.cpp
     test_c_api_errors.cpp
+    test_severity_pipeline.cpp
+    test_gauge_color.cpp
     render_native_tests.cpp
 )
 target_include_directories(render_native_tests PRIVATE ../../src/render/native/include)
