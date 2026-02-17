@@ -335,6 +335,90 @@ AURA_PLATFORM_EXPORT int aura_dvr_export_csv(
     aura_error_t* out_error
 );
 
+/* -----------------------------------------------------------------------
+ * Health Score Engine
+ * ----------------------------------------------------------------------- */
+
+typedef struct aura_health_score_t {
+    double overall;        /* 0-100 weighted composite */
+    double cpu_score;      /* 0-100 (100 = idle, 0 = maxed) */
+    double memory_score;   /* 0-100 (100 = free, 0 = full) */
+    double disk_score;     /* 0-100 (100 = quiet, 0 = saturated) */
+    double network_score;  /* 0-100 (100 = quiet, 0 = saturated) */
+} aura_health_score_t;
+
+typedef struct aura_health_weights_t {
+    double cpu;            /* default 0.35 */
+    double memory;         /* default 0.35 */
+    double disk;           /* default 0.15 */
+    double network;        /* default 0.15 */
+} aura_health_weights_t;
+
+AURA_PLATFORM_EXPORT int aura_health_score_compute(
+    const aura_snapshot_t* snapshot,
+    aura_health_score_t* out_score,
+    aura_error_t* out_error
+);
+
+AURA_PLATFORM_EXPORT int aura_health_score_compute_weighted(
+    const aura_snapshot_t* snapshot,
+    const aura_health_weights_t* weights,
+    aura_health_score_t* out_score,
+    aura_error_t* out_error
+);
+
+/* -----------------------------------------------------------------------
+ * Trend Detection Engine
+ * ----------------------------------------------------------------------- */
+
+enum aura_trend_direction_t {
+    AURA_TREND_STABLE  = 0,
+    AURA_TREND_RISING  = 1,
+    AURA_TREND_FALLING = 2
+};
+
+typedef struct aura_trend_result_t {
+    int    direction;      /* aura_trend_direction_t */
+    double slope;          /* rate of change per second */
+    double r_squared;      /* 0-1 goodness of fit */
+    double intercept;      /* y-intercept of regression line */
+} aura_trend_result_t;
+
+AURA_PLATFORM_EXPORT int aura_trend_detect(
+    const aura_snapshot_t* snapshots,
+    int count,
+    int metric,            /* aura_alert_metric_t (0=cpu .. 5=net_sent) */
+    double sensitivity,    /* minimum |slope|/sec for rising/falling */
+    aura_trend_result_t* out_trend,
+    aura_error_t* out_error
+);
+
+/* -----------------------------------------------------------------------
+ * EMA Smoother
+ * ----------------------------------------------------------------------- */
+
+typedef struct aura_smoother aura_smoother_t;
+
+AURA_PLATFORM_EXPORT int aura_smoother_create(
+    double alpha,
+    aura_smoother_t** out_smoother,
+    aura_error_t* out_error
+);
+
+AURA_PLATFORM_EXPORT int aura_smoother_update(
+    aura_smoother_t* smoother,
+    const aura_snapshot_t* raw_snapshot,
+    aura_snapshot_t* out_smoothed,
+    aura_error_t* out_error
+);
+
+AURA_PLATFORM_EXPORT int aura_smoother_reset(
+    aura_smoother_t* smoother,
+    aura_error_t* out_error
+);
+
+AURA_PLATFORM_EXPORT int aura_smoother_destroy(aura_smoother_t* smoother);
+
 #ifdef __cplusplus
 }
 #endif

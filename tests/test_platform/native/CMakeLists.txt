@@ -6,6 +6,7 @@ add_executable(platform_native_tests
     test_alert_engine.cpp
     test_dvr_stats.cpp
     test_dvr_export.cpp
+    test_health_engine.cpp
 )
 
 target_include_directories(platform_native_tests

@@ -228,3 +228,70 @@ void TestExportCsvNullStore();
 void TestExportCsvNullFilePath();
 void TestExportCsvNullError();
 void TestExportCsvLargeDataset();
+
+// Health Score — basic correctness (7)
+void TestHealthScoreIdleSystem();
+void TestHealthScoreFullLoad();
+void TestHealthScoreHalfLoad();
+void TestHealthScoreHighDiskIo();
+void TestHealthScoreHighNetwork();
+void TestHealthScoreEverythingMaxed();
+void TestHealthScoreRangeAlwaysValid();
+
+// Health Score — custom weights (4)
+void TestHealthScoreCustomWeightsCpuOnly();
+void TestHealthScoreCustomWeightsMemoryOnly();
+void TestHealthScoreCustomWeightsEqual();
+void TestHealthScoreZeroWeightsReturnsZero();
+
+// Health Score — edge cases (4)
+void TestHealthScoreNaNFieldsSafe();
+void TestHealthScoreInfFieldsSafe();
+void TestHealthScoreNegativeCpuClamped();
+void TestHealthScoreOver100CpuClamped();
+
+// Health Score — C ABI safety (4)
+void TestHealthScoreAbiNullSnapshot();
+void TestHealthScoreAbiNullOutScore();
+void TestHealthScoreAbiNullError();
+void TestHealthScoreWeightedAbiNullWeights();
+
+// Trend Detection — basic correctness (9)
+void TestTrendRisingCpu();
+void TestTrendFallingMemory();
+void TestTrendStableConstant();
+void TestTrendSensitivityThreshold();
+void TestTrendSingleSnapshot();
+void TestTrendEmptyInput();
+void TestTrendAllMetricIndices();
+void TestTrendRSquaredForNoisyData();
+void TestTrendTwoSnapshots();
+
+// Trend Detection — C ABI safety (5)
+void TestTrendAbiNullSnapshotsWithPositiveCount();
+void TestTrendAbiNullOutTrend();
+void TestTrendAbiInvalidMetric();
+void TestTrendAbiNegativeCount();
+void TestTrendAbiNullError();
+
+// EMA Smoother — basic correctness (7)
+void TestSmootherFirstUpdatePassthrough();
+void TestSmootherConvergence();
+void TestSmootherAlphaOne();
+void TestSmootherSmallAlpha();
+void TestSmootherReset();
+void TestSmootherAllFieldsSmoothed();
+void TestSmootherTimestampUsesLatest();
+
+// EMA Smoother — C ABI safety (7)
+void TestSmootherCreateInvalidAlpha();
+void TestSmootherCreateNullOut();
+void TestSmootherUpdateNullSmoother();
+void TestSmootherUpdateNullSnapshot();
+void TestSmootherUpdateNullOutput();
+void TestSmootherDestroyNull();
+void TestSmootherResetNull();
+
+// Health Score — I/O interpolation (2)
+void TestHealthScoreDiskMidpoint();
+void TestHealthScoreNetworkMidpoint();
