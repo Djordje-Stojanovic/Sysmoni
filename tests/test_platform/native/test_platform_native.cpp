@@ -406,6 +406,77 @@ int main() {
     TestAlertAbiNullEngine();
     TestAlertAbiNullErrorSafe();
 
+    // DVR Statistics Engine — basic correctness (8)
+    TestStatsEmptyInput();
+    TestStatsSingleSnapshot();
+    TestStatsTwoSnapshots();
+    TestStatsKnownLinearDistribution();
+    TestStatsConstantValues();
+    TestStatsTimestampRange();
+    TestStatsCountField();
+    TestStatsAllMetricsPopulated();
+
+    // DVR Statistics Engine — percentile correctness (7)
+    TestStatsP50EvenCount();
+    TestStatsP50OddCount();
+    TestStatsP95LargeInput();
+    TestStatsP99LargeInput();
+    TestStatsPercentilesOrdered();
+    TestStatsPercentilesWithinMinMax();
+    TestStatsPercentilesThreeValues();
+
+    // DVR Statistics Engine — standard deviation (4)
+    TestStatsStddevZeroForConstant();
+    TestStatsStddevKnownValues();
+    TestStatsStddevSingleValue();
+    TestStatsStddevLargeSpread();
+
+    // DVR Statistics Engine — per-metric isolation (6)
+    TestStatsCpuMetricIsolated();
+    TestStatsMemoryMetricIsolated();
+    TestStatsDiskReadMetricIsolated();
+    TestStatsDiskWriteMetricIsolated();
+    TestStatsNetRecvMetricIsolated();
+    TestStatsNetSentMetricIsolated();
+
+    // DVR Statistics Engine — C ABI safety (6)
+    TestStatsAbiNullSnapshots();
+    TestStatsAbiNullOutStats();
+    TestStatsAbiNullError();
+    TestStatsAbiNegativeCount();
+    TestStatsAbiZeroCount();
+    TestStatsAbiNullErrorInvalid();
+
+    // DVR Statistics Engine — store integration (4)
+    TestDvrComputeStatsFullRange();
+    TestDvrComputeStatsSubRange();
+    TestDvrComputeStatsEmptyRange();
+    TestDvrComputeStatsNullStore();
+
+    // DVR Export — JSON (10)
+    TestExportJsonBasic();
+    TestExportJsonWithStats();
+    TestExportJsonWithoutStats();
+    TestExportJsonEmptyRange();
+    TestExportJsonFieldValues();
+    TestExportJsonVersionField();
+    TestExportJsonTimePrecision();
+    TestExportJsonNullStore();
+    TestExportJsonNullFilePath();
+    TestExportJsonLargeDataset();
+
+    // DVR Export — CSV (10)
+    TestExportCsvBasic();
+    TestExportCsvHeader();
+    TestExportCsvFieldCount();
+    TestExportCsvEmptyRange();
+    TestExportCsvRoundTrip();
+    TestExportCsvTimePrecision();
+    TestExportCsvNullStore();
+    TestExportCsvNullFilePath();
+    TestExportCsvNullError();
+    TestExportCsvLargeDataset();
+
     std::cout << "platform_native_tests: PASS" << std::endl;
     return 0;
 }

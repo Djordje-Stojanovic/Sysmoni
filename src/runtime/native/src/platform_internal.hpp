@@ -79,4 +79,44 @@ void ValidateSnapshot(const Snapshot& snapshot);
 void ValidatePositiveFinite(double value, const char* field_name);
 void ValidateFinite(double value, const char* field_name);
 
+// ---------------------------------------------------------------------------
+// DVR Statistics & Export Engine
+// ---------------------------------------------------------------------------
+
+struct MetricStats {
+    double avg = 0.0;
+    double min = 0.0;
+    double max = 0.0;
+    double p50 = 0.0;
+    double p95 = 0.0;
+    double p99 = 0.0;
+    double stddev = 0.0;
+};
+
+struct StatsResult {
+    int count = 0;
+    double start_timestamp = 0.0;
+    double end_timestamp = 0.0;
+    double duration_seconds = 0.0;
+    MetricStats cpu;
+    MetricStats memory;
+    MetricStats disk_read;
+    MetricStats disk_write;
+    MetricStats net_recv;
+    MetricStats net_sent;
+};
+
+StatsResult ComputeStats(const std::vector<Snapshot>& snapshots);
+
+void ExportToJsonFile(
+    const std::vector<Snapshot>& snapshots,
+    const StatsResult* stats,
+    const std::string& file_path
+);
+
+void ExportToCsvFile(
+    const std::vector<Snapshot>& snapshots,
+    const std::string& file_path
+);
+
 } // namespace aura::platform

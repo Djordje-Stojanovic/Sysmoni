@@ -2,7 +2,7 @@
 
 #include <stddef.h>
 
-#define AURA_PLATFORM_ABI_VERSION 2
+#define AURA_PLATFORM_ABI_VERSION 3
 
 #ifdef _WIN32
 #define AURA_PLATFORM_EXPORT __declspec(dllexport)
@@ -267,6 +267,71 @@ AURA_PLATFORM_EXPORT int aura_alert_engine_get_history(
 
 AURA_PLATFORM_EXPORT int aura_alert_engine_clear_history(
     aura_alert_engine_t* engine,
+    aura_error_t* out_error
+);
+
+/* -----------------------------------------------------------------------
+ * DVR Statistics & Export Engine
+ * ----------------------------------------------------------------------- */
+
+typedef struct aura_metric_stats_t {
+    double avg;
+    double min;
+    double max;
+    double p50;      /* median */
+    double p95;
+    double p99;
+    double stddev;
+} aura_metric_stats_t;
+
+typedef struct aura_stats_result_t {
+    int    count;
+    double start_timestamp;
+    double end_timestamp;
+    double duration_seconds;
+    aura_metric_stats_t cpu;
+    aura_metric_stats_t memory;
+    aura_metric_stats_t disk_read;
+    aura_metric_stats_t disk_write;
+    aura_metric_stats_t net_recv;
+    aura_metric_stats_t net_sent;
+} aura_stats_result_t;
+
+AURA_PLATFORM_EXPORT int aura_stats_compute(
+    const aura_snapshot_t* snapshots,
+    int count,
+    aura_stats_result_t* out_stats,
+    aura_error_t* out_error
+);
+
+AURA_PLATFORM_EXPORT int aura_dvr_compute_stats(
+    aura_store_t* store,
+    int has_start,
+    double start_timestamp,
+    int has_end,
+    double end_timestamp,
+    aura_stats_result_t* out_stats,
+    aura_error_t* out_error
+);
+
+AURA_PLATFORM_EXPORT int aura_dvr_export_json(
+    aura_store_t* store,
+    int has_start,
+    double start_timestamp,
+    int has_end,
+    double end_timestamp,
+    int include_stats,
+    const char* file_path,
+    aura_error_t* out_error
+);
+
+AURA_PLATFORM_EXPORT int aura_dvr_export_csv(
+    aura_store_t* store,
+    int has_start,
+    double start_timestamp,
+    int has_end,
+    double end_timestamp,
+    const char* file_path,
     aura_error_t* out_error
 );
 
