@@ -5,6 +5,10 @@
 #include <QVariantList>
 #include <QVariantMap>
 
+#include <chrono>
+#include <cstdlib>
+#include <string>
+
 namespace aura::shell {
 
 void AuraShellWindow::refresh_cockpit() {
@@ -236,6 +240,51 @@ void AuraShellWindow::refresh_cockpit() {
         tl_root->setProperty("accentBlue", state.style_tokens.accent_blue);
         tl_root->setProperty("severityLevel", state.severity_level);
         tl_root->setProperty("gpuAvailable", state.gpu.available);
+
+        // DVR stats
+        std::string dvr_stats_err;
+        auto dvr_stats = controller_->compute_dvr_stats(dvr_stats_err);
+        if (dvr_stats.has_value() && dvr_stats->count > 0) {
+            tl_root->setProperty("dvrStatsAvailable", true);
+            QVariantMap stats_map;
+            stats_map["count"] = dvr_stats->count;
+            stats_map["duration"] = dvr_stats->duration_seconds;
+            stats_map["cpuAvg"] = dvr_stats->cpu.avg;
+            stats_map["cpuP95"] = dvr_stats->cpu.p95;
+            stats_map["cpuMax"] = dvr_stats->cpu.max_val;
+            stats_map["cpuStddev"] = dvr_stats->cpu.stddev;
+            stats_map["memAvg"] = dvr_stats->memory.avg;
+            stats_map["memP95"] = dvr_stats->memory.p95;
+            stats_map["memMax"] = dvr_stats->memory.max_val;
+            stats_map["memStddev"] = dvr_stats->memory.stddev;
+            tl_root->setProperty("dvrStats", stats_map);
+        } else {
+            tl_root->setProperty("dvrStatsAvailable", false);
+        }
+
+        // Handle export request from QML
+        if (tl_root->property("exportRequested").toBool()) {
+            tl_root->setProperty("exportRequested", false);
+
+            // Build export path: ~/aura_export_<timestamp>.json
+            std::string home_dir;
+            if (const char* userprofile = std::getenv("USERPROFILE")) {
+                home_dir = userprofile;
+            } else if (const char* home = std::getenv("HOME")) {
+                home_dir = home;
+            } else {
+                home_dir = ".";
+            }
+
+            const auto now = std::chrono::system_clock::now();
+            const auto epoch = std::chrono::duration_cast<std::chrono::seconds>(
+                now.time_since_epoch()).count();
+            const std::string export_path = home_dir + "/aura_export_" +
+                std::to_string(epoch) + ".json";
+
+            std::string export_err;
+            controller_->export_dvr_json(export_path, export_err);
+        }
 
         if (theme_dirty_) {
             tl_root->setProperty(
