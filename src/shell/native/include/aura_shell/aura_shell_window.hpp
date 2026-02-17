@@ -86,6 +86,7 @@ private:
     std::array<std::array<QPushButton*, 3>, 5> panel_move_buttons_{};
     bool syncing_tabs_{false};
     QFrame* titlebar_{nullptr};
+    QPushButton* max_btn_{nullptr};
     QPushButton* theme_toggle_btn_{nullptr};
     QQuickWidget* quick_{nullptr};
     QQuickWidget* timeline_quick_{nullptr};
