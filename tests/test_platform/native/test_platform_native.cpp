@@ -237,7 +237,7 @@ void TestSqliteConcurrentReadWrite() {
 }
 
 // ---------------------------------------------------------------------------
-// main — calls all 47 tests
+// main — calls all 66 tests
 // ---------------------------------------------------------------------------
 
 int main() {
@@ -309,6 +309,35 @@ int main() {
 
     // Concurrency test (1)
     TestSqliteConcurrentReadWrite();
+
+    // Network field store persistence tests (4)
+    TestSnapshotNetFieldsPersisted();
+    TestSnapshotNetFieldsPersistedToFile();
+    TestSnapshotNetFieldsDefaultToZero();
+    TestSnapshotNetFieldsInBetweenQuery();
+
+    // Schema migration tests (5)
+    TestSchemaMigrationAddsNetColumns();
+    TestSchemaMigrationIdempotent();
+    TestCsvMigration7FieldLines();
+    TestCsvMigration5FieldLinesNetDefaultZero();
+    TestCsvMigrationMixed5And7FieldLines();
+
+    // DVR tests — LTTB with network fields (5)
+    TestLttbNetRecvSpikePreserved();
+    TestLttbNetSentSpikePreserved();
+    TestLttbPreservesAllFieldsIncludingNet();
+    TestLttbNetFieldsZeroRangeSkipped();
+    TestLttbSixFieldNormalizationNetVsCpu();
+
+    // Validation tests — network fields (3)
+    TestValidateSnapshotRejectsNegativeNetRecv();
+    TestValidateSnapshotRejectsNegativeNetSent();
+    TestValidateSnapshotRejectsInfiniteNetRecv();
+
+    // C API round-trip tests — network fields (2)
+    TestAbiSnapshotNetFieldsRoundTrip();
+    TestAbiSnapshotNetFieldsZeroInit();
 
     std::cout << "platform_native_tests: PASS" << std::endl;
     return 0;

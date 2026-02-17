@@ -62,6 +62,26 @@ set_tests_properties(
 )
 
 add_test(
+    NAME platform_cli_json_includes_net_fields
+    COMMAND $<TARGET_FILE:aura> --json --no-persist
+)
+set_tests_properties(
+    platform_cli_json_includes_net_fields
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"net_recv_bps\".*\"net_sent_bps\""
+)
+
+add_test(
+    NAME platform_cli_text_includes_net_fields
+    COMMAND $<TARGET_FILE:aura> --no-persist
+)
+set_tests_properties(
+    platform_cli_text_includes_net_fields
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "net_recv_bps=.*net_sent_bps="
+)
+
+add_test(
     NAME platform_cli_latest_preserves_disk_fields
     COMMAND powershell -NoProfile -ExecutionPolicy Bypass -File
         ${CMAKE_CURRENT_SOURCE_DIR}/../cli_latest_disk_fields_test.ps1

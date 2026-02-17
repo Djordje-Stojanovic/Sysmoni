@@ -75,8 +75,6 @@ Snapshot ParseSnapshotLine(const std::string& line) {
     std::string ts_raw;
     std::string cpu_raw;
     std::string mem_raw;
-    std::string disk_read_raw;
-    std::string disk_write_raw;
 
     if (!std::getline(input, ts_raw, ',')) {
         throw std::runtime_error("Malformed snapshot line: missing timestamp");
@@ -86,8 +84,6 @@ Snapshot ParseSnapshotLine(const std::string& line) {
     }
 
     Snapshot out;
-    out.disk_read_bps = 0.0;
-    out.disk_write_bps = 0.0;
 
     if (!std::getline(input, mem_raw, ',')) {
         throw std::runtime_error("Malformed snapshot line: missing memory_percent");
@@ -97,9 +93,18 @@ Snapshot ParseSnapshotLine(const std::string& line) {
     out.cpu_percent = std::stod(cpu_raw);
     out.memory_percent = std::stod(mem_raw);
 
-    if (std::getline(input, disk_read_raw, ',') && std::getline(input, disk_write_raw)) {
+    std::string disk_read_raw;
+    std::string disk_write_raw;
+    if (std::getline(input, disk_read_raw, ',') && std::getline(input, disk_write_raw, ',')) {
         out.disk_read_bps = std::stod(disk_read_raw);
         out.disk_write_bps = std::stod(disk_write_raw);
+
+        std::string net_recv_raw;
+        std::string net_sent_raw;
+        if (std::getline(input, net_recv_raw, ',') && std::getline(input, net_sent_raw)) {
+            out.net_recv_bps = std::stod(net_recv_raw);
+            out.net_sent_bps = std::stod(net_sent_raw);
+        }
     }
 
     ValidateSnapshot(out);
@@ -182,6 +187,8 @@ class SqliteStore final : public TelemetryStore {
         sqlite3_bind_double(stmt_insert_, 3, snapshot.memory_percent);
         sqlite3_bind_double(stmt_insert_, 4, snapshot.disk_read_bps);
         sqlite3_bind_double(stmt_insert_, 5, snapshot.disk_write_bps);
+        sqlite3_bind_double(stmt_insert_, 6, snapshot.net_recv_bps);
+        sqlite3_bind_double(stmt_insert_, 7, snapshot.net_sent_bps);
 
         const int rc = sqlite3_step(stmt_insert_);
         SqliteCheck(db_, rc, "insert snapshot");
@@ -229,6 +236,8 @@ class SqliteStore final : public TelemetryStore {
             s.memory_percent = sqlite3_column_double(stmt_latest_, 2);
             s.disk_read_bps = sqlite3_column_double(stmt_latest_, 3);
             s.disk_write_bps = sqlite3_column_double(stmt_latest_, 4);
+            s.net_recv_bps = sqlite3_column_double(stmt_latest_, 5);
+            s.net_sent_bps = sqlite3_column_double(stmt_latest_, 6);
             results.push_back(s);
         }
 
@@ -272,6 +281,8 @@ class SqliteStore final : public TelemetryStore {
                 s.memory_percent = sqlite3_column_double(stmt_between_, 2);
                 s.disk_read_bps = sqlite3_column_double(stmt_between_, 3);
                 s.disk_write_bps = sqlite3_column_double(stmt_between_, 4);
+                s.net_recv_bps = sqlite3_column_double(stmt_between_, 5);
+                s.net_sent_bps = sqlite3_column_double(stmt_between_, 6);
                 results.push_back(s);
             }
             return results;
@@ -299,6 +310,8 @@ class SqliteStore final : public TelemetryStore {
             s.memory_percent = sqlite3_column_double(stmt_between_, 2);
             s.disk_read_bps = sqlite3_column_double(stmt_between_, 3);
             s.disk_write_bps = sqlite3_column_double(stmt_between_, 4);
+            s.net_recv_bps = sqlite3_column_double(stmt_between_, 5);
+            s.net_sent_bps = sqlite3_column_double(stmt_between_, 6);
             results.push_back(s);
         }
         return results;
@@ -334,7 +347,9 @@ class SqliteStore final : public TelemetryStore {
                 "cpu REAL NOT NULL,"
                 "mem REAL NOT NULL,"
                 "disk_r REAL NOT NULL DEFAULT 0,"
-                "disk_w REAL NOT NULL DEFAULT 0"
+                "disk_w REAL NOT NULL DEFAULT 0,"
+                "net_r REAL NOT NULL DEFAULT 0,"
+                "net_w REAL NOT NULL DEFAULT 0"
                 ");") ||
             !try_exec("CREATE INDEX IF NOT EXISTS idx_snapshots_ts ON snapshots(ts);")) {
             sqlite3_close(db_);
@@ -342,14 +357,21 @@ class SqliteStore final : public TelemetryStore {
             return;
         }
 
+        // Migrate existing databases: add net columns if missing.
+        // Errors are expected and ignored (column may already exist).
+        sqlite3_exec(db_, "ALTER TABLE snapshots ADD COLUMN net_r REAL NOT NULL DEFAULT 0;",
+                     nullptr, nullptr, nullptr);
+        sqlite3_exec(db_, "ALTER TABLE snapshots ADD COLUMN net_w REAL NOT NULL DEFAULT 0;",
+                     nullptr, nullptr, nullptr);
+
         stmt_insert_ = PrepareStatement(db_,
-            "INSERT INTO snapshots(ts,cpu,mem,disk_r,disk_w) VALUES(?,?,?,?,?)");
+            "INSERT INTO snapshots(ts,cpu,mem,disk_r,disk_w,net_r,net_w) VALUES(?,?,?,?,?,?,?)");
         stmt_latest_ = PrepareStatement(db_,
-            "SELECT ts,cpu,mem,disk_r,disk_w FROM snapshots ORDER BY ts DESC LIMIT ?");
+            "SELECT ts,cpu,mem,disk_r,disk_w,net_r,net_w FROM snapshots ORDER BY ts DESC LIMIT ?");
         stmt_count_ = PrepareStatement(db_,
             "SELECT COUNT(*) FROM snapshots");
         stmt_between_ = PrepareStatement(db_,
-            "SELECT ts,cpu,mem,disk_r,disk_w FROM snapshots WHERE ts BETWEEN ? AND ? ORDER BY ts");
+            "SELECT ts,cpu,mem,disk_r,disk_w,net_r,net_w FROM snapshots WHERE ts BETWEEN ? AND ? ORDER BY ts");
         stmt_prune_ = PrepareStatement(db_,
             "DELETE FROM snapshots WHERE ts < ?");
     }
@@ -435,7 +457,9 @@ class SqliteStore final : public TelemetryStore {
             "cpu REAL NOT NULL,"
             "mem REAL NOT NULL,"
             "disk_r REAL NOT NULL DEFAULT 0,"
-            "disk_w REAL NOT NULL DEFAULT 0"
+            "disk_w REAL NOT NULL DEFAULT 0,"
+            "net_r REAL NOT NULL DEFAULT 0,"
+            "net_w REAL NOT NULL DEFAULT 0"
             ");", nullptr, nullptr, nullptr);
         sqlite3_exec(mig_db, "CREATE INDEX IF NOT EXISTS idx_snapshots_ts ON snapshots(ts);",
             nullptr, nullptr, nullptr);
@@ -443,7 +467,7 @@ class SqliteStore final : public TelemetryStore {
         if (!loaded.empty()) {
             sqlite3_exec(mig_db, "BEGIN TRANSACTION;", nullptr, nullptr, nullptr);
             sqlite3_stmt* ins = PrepareStatement(mig_db,
-                "INSERT INTO snapshots(ts,cpu,mem,disk_r,disk_w) VALUES(?,?,?,?,?)");
+                "INSERT INTO snapshots(ts,cpu,mem,disk_r,disk_w,net_r,net_w) VALUES(?,?,?,?,?,?,?)");
             for (const auto& s : loaded) {
                 sqlite3_reset(ins);
                 sqlite3_bind_double(ins, 1, s.timestamp);
@@ -451,6 +475,8 @@ class SqliteStore final : public TelemetryStore {
                 sqlite3_bind_double(ins, 3, s.memory_percent);
                 sqlite3_bind_double(ins, 4, s.disk_read_bps);
                 sqlite3_bind_double(ins, 5, s.disk_write_bps);
+                sqlite3_bind_double(ins, 6, s.net_recv_bps);
+                sqlite3_bind_double(ins, 7, s.net_sent_bps);
                 sqlite3_step(ins);
             }
             sqlite3_finalize(ins);
@@ -488,6 +514,8 @@ void ValidateSnapshot(const Snapshot& snapshot) {
     ValidateFinite(snapshot.memory_percent, "memory_percent");
     ValidateFinite(snapshot.disk_read_bps, "disk_read_bps");
     ValidateFinite(snapshot.disk_write_bps, "disk_write_bps");
+    ValidateFinite(snapshot.net_recv_bps, "net_recv_bps");
+    ValidateFinite(snapshot.net_sent_bps, "net_sent_bps");
 
     if (snapshot.cpu_percent < 0.0 || snapshot.cpu_percent > 100.0) {
         throw std::runtime_error("cpu_percent must be between 0 and 100.");
@@ -500,6 +528,12 @@ void ValidateSnapshot(const Snapshot& snapshot) {
     }
     if (snapshot.disk_write_bps < 0.0) {
         throw std::runtime_error("disk_write_bps must be non-negative.");
+    }
+    if (snapshot.net_recv_bps < 0.0) {
+        throw std::runtime_error("net_recv_bps must be non-negative.");
+    }
+    if (snapshot.net_sent_bps < 0.0) {
+        throw std::runtime_error("net_sent_bps must be non-negative.");
     }
 }
 

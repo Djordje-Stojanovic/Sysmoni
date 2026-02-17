@@ -1,11 +1,11 @@
 #pragma once
 
 // ---------------------------------------------------------------------------
-// Forward declarations for all 47 platform test functions.
+// Forward declarations for all 66 platform test functions.
 // Each is defined in one of the four translation units:
 //   test_platform_config.cpp  (5 config tests)
-//   test_platform_store.cpp   (6 store tests)
-//   test_platform_dvr.cpp     (30 DVR tests)
+//   test_platform_store.cpp   (20 store tests)
+//   test_platform_dvr.cpp     (35 DVR tests)
 //   test_platform_native.cpp  (6 remaining tests)
 // ---------------------------------------------------------------------------
 
@@ -77,3 +77,32 @@ void TestSqlitePrunePeriodic();
 
 // Concurrency test
 void TestSqliteConcurrentReadWrite();
+
+// Network field store persistence tests (4)
+void TestSnapshotNetFieldsPersisted();
+void TestSnapshotNetFieldsPersistedToFile();
+void TestSnapshotNetFieldsDefaultToZero();
+void TestSnapshotNetFieldsInBetweenQuery();
+
+// Schema migration tests (5)
+void TestSchemaMigrationAddsNetColumns();
+void TestSchemaMigrationIdempotent();
+void TestCsvMigration7FieldLines();
+void TestCsvMigration5FieldLinesNetDefaultZero();
+void TestCsvMigrationMixed5And7FieldLines();
+
+// DVR tests — LTTB with network fields (5)
+void TestLttbNetRecvSpikePreserved();
+void TestLttbNetSentSpikePreserved();
+void TestLttbPreservesAllFieldsIncludingNet();
+void TestLttbNetFieldsZeroRangeSkipped();
+void TestLttbSixFieldNormalizationNetVsCpu();
+
+// Validation tests — network fields (3)
+void TestValidateSnapshotRejectsNegativeNetRecv();
+void TestValidateSnapshotRejectsNegativeNetSent();
+void TestValidateSnapshotRejectsInfiniteNetRecv();
+
+// C API round-trip tests — network fields (2)
+void TestAbiSnapshotNetFieldsRoundTrip();
+void TestAbiSnapshotNetFieldsZeroInit();

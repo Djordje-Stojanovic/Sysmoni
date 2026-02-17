@@ -2,7 +2,7 @@
 
 #include <stddef.h>
 
-#define AURA_PLATFORM_ABI_VERSION 1
+#define AURA_PLATFORM_ABI_VERSION 2
 
 #ifdef _WIN32
 #define AURA_PLATFORM_EXPORT __declspec(dllexport)
@@ -22,6 +22,8 @@ typedef struct aura_snapshot_t {
     double memory_percent;
     double disk_read_bps;
     double disk_write_bps;
+    double net_recv_bps;
+    double net_sent_bps;
 } aura_snapshot_t;
 
 enum aura_db_source_t {

@@ -55,6 +55,8 @@ Snapshot ToInternalSnapshot(const aura_snapshot_t& raw) {
     out.memory_percent = raw.memory_percent;
     out.disk_read_bps = raw.disk_read_bps;
     out.disk_write_bps = raw.disk_write_bps;
+    out.net_recv_bps = raw.net_recv_bps;
+    out.net_sent_bps = raw.net_sent_bps;
     return out;
 }
 
@@ -65,6 +67,8 @@ aura_snapshot_t ToAbiSnapshot(const Snapshot& raw) {
     out.memory_percent = raw.memory_percent;
     out.disk_read_bps = raw.disk_read_bps;
     out.disk_write_bps = raw.disk_write_bps;
+    out.net_recv_bps = raw.net_recv_bps;
+    out.net_sent_bps = raw.net_sent_bps;
     return out;
 }
 

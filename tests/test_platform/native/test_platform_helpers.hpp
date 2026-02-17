@@ -148,6 +148,23 @@ inline std::string SnapshotLineWithDisk(
     return output.str();
 }
 
+inline std::string SnapshotLineWithNet(
+    const double timestamp,
+    const double cpu_percent,
+    const double memory_percent,
+    const double disk_read_bps,
+    const double disk_write_bps,
+    const double net_recv_bps,
+    const double net_sent_bps
+) {
+    std::ostringstream output;
+    output.precision(17);
+    output << timestamp << ',' << cpu_percent << ',' << memory_percent
+           << ',' << disk_read_bps << ',' << disk_write_bps
+           << ',' << net_recv_bps << ',' << net_sent_bps;
+    return output.str();
+}
+
 inline void WriteTextFileLines(const std::filesystem::path& path, const std::vector<std::string>& lines) {
     std::ofstream output(path, std::ios::trunc | std::ios::binary);
     if (!output.is_open()) {

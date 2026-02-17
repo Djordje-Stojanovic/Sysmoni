@@ -8,7 +8,7 @@ namespace aura::platform {
 
 namespace {
 
-constexpr int kNumFields = 4;
+constexpr int kNumFields = 6;
 constexpr double kRangeEpsilon = 1e-9;
 
 inline double GetField(const Snapshot& s, int field_index) {
@@ -17,6 +17,8 @@ inline double GetField(const Snapshot& s, int field_index) {
         case 1: return s.memory_percent;
         case 2: return s.disk_read_bps;
         case 3: return s.disk_write_bps;
+        case 4: return s.net_recv_bps;
+        case 5: return s.net_sent_bps;
         default: return 0.0;
     }
 }

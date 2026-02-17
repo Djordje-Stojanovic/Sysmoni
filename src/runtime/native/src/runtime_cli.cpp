@@ -202,6 +202,8 @@ void PrintSnapshot(const aura::platform::Snapshot& snapshot, const bool output_j
             << ", \"memory_percent\": " << std::fixed << std::setprecision(1) << snapshot.memory_percent
             << ", \"disk_read_bps\": " << std::fixed << std::setprecision(1) << snapshot.disk_read_bps
             << ", \"disk_write_bps\": " << std::fixed << std::setprecision(1) << snapshot.disk_write_bps
+            << ", \"net_recv_bps\": " << std::fixed << std::setprecision(1) << snapshot.net_recv_bps
+            << ", \"net_sent_bps\": " << std::fixed << std::setprecision(1) << snapshot.net_sent_bps
             << ", \"timestamp\": " << std::setprecision(3) << snapshot.timestamp
             << "}" << '\n';
         return;
@@ -212,6 +214,8 @@ void PrintSnapshot(const aura::platform::Snapshot& snapshot, const bool output_j
         << "mem=" << std::fixed << std::setprecision(1) << snapshot.memory_percent << "% "
         << "disk_read_bps=" << std::fixed << std::setprecision(1) << snapshot.disk_read_bps << " "
         << "disk_write_bps=" << std::fixed << std::setprecision(1) << snapshot.disk_write_bps << " "
+        << "net_recv_bps=" << std::fixed << std::setprecision(1) << snapshot.net_recv_bps << " "
+        << "net_sent_bps=" << std::fixed << std::setprecision(1) << snapshot.net_sent_bps << " "
         << "ts=" << std::setprecision(3) << snapshot.timestamp
         << '\n';
 }
@@ -265,6 +269,8 @@ std::vector<aura::platform::Snapshot> LoadSnapshots(
         next.memory_percent = output[i].memory_percent;
         next.disk_read_bps = output[i].disk_read_bps;
         next.disk_write_bps = output[i].disk_write_bps;
+        next.net_recv_bps = output[i].net_recv_bps;
+        next.net_sent_bps = output[i].net_sent_bps;
         snapshots.push_back(next);
     }
     return snapshots;
@@ -284,6 +290,8 @@ aura::platform::Snapshot CollectSnapshotViaApi() {
     snapshot.memory_percent = raw.memory_percent;
     snapshot.disk_read_bps = raw.disk_read_bps;
     snapshot.disk_write_bps = raw.disk_write_bps;
+    snapshot.net_recv_bps = raw.net_recv_bps;
+    snapshot.net_sent_bps = raw.net_sent_bps;
     return snapshot;
 }
 
@@ -352,6 +360,8 @@ int main(int argc, char** argv) {
                     raw.memory_percent = snapshot.memory_percent;
                     raw.disk_read_bps = snapshot.disk_read_bps;
                     raw.disk_write_bps = snapshot.disk_write_bps;
+                    raw.net_recv_bps = snapshot.net_recv_bps;
+                    raw.net_sent_bps = snapshot.net_sent_bps;
                     const int rc = aura_store_append(store, &raw, &err);
                     if (rc != AURA_OK) {
                         std::cerr << "DVR persistence disabled: "
@@ -388,6 +398,8 @@ int main(int argc, char** argv) {
             raw.memory_percent = snapshot.memory_percent;
             raw.disk_read_bps = snapshot.disk_read_bps;
             raw.disk_write_bps = snapshot.disk_write_bps;
+            raw.net_recv_bps = snapshot.net_recv_bps;
+            raw.net_sent_bps = snapshot.net_sent_bps;
             const int rc = aura_store_append(store, &raw, &err);
             if (rc != AURA_OK) {
                 std::cerr << "DVR persistence disabled: "

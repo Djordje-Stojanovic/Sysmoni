@@ -892,3 +892,191 @@ void TestQueryTimelineResolutionOne() {
     rc = aura_store_close(store);
     ExpectEq(rc, AURA_OK, "resolution 1: store close");
 }
+
+// ---------------------------------------------------------------------------
+// Category F: LTTB with Network Telemetry Fields
+// ---------------------------------------------------------------------------
+
+void TestLttbNetRecvSpikePreserved() {
+    const int N = 20;
+    const int spike_index = 10;
+    std::vector<aura_snapshot_t> input;
+    input.reserve(N);
+    for (int i = 0; i < N; ++i) {
+        aura_snapshot_t s{};
+        s.timestamp = 100.0 + static_cast<double>(i);
+        s.cpu_percent = 50.0;
+        s.memory_percent = 40.0;
+        if (i == spike_index) {
+            s.net_recv_bps = 10000000.0;
+        }
+        input.push_back(s);
+    }
+
+    aura_snapshot_t output[5]{};
+    int out_count = 0;
+    aura_error_t error{};
+    const int rc = aura_dvr_downsample_lttb(
+        input.data(), N, 5, output, 5, &out_count, &error
+    );
+    ExpectEq(rc, AURA_OK, "net recv spike: downsample should succeed");
+    ExpectEq(out_count, 5, "net recv spike: output count");
+
+    bool spike_found = false;
+    for (int i = 0; i < out_count; ++i) {
+        if (output[i].net_recv_bps > 5000000.0) {
+            spike_found = true;
+        }
+    }
+    ExpectTrue(spike_found, "net recv spike: net_recv_bps spike must be preserved in output");
+}
+
+void TestLttbNetSentSpikePreserved() {
+    const int N = 20;
+    const int spike_index = 10;
+    std::vector<aura_snapshot_t> input;
+    input.reserve(N);
+    for (int i = 0; i < N; ++i) {
+        aura_snapshot_t s{};
+        s.timestamp = 100.0 + static_cast<double>(i);
+        s.cpu_percent = 50.0;
+        s.memory_percent = 40.0;
+        if (i == spike_index) {
+            s.net_sent_bps = 10000000.0;
+        }
+        input.push_back(s);
+    }
+
+    aura_snapshot_t output[5]{};
+    int out_count = 0;
+    aura_error_t error{};
+    const int rc = aura_dvr_downsample_lttb(
+        input.data(), N, 5, output, 5, &out_count, &error
+    );
+    ExpectEq(rc, AURA_OK, "net sent spike: downsample should succeed");
+    ExpectEq(out_count, 5, "net sent spike: output count");
+
+    bool spike_found = false;
+    for (int i = 0; i < out_count; ++i) {
+        if (output[i].net_sent_bps > 5000000.0) {
+            spike_found = true;
+        }
+    }
+    ExpectTrue(spike_found, "net sent spike: net_sent_bps spike must be preserved in output");
+}
+
+void TestLttbPreservesAllFieldsIncludingNet() {
+    const int N = 15;
+    std::vector<aura_snapshot_t> input;
+    input.reserve(N);
+    for (int i = 0; i < N; ++i) {
+        aura_snapshot_t s{};
+        s.timestamp = 100.0 + static_cast<double>(i);
+        s.cpu_percent = static_cast<double>(i);
+        s.memory_percent = 50.0 + static_cast<double>(i) * 0.5;
+        s.disk_read_bps = 1000.0 * static_cast<double>(i);
+        s.disk_write_bps = 2000.0 * static_cast<double>(i);
+        s.net_recv_bps = 10000.0 * static_cast<double>(i);
+        s.net_sent_bps = 5000.0 * static_cast<double>(i);
+        input.push_back(s);
+    }
+
+    aura_snapshot_t output[5]{};
+    int out_count = 0;
+    aura_error_t error{};
+    const int rc = aura_dvr_downsample_lttb(
+        input.data(), N, 5, output, 5, &out_count, &error
+    );
+    ExpectEq(rc, AURA_OK, "all fields net: should succeed");
+    ExpectEq(out_count, 5, "all fields net: output count");
+
+    for (int i = 0; i < out_count; ++i) {
+        bool found = false;
+        for (int j = 0; j < N; ++j) {
+            if (std::fabs(output[i].timestamp - input[j].timestamp) < 1e-12 &&
+                std::fabs(output[i].cpu_percent - input[j].cpu_percent) < 1e-12 &&
+                std::fabs(output[i].memory_percent - input[j].memory_percent) < 1e-12 &&
+                std::fabs(output[i].disk_read_bps - input[j].disk_read_bps) < 1e-12 &&
+                std::fabs(output[i].disk_write_bps - input[j].disk_write_bps) < 1e-12 &&
+                std::fabs(output[i].net_recv_bps - input[j].net_recv_bps) < 1e-12 &&
+                std::fabs(output[i].net_sent_bps - input[j].net_sent_bps) < 1e-12) {
+                found = true;
+                break;
+            }
+        }
+        ExpectTrue(found, "all fields net: output[" + std::to_string(i) + "] must match input exactly (including net)");
+    }
+}
+
+void TestLttbNetFieldsZeroRangeSkipped() {
+    // Net fields are zero for all input — LTTB should still work
+    // (zero range fields are skipped in area calculation)
+    const int N = 20;
+    std::vector<aura_snapshot_t> input;
+    input.reserve(N);
+    for (int i = 0; i < N; ++i) {
+        aura_snapshot_t s{};
+        s.timestamp = 100.0 + static_cast<double>(i);
+        s.cpu_percent = static_cast<double>(i * 5);
+        s.memory_percent = 50.0;
+        // net fields default to 0.0
+        input.push_back(s);
+    }
+
+    aura_snapshot_t output[5]{};
+    int out_count = 0;
+    aura_error_t error{};
+    const int rc = aura_dvr_downsample_lttb(
+        input.data(), N, 5, output, 5, &out_count, &error
+    );
+    ExpectEq(rc, AURA_OK, "net zero range: should succeed");
+    ExpectEq(out_count, 5, "net zero range: output count");
+    ExpectNear(output[0].timestamp, 100.0, 1e-9, "net zero range: first timestamp");
+    ExpectNear(output[4].timestamp, 119.0, 1e-9, "net zero range: last timestamp");
+
+    // All net fields should be zero
+    for (int i = 0; i < out_count; ++i) {
+        ExpectNear(output[i].net_recv_bps, 0.0, 1e-9,
+                   "net zero range: net_recv[" + std::to_string(i) + "] zero");
+        ExpectNear(output[i].net_sent_bps, 0.0, 1e-9,
+                   "net zero range: net_sent[" + std::to_string(i) + "] zero");
+    }
+}
+
+void TestLttbSixFieldNormalizationNetVsCpu() {
+    // CPU varies 0-100, net_recv_bps varies 0-1e9.
+    // Both have significant spikes. Normalization should preserve both.
+    const int N = 30;
+    std::vector<aura_snapshot_t> input;
+    input.reserve(N);
+    for (int i = 0; i < N; ++i) {
+        aura_snapshot_t s{};
+        s.timestamp = 100.0 + static_cast<double>(i);
+        s.cpu_percent = 50.0;
+        s.memory_percent = 40.0;
+        s.net_recv_bps = 500000000.0;
+        input.push_back(s);
+    }
+    // CPU spike at index 8
+    input[8].cpu_percent = 95.0;
+    // Net recv spike at index 22
+    input[22].net_recv_bps = 950000000.0;
+
+    aura_snapshot_t output[8]{};
+    int out_count = 0;
+    aura_error_t error{};
+    const int rc = aura_dvr_downsample_lttb(
+        input.data(), N, 8, output, 8, &out_count, &error
+    );
+    ExpectEq(rc, AURA_OK, "net normalization: should succeed");
+    ExpectEq(out_count, 8, "net normalization: output count");
+
+    bool cpu_spike_found = false;
+    bool net_spike_found = false;
+    for (int i = 0; i < out_count; ++i) {
+        if (output[i].cpu_percent > 80.0) cpu_spike_found = true;
+        if (output[i].net_recv_bps > 800000000.0) net_spike_found = true;
+    }
+    ExpectTrue(cpu_spike_found, "net normalization: CPU spike should be preserved");
+    ExpectTrue(net_spike_found, "net normalization: net_recv spike should be preserved");
+}
