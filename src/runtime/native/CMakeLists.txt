@@ -21,6 +21,7 @@ set(AURA_NATIVE_SOURCES
     src/c_api.cpp
     src/c_api_alert.cpp
     src/c_api_stats.cpp
+    src/c_api_health.cpp
     src/config_win.cpp
     src/store_sqlite.cpp
     src/dvr_lttb.cpp
@@ -28,6 +29,7 @@ set(AURA_NATIVE_SOURCES
     src/dvr_export.cpp
     src/system_snapshot_win.cpp
     src/alert_engine.cpp
+    src/health_engine.cpp
 )
 
 add_library(aura_platform SHARED ${AURA_NATIVE_SOURCES})

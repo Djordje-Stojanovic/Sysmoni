@@ -477,6 +477,73 @@ int main() {
     TestExportCsvNullError();
     TestExportCsvLargeDataset();
 
+    // Health Score — basic correctness (7)
+    TestHealthScoreIdleSystem();
+    TestHealthScoreFullLoad();
+    TestHealthScoreHalfLoad();
+    TestHealthScoreHighDiskIo();
+    TestHealthScoreHighNetwork();
+    TestHealthScoreEverythingMaxed();
+    TestHealthScoreRangeAlwaysValid();
+
+    // Health Score — custom weights (4)
+    TestHealthScoreCustomWeightsCpuOnly();
+    TestHealthScoreCustomWeightsMemoryOnly();
+    TestHealthScoreCustomWeightsEqual();
+    TestHealthScoreZeroWeightsReturnsZero();
+
+    // Health Score — edge cases (4)
+    TestHealthScoreNaNFieldsSafe();
+    TestHealthScoreInfFieldsSafe();
+    TestHealthScoreNegativeCpuClamped();
+    TestHealthScoreOver100CpuClamped();
+
+    // Health Score — C ABI safety (4)
+    TestHealthScoreAbiNullSnapshot();
+    TestHealthScoreAbiNullOutScore();
+    TestHealthScoreAbiNullError();
+    TestHealthScoreWeightedAbiNullWeights();
+
+    // Trend Detection — basic correctness (9)
+    TestTrendRisingCpu();
+    TestTrendFallingMemory();
+    TestTrendStableConstant();
+    TestTrendSensitivityThreshold();
+    TestTrendSingleSnapshot();
+    TestTrendEmptyInput();
+    TestTrendAllMetricIndices();
+    TestTrendRSquaredForNoisyData();
+    TestTrendTwoSnapshots();
+
+    // Trend Detection — C ABI safety (5)
+    TestTrendAbiNullSnapshotsWithPositiveCount();
+    TestTrendAbiNullOutTrend();
+    TestTrendAbiInvalidMetric();
+    TestTrendAbiNegativeCount();
+    TestTrendAbiNullError();
+
+    // EMA Smoother — basic correctness (7)
+    TestSmootherFirstUpdatePassthrough();
+    TestSmootherConvergence();
+    TestSmootherAlphaOne();
+    TestSmootherSmallAlpha();
+    TestSmootherReset();
+    TestSmootherAllFieldsSmoothed();
+    TestSmootherTimestampUsesLatest();
+
+    // EMA Smoother — C ABI safety (7)
+    TestSmootherCreateInvalidAlpha();
+    TestSmootherCreateNullOut();
+    TestSmootherUpdateNullSmoother();
+    TestSmootherUpdateNullSnapshot();
+    TestSmootherUpdateNullOutput();
+    TestSmootherDestroyNull();
+    TestSmootherResetNull();
+
+    // Health Score — I/O interpolation (2)
+    TestHealthScoreDiskMidpoint();
+    TestHealthScoreNetworkMidpoint();
+
     std::cout << "platform_native_tests: PASS" << std::endl;
     return 0;
 }
