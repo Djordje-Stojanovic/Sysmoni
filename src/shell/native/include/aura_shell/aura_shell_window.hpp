@@ -64,6 +64,7 @@ public:
 protected:
 #ifdef _WIN32
     bool nativeEvent(const QByteArray& eventType, void* message, qintptr* result) override;
+    void showEvent(QShowEvent* event) override;
 #endif
     bool eventFilter(QObject* watched, QEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
@@ -89,6 +90,9 @@ private:
     SlotWidgets build_slot(DockSlot slot, QWidget* parent);
     void sync_theme_to_qml();
     void apply_theme(UiThemeMode mode, bool persist);
+#ifdef _WIN32
+    void apply_win32_frame_style();
+#endif
 
     // --- Constants ---
     static constexpr const char* k_theme_mode_setting_key = "ui/theme_mode";
@@ -141,6 +145,9 @@ private:
     std::array<QLabel*, 5> panel_title_labels_{};
     bool dragging_{false};
     QPoint drag_origin_{};
+#ifdef _WIN32
+    bool show_style_applied_{false};
+#endif
 };
 
 }  // namespace aura::shell

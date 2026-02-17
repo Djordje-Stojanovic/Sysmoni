@@ -41,6 +41,7 @@
 #include <QMimeData>
 #include <QMouseEvent>
 #include <QResizeEvent>
+#include <QShowEvent>
 #include <QObject>
 #include <QPushButton>
 #include <QQuickItem>
@@ -89,21 +90,9 @@ AuraShellWindow::AuraShellWindow(const LaunchConfig& config, QWidget* parent)
     setMouseTracking(true);
 
 #ifdef _WIN32
-    // Re-add WS_THICKFRAME for native resize borders while keeping frameless look.
-    // This is the standard approach (Chrome, VS Code, etc.).
-    HWND hwnd = reinterpret_cast<HWND>(winId());
-    LONG style = GetWindowLong(hwnd, GWL_STYLE);
-    style |= WS_THICKFRAME | WS_MAXIMIZEBOX | WS_MINIMIZEBOX;
-    SetWindowLong(hwnd, GWL_STYLE, style);
-
-    // Force Windows to recalculate the frame — without this, WS_THICKFRAME
-    // has no effect on hit testing and resize borders stay dead.
-    SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
-        SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
-
-    // Extend DWM frame 1px into client area for proper compositing
-    MARGINS margins = {1, 1, 1, 1};
-    DwmExtendFrameIntoClientArea(hwnd, &margins);
+    // Re-add WS_THICKFRAME+WS_CAPTION for native resize/snap while frameless.
+    // Chrome/Electron/framelesshelper all use this pattern.
+    apply_win32_frame_style();
 #endif
 
     // Responsive minimum — enables split-screen on 1080p+
@@ -303,6 +292,19 @@ AuraShellWindow::AuraShellWindow(const LaunchConfig& config, QWidget* parent)
 }
 
 #ifdef _WIN32
+void AuraShellWindow::apply_win32_frame_style() {
+    HWND hwnd = reinterpret_cast<HWND>(winId());
+    LONG style = GetWindowLong(hwnd, GWL_STYLE);
+    style |= WS_THICKFRAME | WS_CAPTION | WS_MAXIMIZEBOX | WS_MINIMIZEBOX;
+    SetWindowLong(hwnd, GWL_STYLE, style);
+
+    SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
+        SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+
+    MARGINS margins = {1, 1, 1, 1};
+    DwmExtendFrameIntoClientArea(hwnd, &margins);
+}
+
 bool AuraShellWindow::nativeEvent(const QByteArray& /*eventType*/, void* message, qintptr* result) {
     auto* msg = static_cast<MSG*>(message);
 
@@ -313,38 +315,55 @@ bool AuraShellWindow::nativeEvent(const QByteArray& /*eventType*/, void* message
     }
 
     if (msg->message == WM_NCHITTEST) {
-        if (!isMaximized()) {
-            // Use client-relative coordinates to avoid DWM invisible shadow
-            // offset. GetWindowRect on Win11+DWM includes ~7px of invisible
-            // shadow — ScreenToClient + GetClientRect eliminates that entirely.
-            const HWND hwnd = reinterpret_cast<HWND>(winId());
-            POINT pt = { GET_X_LPARAM(msg->lParam), GET_Y_LPARAM(msg->lParam) };
-            ScreenToClient(hwnd, &pt);
-            RECT rc;
-            GetClientRect(hwnd, &rc);
-
-            const int border = qMax(6, static_cast<int>(8.0 * devicePixelRatioF()));
-
-            const bool left   = pt.x < border;
-            const bool right  = pt.x >= rc.right - border;
-            const bool top    = pt.y < border;
-            const bool bottom = pt.y >= rc.bottom - border;
-
-            if (top && left)      { *result = HTTOPLEFT;     return true; }
-            if (top && right)     { *result = HTTOPRIGHT;    return true; }
-            if (bottom && left)   { *result = HTBOTTOMLEFT;  return true; }
-            if (bottom && right)  { *result = HTBOTTOMRIGHT; return true; }
-            if (left)             { *result = HTLEFT;        return true; }
-            if (right)            { *result = HTRIGHT;       return true; }
-            if (top)              { *result = HTTOP;         return true; }
-            if (bottom)           { *result = HTBOTTOM;      return true; }
+        // Let DWM handle first (snap layouts, caption buttons on Win11).
+        LRESULT dwm_result = 0;
+        if (DwmDefWindowProc(msg->hwnd, msg->message, msg->wParam, msg->lParam, &dwm_result)) {
+            *result = static_cast<qintptr>(dwm_result);
+            return true;
         }
 
-        // Always handle — never let Qt override with HTCLIENT
+        if (isMaximized()) {
+            *result = HTCLIENT;
+            return true;
+        }
+
+        // Screen coords from lParam + GetWindowRect — the reliable pattern.
+        // ScreenToClient+GetClientRect has coord-space mismatches with DWM
+        // shadow on Win11. All production frameless apps use screen coords.
+        const POINT pt = { GET_X_LPARAM(msg->lParam), GET_Y_LPARAM(msg->lParam) };
+        RECT rc;
+        GetWindowRect(msg->hwnd, &rc);
+
+        const int border = qMax(6, static_cast<int>(8.0 * devicePixelRatioF()));
+
+        const bool left   = (pt.x >= rc.left   && pt.x < rc.left   + border);
+        const bool right  = (pt.x <  rc.right  && pt.x >= rc.right  - border);
+        const bool top    = (pt.y >= rc.top    && pt.y < rc.top    + border);
+        const bool bottom = (pt.y <  rc.bottom && pt.y >= rc.bottom - border);
+
+        if (top && left)      { *result = HTTOPLEFT;     return true; }
+        if (top && right)     { *result = HTTOPRIGHT;    return true; }
+        if (bottom && left)   { *result = HTBOTTOMLEFT;  return true; }
+        if (bottom && right)  { *result = HTBOTTOMRIGHT; return true; }
+        if (left)             { *result = HTLEFT;        return true; }
+        if (right)            { *result = HTRIGHT;       return true; }
+        if (top)              { *result = HTTOP;         return true; }
+        if (bottom)           { *result = HTBOTTOM;      return true; }
+
         *result = HTCLIENT;
         return true;
     }
     return false;
+}
+
+void AuraShellWindow::showEvent(QShowEvent* event) {
+    QMainWindow::showEvent(event);
+    // Qt 6.8+ can reset window styles after construction — re-apply on
+    // first show via deferred timer so it survives any Qt style fixup.
+    if (!show_style_applied_) {
+        show_style_applied_ = true;
+        QTimer::singleShot(0, this, [this]() { apply_win32_frame_style(); });
+    }
 }
 #endif
 
