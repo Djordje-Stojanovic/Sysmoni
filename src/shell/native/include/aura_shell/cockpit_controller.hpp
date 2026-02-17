@@ -101,6 +101,12 @@ private:
     std::vector<AnalyticsSnapshot> snapshot_buffer_;
     std::size_t ticks_since_analytics_{0};
     bool smoothing_enabled_{false};
+
+    // Cached analytics results — persisted across non-analytics ticks
+    HealthScoreState cached_health_;
+    TrendDirection cached_cpu_trend_{TrendDirection::Stable};
+    TrendDirection cached_memory_trend_{TrendDirection::Stable};
+    std::vector<ActiveAlert> cached_alerts_;
 };
 
 }  // namespace aura::shell

@@ -43,6 +43,7 @@
 #include <QQuickWidget>
 #include <QScreen>
 #include <QSizePolicy>
+#include <QSplitter>
 #include <QStackedWidget>
 #include <QTabBar>
 #include <QTimer>
@@ -215,27 +216,34 @@ AuraShellWindow::AuraShellWindow(const LaunchConfig& config, QWidget* parent)
     root_layout->addWidget(titlebar_);
 
     // ---------------------------------------------------------------
-    // Main body — three dock slots
+    // Main body — three dock slots with resizable splitter
     // ---------------------------------------------------------------
     body_ = new QWidget(root);
     body_->setAutoFillBackground(false);
-    auto* body_layout = new QHBoxLayout(body_);
+    auto* body_layout = new QVBoxLayout(body_);
     body_layout->setContentsMargins(
         current_metrics_.body_margin, current_metrics_.body_margin,
         current_metrics_.body_margin, current_metrics_.body_margin);
-    body_layout->setSpacing(current_metrics_.body_spacing);
+    body_layout->setSpacing(0);
+
+    splitter_ = new QSplitter(Qt::Horizontal, body_);
+    splitter_->setHandleWidth(current_metrics_.body_spacing > 0 ? current_metrics_.body_spacing : 6);
+    splitter_->setChildrenCollapsible(false);
 
     for (const auto slot : all_dock_slots()) {
         const std::size_t index = slot_index(slot);
-        slot_widgets_[index] = build_slot(slot, body_);
+        slot_widgets_[index] = build_slot(slot, splitter_);
         connect(slot_widgets_[index].tab_bar, &QTabBar::currentChanged, this, [this, slot](const int tab_index) {
             on_tab_changed(slot, tab_index);
         });
-        body_layout->addWidget(
-            slot_widgets_[index].frame,
-            slot == DockSlot::Center ? 3 : 1
-        );
+        splitter_->addWidget(slot_widgets_[index].frame);
     }
+
+    // Set initial sizes proportional to 1:3:1
+    const int total_w = width() - 2 * current_metrics_.body_margin;
+    splitter_->setSizes({total_w / 5, total_w * 3 / 5, total_w / 5});
+
+    body_layout->addWidget(splitter_, 1);
 
     build_panel_pages();
     rebuild_dock_slots();
@@ -269,8 +277,8 @@ AuraShellWindow::AuraShellWindow(const LaunchConfig& config, QWidget* parent)
     apply_theme(current_theme_mode_, false);
     refresh_cockpit();
 
-    // Install app-level event filter so edge resize works even over child widgets
-    qApp->installEventFilter(this);
+    // Note: titlebar event filter already installed above for drag handling.
+    // Window resize is handled natively via WM_NCHITTEST — no Qt-level filter needed.
 }
 
 #ifdef _WIN32
@@ -321,35 +329,7 @@ bool AuraShellWindow::nativeEvent(const QByteArray& /*eventType*/, void* message
 #endif
 
 bool AuraShellWindow::eventFilter(QObject* watched, QEvent* event) {
-    // Intercept mouse events from ANY child widget near window edges for resize
-    if (!isMaximized() && event->type() == QEvent::MouseButtonPress) {
-        auto* me = static_cast<QMouseEvent*>(event);
-        if (me->button() == Qt::LeftButton) {
-            const QPoint win_pos = mapFromGlobal(me->globalPosition().toPoint());
-            const Qt::Edges edges = hit_test_edge(win_pos);
-            if (edges != Qt::Edges{} && windowHandle()) {
-                windowHandle()->startSystemResize(edges);
-                return true;
-            }
-        }
-    }
-    if (!isMaximized() && event->type() == QEvent::MouseMove) {
-        auto* me = static_cast<QMouseEvent*>(event);
-        const QPoint win_pos = mapFromGlobal(me->globalPosition().toPoint());
-        const Qt::Edges edge = hit_test_edge(win_pos);
-        if (edge == (Qt::LeftEdge | Qt::TopEdge) || edge == (Qt::RightEdge | Qt::BottomEdge))
-            setCursor(Qt::SizeFDiagCursor);
-        else if (edge == (Qt::RightEdge | Qt::TopEdge) || edge == (Qt::LeftEdge | Qt::BottomEdge))
-            setCursor(Qt::SizeBDiagCursor);
-        else if (edge & (Qt::LeftEdge | Qt::RightEdge))
-            setCursor(Qt::SizeHorCursor);
-        else if (edge & (Qt::TopEdge | Qt::BottomEdge))
-            setCursor(Qt::SizeVerCursor);
-        else
-            unsetCursor();
-    }
-
-    // Titlebar drag + double-click
+    // Titlebar drag + double-click (resize is handled natively via WM_NCHITTEST)
     if (watched == titlebar_) {
         if (event->type() == QEvent::MouseButtonPress) {
             auto* mouse_event = static_cast<QMouseEvent*>(event);
@@ -379,35 +359,10 @@ bool AuraShellWindow::eventFilter(QObject* watched, QEvent* event) {
 }
 
 void AuraShellWindow::mousePressEvent(QMouseEvent* event) {
-    if (event->button() == Qt::LeftButton && !isMaximized()) {
-        const Qt::Edges edges = hit_test_edge(event->pos());
-        if (edges != Qt::Edges{}) {
-            // Use native OS resize — works even when child widgets eat events
-            if (windowHandle()) {
-                windowHandle()->startSystemResize(edges);
-            }
-            event->accept();
-            return;
-        }
-    }
     QMainWindow::mousePressEvent(event);
 }
 
 void AuraShellWindow::mouseMoveEvent(QMouseEvent* event) {
-    // Update cursor shape on hover near edges
-    if (!isMaximized()) {
-        const Qt::Edges edge = hit_test_edge(event->pos());
-        if (edge == (Qt::LeftEdge | Qt::TopEdge) || edge == (Qt::RightEdge | Qt::BottomEdge))
-            setCursor(Qt::SizeFDiagCursor);
-        else if (edge == (Qt::RightEdge | Qt::TopEdge) || edge == (Qt::LeftEdge | Qt::BottomEdge))
-            setCursor(Qt::SizeBDiagCursor);
-        else if (edge & (Qt::LeftEdge | Qt::RightEdge))
-            setCursor(Qt::SizeHorCursor);
-        else if (edge & (Qt::TopEdge | Qt::BottomEdge))
-            setCursor(Qt::SizeVerCursor);
-        else
-            unsetCursor();
-    }
     QMainWindow::mouseMoveEvent(event);
 }
 
@@ -422,13 +377,14 @@ void AuraShellWindow::resizeEvent(QResizeEvent* event) {
         current_size_category_ = new_cat;
         current_metrics_ = metrics_for_category(new_cat);
         setStyleSheet(build_app_stylesheet(current_theme_mode_, current_metrics_));
-        if (body_ != nullptr) {
-            if (auto* bl = body_->layout()) {
-                bl->setContentsMargins(
-                    current_metrics_.body_margin, current_metrics_.body_margin,
-                    current_metrics_.body_margin, current_metrics_.body_margin);
-                bl->setSpacing(current_metrics_.body_spacing);
-            }
+        if (body_ != nullptr && body_->layout() != nullptr) {
+            body_->layout()->setContentsMargins(
+                current_metrics_.body_margin, current_metrics_.body_margin,
+                current_metrics_.body_margin, current_metrics_.body_margin);
+        }
+        if (splitter_ != nullptr) {
+            splitter_->setHandleWidth(
+                current_metrics_.body_spacing > 0 ? current_metrics_.body_spacing : 6);
         }
         // Update slot internal padding to match new category
         for (const auto slot : all_dock_slots()) {
@@ -440,15 +396,6 @@ void AuraShellWindow::resizeEvent(QResizeEvent* event) {
             }
         }
     }
-}
-
-Qt::Edges AuraShellWindow::hit_test_edge(const QPoint& pos) const {
-    Qt::Edges edges;
-    if (pos.x() < kResizeBorder)                edges |= Qt::LeftEdge;
-    if (pos.x() >= width() - kResizeBorder)     edges |= Qt::RightEdge;
-    if (pos.y() < kResizeBorder)                edges |= Qt::TopEdge;
-    if (pos.y() >= height() - kResizeBorder)    edges |= Qt::BottomEdge;
-    return edges;
 }
 
 void AuraShellWindow::sync_theme_to_qml() {
@@ -555,11 +502,11 @@ SlotWidgets AuraShellWindow::build_slot(const DockSlot slot, QWidget* parent) {
     zone_label->setObjectName("slotZoneLabel");
     zone_label->setContentsMargins(12, 0, 0, 2);
 
-    // Tab bar sits flush below the zone label
+    // Tab bar sits flush below the zone label — movable for reordering
     auto* tab_bar = new QTabBar(frame);
     tab_bar->setDocumentMode(true);
     tab_bar->setExpanding(false);
-    tab_bar->setMovable(false);
+    tab_bar->setMovable(true);
     tab_bar->setUsesScrollButtons(true);
     tab_bar->setDrawBase(false);
     tab_bar->setContentsMargins(8, 0, 8, 0);
