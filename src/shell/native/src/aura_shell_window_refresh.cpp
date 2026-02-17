@@ -9,6 +9,12 @@
 #include <cstdlib>
 #include <string>
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#endif
+
 namespace aura::shell {
 
 void AuraShellWindow::refresh_cockpit() {
@@ -81,11 +87,22 @@ void AuraShellWindow::refresh_cockpit() {
 
     // Refresh process list model
     if (process_model_ != nullptr && telemetry_bridge_raw_ != nullptr) {
-        // Default to 16 GB as baseline; the memory_percent bar in QML
-        // uses per-row bytes so this is only for the relative bar sizing
-        constexpr std::uint64_t kDefaultTotalMemory = 16ULL * 1024 * 1024 * 1024;
-        const std::uint64_t total_memory_estimate = kDefaultTotalMemory;
-        process_model_->refresh(telemetry_bridge_raw_, total_memory_estimate);
+        // Bug #4: use actual installed RAM instead of hardcoded 16 GB.
+        // GlobalMemoryStatusEx is ~microseconds; the == 0 guard makes it one-shot.
+        if (total_physical_memory_bytes_ == 0) {
+#ifdef _WIN32
+            MEMORYSTATUSEX mem_status{};
+            mem_status.dwLength = sizeof(mem_status);
+            if (GlobalMemoryStatusEx(&mem_status)) {
+                total_physical_memory_bytes_ = mem_status.ullTotalPhys;
+            }
+#endif
+            if (total_physical_memory_bytes_ == 0) {
+                // Safe fallback if API call fails or non-Windows build
+                total_physical_memory_bytes_ = 16ULL * 1024 * 1024 * 1024;
+            }
+        }
+        process_model_->refresh(telemetry_bridge_raw_, total_physical_memory_bytes_);
     }
 
     // Bridge theme to process QML root
@@ -148,6 +165,10 @@ void AuraShellWindow::refresh_cockpit() {
         root->setProperty("qualityHint", state.quality_hint);
         root->setProperty("timelineAnomalyAlpha", state.style_tokens.timeline_anomaly_alpha);
         root->setProperty("statusText", QString::fromStdString(state.status_line));
+        // Bug #6: let QML pause aurora/shimmer timers when panel is off-screen.
+        // quick_->isVisible() returns false when a different tab is selected in
+        // the QStackedWidget, so no extra bookkeeping is needed here.
+        root->setProperty("panelVisible", quick_->isVisible());
 
         // Per-core CPU
         QVariantList core_list;
@@ -325,9 +346,10 @@ void AuraShellWindow::refresh_cockpit() {
         }
     }
 
-    if (update_timer_ != nullptr) {
-        current_interval_seconds_ = static_cast<double>(update_timer_->interval()) / 1000.0;
-    }
+    // Bug #13: removed dead read-back of update_timer_->interval().
+    // current_interval_seconds_ is set once at construction from config and
+    // never needs to be re-read from the timer — the timer doesn't change its
+    // own interval, so this was a no-op on every tick.
 }
 
 }  // namespace aura::shell

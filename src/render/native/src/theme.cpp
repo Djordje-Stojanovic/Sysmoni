@@ -144,25 +144,22 @@ RgbColor interpolate_gauge_color(double percent) {
     static const RgbColor kAmber = {0xf5, 0x9e, 0x0b};  // #f59e0b
     static const RgbColor kRed   = {0xef, 0x44, 0x44};  // #ef4444
 
-    // Segment boundaries
-    // [0, 40)   : flat blue
-    // [40, 70)  : blue -> cyan
-    // [70, 85)  : cyan -> amber
-    // [85, 100] : amber -> red
+    // Bug #14: old segments had a flat [0,40] blue zone — QML used a continuous
+    // gradient from 0%.  Synced to match QML CockpitScene.qml segmentation:
+    //   [0,  50) : blue  → cyan   (continuous from idle)
+    //   [50, 80) : cyan  → amber
+    //   [80, 100]: amber → red
 
-    if (percent <= 40.0) {
-        return kBlue;
-    }
-    if (percent <= 70.0) {
-        const double t = (percent - 40.0) / 30.0;  // [0,1] over [40,70]
+    if (percent <= 50.0) {
+        const double t = percent / 50.0;              // [0,1] over [0,50]
         return blend_rgb(kBlue, kCyan, t);
     }
-    if (percent <= 85.0) {
-        const double t = (percent - 70.0) / 15.0;  // [0,1] over [70,85]
+    if (percent <= 80.0) {
+        const double t = (percent - 50.0) / 30.0;    // [0,1] over [50,80]
         return blend_rgb(kCyan, kAmber, t);
     }
-    // (85, 100]
-    const double t = (percent - 85.0) / 15.0;  // [0,1] over [85,100]
+    // (80, 100]
+    const double t = (percent - 80.0) / 20.0;        // [0,1] over [80,100]
     return blend_rgb(kAmber, kRed, t);
 }
 

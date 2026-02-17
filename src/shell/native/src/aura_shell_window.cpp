@@ -652,7 +652,16 @@ void DragTabBar::mouseMoveEvent(QMouseEvent* event) {
             drag->setHotSpot(QPoint(20, 16));
         }
 
+        // Bug #17: QDrag::exec() runs a nested event loop that blocks the
+        // update_timer_ for the entire drag.  Stop/restart around exec() so
+        // a long drag doesn't queue stale ticks or corrupt controller state.
+        if (window_->update_timer_ != nullptr) {
+            window_->update_timer_->stop();
+        }
         drag->exec(Qt::MoveAction);
+        if (window_->update_timer_ != nullptr) {
+            window_->update_timer_->start();
+        }
         drag_tab_index_ = -1;
         return;
     }

@@ -15,7 +15,8 @@ namespace {
 
 constexpr int kDefaultTargetFps = 60;
 constexpr int kDefaultMaxCatchupFrames = 4;
-constexpr double kDefaultPulseHz = 0.5;
+// Bug #16: unified pulse rate — matches render_bridge.cpp (0.35 Hz ≈ 2.9s cycle).
+constexpr double kDefaultPulseHz = 0.35;
 
 struct TrendState {
     bool initialized{false};
@@ -23,7 +24,10 @@ struct TrendState {
     double previous_memory_percent{0.0};
 };
 
-thread_local TrendState g_trend_state{};
+// Bug #12: was thread_local — each thread got independent slope state, breaking
+// cross-thread trend detection.  A single module-static is correct: there is
+// one logical telemetry sequence regardless of which thread calls this function.
+TrendState g_trend_state{};
 
 FrameDiscipline resolve_discipline(const QtRenderFrameInput& input) {
     return FrameDiscipline{
@@ -46,14 +50,21 @@ double resolve_elapsed(double value) {
     return value;
 }
 
+// Bug #11: cpu and memory alpha were identical — both used linear [0.20, 0.95].
+// CPU spikes are transient and alarming: sqrt curve makes low-mid load visible
+// immediately (10% CPU → alpha 0.37 vs 0.175 with old linear).
+// Memory fills gradually and persists: higher floor (always somewhat "in use"),
+// gentler linear slope so it doesn't scream when 8 tabs of Chrome are open.
 double compute_cpu_alpha(double cpu_percent) {
     const double ratio = sanitize_percent(cpu_percent) / 100.0;
-    return clamp_unit(0.20 + (ratio * 0.75));
+    // sqrt curve: idle (0%) = 0.10, full load (100%) = 0.95
+    return clamp_unit(0.10 + (std::sqrt(ratio) * 0.85));
 }
 
 double compute_memory_alpha(double memory_percent) {
     const double ratio = sanitize_percent(memory_percent) / 100.0;
-    return clamp_unit(0.20 + (ratio * 0.75));
+    // linear: idle (0%) = 0.30, full load (100%) = 0.92
+    return clamp_unit(0.30 + (ratio * 0.62));
 }
 
 double resolve_elapsed_positive(double value) {
