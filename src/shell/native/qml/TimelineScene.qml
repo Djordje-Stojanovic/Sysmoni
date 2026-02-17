@@ -51,12 +51,33 @@ Rectangle {
     readonly property bool hasData: timelinePoints.length >= 2
 
     // ── Dynamic Y-axis range (auto-scaled per visible series) ────────────
+    // Bug #8: was writing raw computed values directly to chartYMin/chartYMax
+    // inside onPaint, causing 300ms animations to restart every 1s tick and
+    // producing a continuous jitter instead of settling on a stable range.
+    // Fix: separate raw targets from animated values; apply 5pp hysteresis so
+    // minor load fluctuations never trigger the animation at all; slow the
+    // easing to 800ms with OutExpo so genuine range changes settle smoothly.
     property real chartYMin: 0
     property real chartYMax: 100
+    property real chartYMinTarget: 0
+    property real chartYMaxTarget: 100
     property var yAxisTicks: [0, 25, 50, 75, 100]
 
-    Behavior on chartYMin { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-    Behavior on chartYMax { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+    Behavior on chartYMin { NumberAnimation { duration: 800; easing.type: Easing.OutExpo } }
+    Behavior on chartYMax { NumberAnimation { duration: 800; easing.type: Easing.OutExpo } }
+
+    // Update Y range with hysteresis: only animate if target shifts > 5 pp.
+    function updateYRange(newMin, newMax) {
+        var kHysteresis = 5.0
+        if (Math.abs(newMin - root.chartYMinTarget) > kHysteresis) {
+            root.chartYMinTarget = newMin
+            root.chartYMin = newMin
+        }
+        if (Math.abs(newMax - root.chartYMaxTarget) > kHysteresis) {
+            root.chartYMaxTarget = newMax
+            root.chartYMax = newMax
+        }
+    }
 
     // ── Resolution-agnostic helpers ──────────────────────────────────────────
     // All text sizes derive from root height. Clamp to stay readable at any
@@ -444,9 +465,8 @@ Rectangle {
                 if (yMax > 100) { yMax = 100; yMin = 90 }
             }
 
-            // Publish to root properties (drives Y-axis labels + Behavior animations)
-            root.chartYMin = yMin
-            root.chartYMax = yMax
+            // Publish to root properties via hysteresis guard (Bug #8 fix)
+            root.updateYRange(yMin, yMax)
             var yRange = yMax - yMin
 
             // Build tick marks: 5 evenly spaced values

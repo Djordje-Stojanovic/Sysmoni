@@ -145,6 +145,9 @@ private:
     std::array<QLabel*, 5> panel_title_labels_{};
     bool dragging_{false};
     QPoint drag_origin_{};
+    // Bug #4: cached at first refresh via GlobalMemoryStatusEx — total RAM is
+    // a static hardware fact, not worth querying every tick.
+    std::uint64_t total_physical_memory_bytes_{0};
 #ifdef _WIN32
     bool show_style_applied_{false};
 #endif

@@ -43,6 +43,9 @@ Rectangle {
     property string statusText: "Waiting for telemetry..."
     property string themeMode: "dark_blue"
     property bool pinkMode: themeMode === "pink_cute"
+    // Bug #6: set by C++ via refresh_cockpit → false when another tab is active,
+    // which pauses aurora/shimmer timers to avoid wasted GPU/CPU work.
+    property bool panelVisible: true
     property bool hasCpuSample: false
     property bool hasMemSample: false
 
@@ -208,11 +211,24 @@ Rectangle {
     }
 
     // Shimmer phase for holographic gauge arcs (pink mode)
+    // Bug #5: was NumberAnimation running at 60fps, triggering onShimmerPhaseChanged
+    // on every frame and causing 60 full Canvas 2D redraws/s on all gauge arcs.
+    // Replaced with a 30fps Timer that manually advances the phase; the per-canvas
+    // onShimmerPhaseChanged connections already call requestPaint() so no change
+    // needed there.  0.011 per tick @ 30fps ≈ 3s full sweep (original 3000ms).
     property real shimmerPhase: 0
-    NumberAnimation on shimmerPhase {
-        running: root.pinkMode && root.motionScale >= 0.05
-        from: 0; to: 1; duration: 3000
-        loops: Animation.Infinite
+
+    Timer {
+        id: shimmerTimer
+        running: root.pinkMode && root.motionScale >= 0.05 && root.panelVisible
+        interval: 33   // ~30 fps
+        repeat: true
+        onTriggered: {
+            root.shimmerPhase = (root.shimmerPhase + 0.011) % 1.0
+        }
+        onRunningChanged: {
+            if (!running) root.shimmerPhase = 0
+        }
     }
 
     // ── Derived accent color helpers ─────────────────────────────────────────
@@ -603,14 +619,17 @@ Rectangle {
         z: 0
 
         property real phase: 0
+        // Bug #6: add panelVisible guard — aurora timer and animation
+        // were firing even when a different tab was selected in the dock,
+        // wasting CPU/GPU on a canvas that wasn't being rendered.
         NumberAnimation on phase {
-            running: root.pinkMode && root.motionScale >= 0.05
+            running: root.pinkMode && root.motionScale >= 0.05 && root.panelVisible
             from: 0; to: Math.PI * 2; duration: 20000
             loops: Animation.Infinite
         }
 
         Timer {
-            running: root.pinkMode && root.motionScale >= 0.05
+            running: root.pinkMode && root.motionScale >= 0.05 && root.panelVisible
             interval: 80
             repeat: true
             onTriggered: auroraCanvas.requestPaint()
