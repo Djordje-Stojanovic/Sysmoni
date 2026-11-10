@@ -1,5 +1,7 @@
 # Aura
 
+**State:** stopped. The app is called Aura inside the code. The last commit was on 2026-02-17 (frontend fixes); archived on GitHub on 2026-06-05 (read-only; un-archive it in Settings to work on it again).
+
 Windows-native system monitor. C++20, Qt6, real-time telemetry cockpit.
 
 ## Get Running in 3 Steps
